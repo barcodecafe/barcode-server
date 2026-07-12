@@ -39,6 +39,8 @@ const orderSchema = new Schema<IOrder>(
     discount: { type: Number, default: 0 },
     pointsRedeemed: { type: Number, default: 0 }, // loyalty pts spent (1 pt = ৳1)
     pointsEarned: { type: Number, default: 0 }, // loyalty pts credited on delivery
+    deliveryArea: { type: String, default: '' }, // ডেলিভারি অঞ্চল (charge এর ভিত্তি)
+    deliveryCharge: { type: Number, default: 0 }, // region-ভিত্তিক charge
     total: { type: Number, required: true },
     couponCode: { type: String, default: '' },
     status: { type: String, enum: ORDER_STATUSES, default: 'Placed' },

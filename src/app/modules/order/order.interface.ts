@@ -48,6 +48,8 @@ export interface IOrder {
   discount: number;
   pointsRedeemed?: number; // loyalty points spent on this order (1 pt = ৳1 off)
   pointsEarned?: number; // loyalty points credited on delivery (৳100 = 5 pts)
+  deliveryArea?: string; // এই অর্ডারের ডেলিভারি অঞ্চল (charge এর ভিত্তি)
+  deliveryCharge: number; // region-ভিত্তিক ডেলিভারি চার্জ (পরে #13-এ distance-based হবে)
   total: number;
   couponCode?: string;
   status: OrderStatus;

@@ -5,6 +5,7 @@ import { Food } from '../food/food.model';
 import { User } from '../user/user.model';
 import { FoodService } from '../food/food.service';
 import { CouponService } from '../coupon/coupon.service';
+import { getDeliveryCharge } from './delivery.config';
 import { IChatMessage, OrderStatus, ORDER_STATUSES } from './order.interface';
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
@@ -14,6 +15,9 @@ type CreatePayload = {
   items: CreateItem[];
   couponCode?: string;
   pointsToRedeem?: number;
+  deliveryArea?: string;
+  deliveryAddress?: string;
+  deliveryPhone?: string;
   branchId: number;
   paymentMethod?: string;
 };
@@ -91,7 +95,13 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     pointsRedeemed = Math.min(requestedPts, available, maxByBill);
   }
 
-  const total = round2(subtotal - discount - pointsRedeemed);
+  // 4) ডেলিভারি — per-order details (fallback: profile), region-ভিত্তিক charge সার্ভারই ঠিক করে
+  const deliveryPhone = (payload.deliveryPhone ?? user.phone ?? '').toString().trim();
+  const deliveryAddress = (payload.deliveryAddress ?? user.address ?? '').toString().trim();
+  const deliveryArea = (payload.deliveryArea ?? user.pickArea ?? '').toString().trim();
+  const deliveryCharge = round2(getDeliveryCharge(deliveryArea));
+
+  const total = round2(subtotal - discount - pointsRedeemed + deliveryCharge);
 
   // অর্ডার তৈরি — status/paymentStatus সার্ভার নিয়ন্ত্রিত (client "Paid" পাঠাতে পারবে না)
   const initialMessage: IChatMessage = {
@@ -106,15 +116,17 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       id: String(user._id),
       name: user.name,
       email: user.email,
-      phone: user.phone || '',
-      pickArea: user.pickArea || '',
-      address: user.address || '',
+      phone: deliveryPhone,
+      pickArea: deliveryArea,
+      address: deliveryAddress,
     },
     items: lineItems,
     subtotal,
     discount,
     pointsRedeemed,
     pointsEarned: 0, // delivery-তে credit হবে
+    deliveryArea,
+    deliveryCharge,
     total,
     couponCode,
     status: 'Placed',
