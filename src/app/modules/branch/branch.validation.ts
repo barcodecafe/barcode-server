@@ -13,6 +13,8 @@ export const createBranchValidationSchema = z.object({
     manager: z.string().optional(),
     capacity: z.coerce.number().optional(),
     features,
+    lat: z.number().min(-90).max(90).nullable().optional(),
+    lng: z.number().min(-180).max(180).nullable().optional(),
   }),
 });
 
@@ -27,5 +29,7 @@ export const updateBranchValidationSchema = z.object({
     manager: z.string().optional(),
     capacity: z.coerce.number().optional(),
     features,
+    lat: z.number().min(-90).max(90).nullable().optional(),
+    lng: z.number().min(-180).max(180).nullable().optional(),
   }),
 });

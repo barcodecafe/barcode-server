@@ -54,6 +54,8 @@ const createBranchService = async (payload: any) => {
     manager: payload.manager || 'Branch Manager',
     capacity: Number(payload.capacity) || 120,
     features: normalizeFeatures(payload.features) || [],
+    lat: typeof payload.lat === 'number' ? payload.lat : null,
+    lng: typeof payload.lng === 'number' ? payload.lng : null,
   });
 };
 
@@ -69,6 +71,8 @@ const updateBranchService = async (id: string | number, payload: any) => {
   if (payload.capacity !== undefined) branch.capacity = Number(payload.capacity) || 120;
   const feats = normalizeFeatures(payload.features);
   if (feats !== undefined) branch.features = feats;
+  if (payload.lat !== undefined) branch.lat = typeof payload.lat === 'number' ? payload.lat : null;
+  if (payload.lng !== undefined) branch.lng = typeof payload.lng === 'number' ? payload.lng : null;
 
   await branch.save();
   return branch;

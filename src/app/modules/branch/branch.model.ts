@@ -13,6 +13,8 @@ const branchSchema = new Schema<IBranch>(
     manager: { type: String, default: 'Branch Manager' },
     capacity: { type: Number, default: 120 },
     features: { type: [String], default: [] },
+    lat: { type: Number, default: null }, // map latitude
+    lng: { type: Number, default: null }, // map longitude
   },
   {
     timestamps: true,

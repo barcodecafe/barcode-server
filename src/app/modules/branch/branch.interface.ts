@@ -9,6 +9,8 @@ export interface IBranch {
   manager: string;
   capacity: number;
   features: string[];
+  lat?: number | null; // map latitude
+  lng?: number | null; // map longitude
   createdAt?: Date;
   updatedAt?: Date;
 }
