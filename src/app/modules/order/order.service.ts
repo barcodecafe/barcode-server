@@ -13,11 +13,15 @@ type CreateItem = { id: number; quantity: number; selectedSize?: string | null }
 type CreatePayload = {
   items: CreateItem[];
   couponCode?: string;
+  pointsToRedeem?: number;
   branchId: number;
   paymentMethod?: string;
 };
 
-// ── POST /orders — সার্ভারই দাম/কুপন/স্টক হিসাব করে; client-এর টাকা উপেক্ষা করা হয় ──
+// লয়্যালটি — বিলের ৳100 এ 5 পয়েন্ট (subtotal-ভিত্তিক), 1 পয়েন্ট = ৳1 ছাড়
+const pointsForSubtotal = (subtotal: number) => Math.floor((Number(subtotal) || 0) / 100) * 5;
+
+// ── POST /orders — সার্ভারই দাম/কুপন/পয়েন্ট হিসাব করে; client-এর টাকা উপেক্ষা করা হয় ──
 const createOrderService = async (userId: string, payload: CreatePayload) => {
   const user = await User.findById(userId);
   if (!user) {
@@ -78,7 +82,16 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     couponCode = coupon.code;
   }
 
-  const total = round2(subtotal - discount);
+  // 3) লয়্যালটি পয়েন্ট redeem — 1 pt = ৳1, balance ও (subtotal − discount) এর বেশি নয়
+  let pointsRedeemed = 0;
+  const requestedPts = Math.max(0, Math.floor(Number(payload.pointsToRedeem) || 0));
+  if (requestedPts > 0) {
+    const available = Math.max(0, Math.floor(Number(user.points) || 0));
+    const maxByBill = Math.max(0, Math.floor(subtotal - discount));
+    pointsRedeemed = Math.min(requestedPts, available, maxByBill);
+  }
+
+  const total = round2(subtotal - discount - pointsRedeemed);
 
   // অর্ডার তৈরি — status/paymentStatus সার্ভার নিয়ন্ত্রিত (client "Paid" পাঠাতে পারবে না)
   const initialMessage: IChatMessage = {
@@ -100,6 +113,8 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     items: lineItems,
     subtotal,
     discount,
+    pointsRedeemed,
+    pointsEarned: 0, // delivery-তে credit হবে
     total,
     couponCode,
     status: 'Placed',
@@ -109,6 +124,11 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     transactionId: '',
     chatHistory: [initialMessage],
   });
+
+  // redeem করা পয়েন্ট user balance থেকে কাটা (atomic — race-safe)
+  if (pointsRedeemed > 0) {
+    await User.findByIdAndUpdate(user._id, { $inc: { points: -pointsRedeemed } });
+  }
 
   return order;
 };
@@ -152,6 +172,7 @@ const updateOrderStatusService = async (id: string, rawStatus: string) => {
     err.status = 404;
     throw err;
   }
+  const oldStatus = order.status; // loyalty settlement একবারই চালানোর জন্য
 
   let newStatus = (LEGACY_MAP[rawStatus] || rawStatus) as OrderStatus;
   if (!ORDER_STATUSES.includes(newStatus)) {
@@ -170,6 +191,20 @@ const updateOrderStatusService = async (id: string, rawStatus: string) => {
   }
 
   order.status = newStatus;
+
+  // ── লয়্যালটি settlement (oldStatus guard-এ একবারই) ──
+  // Delivered → subtotal-ভিত্তিক পয়েন্ট credit (৳100 = 5 pts)
+  if (newStatus === 'Delivered' && oldStatus !== 'Delivered' && !order.pointsEarned) {
+    const earned = pointsForSubtotal(order.subtotal);
+    if (earned > 0) {
+      order.pointsEarned = earned;
+      await User.findByIdAndUpdate(order.user.id, { $inc: { points: earned } });
+    }
+  }
+  // Rejected → redeem করা পয়েন্ট ফেরত (order বাতিল হলে user যেন পয়েন্ট না হারায়)
+  if (newStatus === 'Rejected' && oldStatus !== 'Rejected' && (order.pointsRedeemed || 0) > 0) {
+    await User.findByIdAndUpdate(order.user.id, { $inc: { points: order.pointsRedeemed } });
+  }
 
   // system chat message
   const riderName = order.riderName || 'Your rider';

@@ -25,6 +25,7 @@ const userSchema = new Schema<IUser>(
       default: 'none',
     },
     favorites: { type: [Number], default: [] },
+    points: { type: Number, default: 0, min: 0 }, // loyalty balance — visible to every user
     isDeleted: { type: Boolean, default: false },
   },
   {

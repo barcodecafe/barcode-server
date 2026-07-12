@@ -15,6 +15,7 @@ export interface IUser {
   // approval gate for rider signup: pending → admin approves/rejects
   riderApprovalStatus?: 'none' | 'pending' | 'approved' | 'rejected';
   favorites?: number[]; // per-user favorite food ids (audit #23 fix)
+  points?: number; // loyalty reward points balance (৳100 spent = 5 pts; 1 pt = ৳1 discount)
   isDeleted?: boolean;
   createdAt?: Date;
   updatedAt?: Date;

@@ -37,6 +37,8 @@ const orderSchema = new Schema<IOrder>(
     items: { type: [orderItemSchema], required: true },
     subtotal: { type: Number, required: true },
     discount: { type: Number, default: 0 },
+    pointsRedeemed: { type: Number, default: 0 }, // loyalty pts spent (1 pt = ৳1)
+    pointsEarned: { type: Number, default: 0 }, // loyalty pts credited on delivery
     total: { type: Number, required: true },
     couponCode: { type: String, default: '' },
     status: { type: String, enum: ORDER_STATUSES, default: 'Placed' },

@@ -13,6 +13,7 @@ export const createOrderValidationSchema = z.object({
       .min(1, 'Order must contain at least one item'),
     branchId: z.coerce.number().refine((n) => n > 0, 'A valid branchId is required'),
     couponCode: z.string().optional(),
+    pointsToRedeem: z.coerce.number().int().min(0).optional(), // loyalty redeem (1 pt = ৳1)
     paymentMethod: z.string().optional(),
   }),
 });
