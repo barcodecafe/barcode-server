@@ -55,12 +55,6 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       err.status = 400;
       throw err;
     }
-    const stock = FoodService.getBranchStock(food, branchId);
-    if (stock < qty) {
-      const err: any = new Error(`Insufficient stock for "${food.name}" (available ${stock}).`);
-      err.status = 409;
-      throw err;
-    }
     const unitPrice = round2(FoodService.getUnitPrice(food, branchId, raw.selectedSize));
     subtotal += unitPrice * qty;
     lineItems.push({
@@ -86,12 +80,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
 
   const total = round2(subtotal - discount);
 
-  // 3) স্টক reserve (checkout-এই কমানো — oversell রোধ)
-  for (const item of lineItems) {
-    await FoodService.adjustBranchStock(item.id, branchId, -item.quantity);
-  }
-
-  // 4) অর্ডার তৈরি — status/paymentStatus সার্ভার নিয়ন্ত্রিত (client "Paid" পাঠাতে পারবে না)
+  // অর্ডার তৈরি — status/paymentStatus সার্ভার নিয়ন্ত্রিত (client "Paid" পাঠাতে পারবে না)
   const initialMessage: IChatMessage = {
     sender: 'admin',
     senderName: 'Barcode Admin',
@@ -178,17 +167,6 @@ const updateOrderStatusService = async (id: string, rawStatus: string) => {
       err.status = 400;
       throw err;
     }
-  }
-
-  const oldStatus = order.status;
-
-  // reserve-aware স্টক: placement-এ reserve করা হয়েছে; শুধু Rejected-এ ফেরত, un-reject-এ আবার reserve
-  const wasReserved = oldStatus !== 'Rejected';
-  const willReserve = newStatus !== 'Rejected';
-  if (wasReserved && !willReserve) {
-    for (const item of order.items) await FoodService.adjustBranchStock(item.id, order.branchId, item.quantity);
-  } else if (!wasReserved && willReserve) {
-    for (const item of order.items) await FoodService.adjustBranchStock(item.id, order.branchId, -item.quantity);
   }
 
   order.status = newStatus;

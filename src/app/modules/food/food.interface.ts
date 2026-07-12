@@ -18,7 +18,6 @@ export interface IFood {
   branchIds: number[]; // কোন কোন ব্রাঞ্চে আছে (খালি = সব ব্রাঞ্চে)
   discountPct: number; // default 0
   branchPrices: Record<string, number>; // per-branch দাম সমন্বয়
-  branchStocks: Record<string, number>; // per-branch স্টক
   variations: IVariation[]; // সাইজ অপশন
   createdAt?: Date;
   updatedAt?: Date;

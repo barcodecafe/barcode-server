@@ -5,7 +5,6 @@ import validateRequest from '../../middlewares/validateRequest';
 import {
   createFoodValidationSchema,
   updateFoodValidationSchema,
-  stockValidationSchema,
 } from './food.validation';
 
 const router = express.Router();
@@ -19,7 +18,6 @@ router.get('/:id', FoodController.getFoodByIdController);
 
 // Admin CRUD
 router.post('/', ...adminOnly, validateRequest(createFoodValidationSchema), FoodController.createFoodController);
-router.patch('/:id/stock', ...adminOnly, validateRequest(stockValidationSchema), FoodController.setStockController);
 router.patch('/:id', ...adminOnly, validateRequest(updateFoodValidationSchema), FoodController.updateFoodController);
 router.put('/:id', ...adminOnly, validateRequest(updateFoodValidationSchema), FoodController.updateFoodController);
 router.delete('/:id', ...adminOnly, FoodController.deleteFoodController);

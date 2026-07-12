@@ -26,7 +26,6 @@ const foodSchema = new Schema<IFood>(
     // per-branch maps keyed by branchId → toJSON gives a plain object {"1": 5}
     // (Map handles default {} reliably on insertMany, unlike Mixed)
     branchPrices: { type: Map, of: Number, default: () => ({}) },
-    branchStocks: { type: Map, of: Number, default: () => ({}) },
     variations: { type: [variationSchema], default: [] },
   },
   {

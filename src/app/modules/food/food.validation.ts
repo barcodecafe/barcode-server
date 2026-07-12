@@ -17,7 +17,6 @@ export const createFoodValidationSchema = z.object({
     branchIds: z.array(z.coerce.number()).optional(),
     branches: z.array(z.coerce.number()).optional(), // frontend alias
     branchPrices: z.record(z.coerce.number()).optional(),
-    branchStocks: z.record(z.coerce.number()).optional(),
     variations: z.array(variation).optional(),
   }),
 });
@@ -37,15 +36,6 @@ export const updateFoodValidationSchema = z.object({
     branchIds: z.array(z.coerce.number()).optional(),
     branches: z.array(z.coerce.number()).optional(),
     branchPrices: z.record(z.coerce.number()).optional(),
-    branchStocks: z.record(z.coerce.number()).optional(),
     variations: z.array(variation).optional(),
-  }),
-});
-
-export const stockValidationSchema = z.object({
-  body: z.object({
-    branchId: z.coerce.number().refine((n) => n > 0, 'branchId required'),
-    quantity: z.coerce.number().min(0),
-    action: z.enum(['increase', 'decrease']).optional(),
   }),
 });

@@ -1,8 +1,8 @@
 // ─── Cleaned Foods seed (from barcode_client/src/data/foodsData.js) ───
 // পরিষ্কার: triplicate "Classic Mint Mojito" (id 13,14) বাদ; id 12 থেকে
 // alcohol reference সরিয়ে clean mocktail করা হয়েছে। দাম আপাতত USD (ক্লায়েন্ট
-// পরে আসল BDT দেবে)। branchPrices/branchStocks/variations/discountPct মডেল
-// ডিফল্ট থেকে আসবে ({}, {}, [], 0)।
+// পরে আসল BDT দেবে)। branchPrices/variations/discountPct মডেল
+// ডিফল্ট থেকে আসবে ({}, [], 0)।
 import { IFood } from '../../app/modules/food/food.interface';
 
 type SeedFood = Pick<

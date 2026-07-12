@@ -82,17 +82,6 @@ const deleteFoodController = async (req: Request, res: Response) => {
   }
 };
 
-const setStockController = async (req: Request, res: Response) => {
-  try {
-    const { branchId, quantity, action } = req.body;
-    const food = await FoodService.setStockService(req.params.id, Number(branchId), Number(quantity), action);
-    if (!food) return res.status(404).json({ success: false, message: 'Food not found' });
-    res.status(200).json({ success: true, message: 'Stock updated', data: food });
-  } catch (error: any) {
-    res.status(error.status || 500).json({ success: false, message: error.message });
-  }
-};
-
 export const FoodController = {
   getAllFoodsController,
   getPopularFoodsController,
@@ -101,5 +90,4 @@ export const FoodController = {
   createFoodController,
   updateFoodController,
   deleteFoodController,
-  setStockController,
 };
