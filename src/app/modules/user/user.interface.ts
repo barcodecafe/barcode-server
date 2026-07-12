@@ -12,6 +12,8 @@ export interface IUser {
   // rider-specific (role === 'rider' হলে অর্থপূর্ণ) — unified identity (N7)
   vehicle?: string;
   riderStatus?: 'Available' | 'Busy';
+  // approval gate for rider signup: pending → admin approves/rejects
+  riderApprovalStatus?: 'none' | 'pending' | 'approved' | 'rejected';
   favorites?: number[]; // per-user favorite food ids (audit #23 fix)
   isDeleted?: boolean;
   createdAt?: Date;

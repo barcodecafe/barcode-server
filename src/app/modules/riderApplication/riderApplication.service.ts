@@ -60,6 +60,7 @@ const approveApplicationService = async (id: string) => {
   const user = await User.findById(app.userId);
   if (user) {
     user.role = 'rider';
+    user.riderApprovalStatus = 'approved';
     if (!user.vehicle) user.vehicle = 'Motorbike';
     user.riderStatus = 'Available';
     if (!user.phone && app.phone) user.phone = app.phone;
@@ -74,6 +75,14 @@ const rejectApplicationService = async (id: string) => {
   if (!app) return null;
   app.status = 'rejected';
   await app.save();
+
+  // keep role='rider' so the applicant still lands on the rider dashboard, but
+  // in a "rejected" state — flip their approval gate.
+  const user = await User.findById(app.userId);
+  if (user) {
+    user.riderApprovalStatus = 'rejected';
+    await user.save();
+  }
   return app;
 };
 

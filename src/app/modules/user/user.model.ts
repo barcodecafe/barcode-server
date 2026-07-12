@@ -19,6 +19,11 @@ const userSchema = new Schema<IUser>(
     address: { type: String, default: '' },
     vehicle: { type: String, default: '' },
     riderStatus: { type: String, enum: ['Available', 'Busy'], default: 'Available' },
+    riderApprovalStatus: {
+      type: String,
+      enum: ['none', 'pending', 'approved', 'rejected'],
+      default: 'none',
+    },
     favorites: { type: [Number], default: [] },
     isDeleted: { type: Boolean, default: false },
   },
@@ -36,6 +41,7 @@ const userSchema = new Schema<IUser>(
         if (ret.role !== 'rider') {
           delete ret.vehicle;
           delete ret.riderStatus;
+          delete ret.riderApprovalStatus;
         }
         return ret;
       },
