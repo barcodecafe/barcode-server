@@ -26,7 +26,20 @@ const getUserByIdController = async (req: Request, res: Response) => {
   }
 };
 
+// PATCH /api/users/me — update own profile (name, phone, pickArea, address)
+const updateMeController = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?._id;
+    const user = await UserService.updateMeService(userId, req.body);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    res.status(200).json({ success: true, message: 'Profile updated', data: user });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
 export const UserController = {
   getAllUsersController,
   getUserByIdController,
+  updateMeController,
 };

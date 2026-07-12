@@ -6,6 +6,10 @@ const router = express.Router();
 
 const adminOnly = [authMiddleware, authorize('admin')];
 
+// নিজের প্রোফাইল আপডেট (যেকোনো লগইন করা ইউজার) — PATCH /api/users/me
+// ⚠️ /:id এর আগে থাকতে হবে (route ordering)
+router.patch('/me', authMiddleware, UserController.updateMeController);
+
 // সব ইউজার (Admin only) — GET /api/users
 router.get('/', ...adminOnly, UserController.getAllUsersController);
 
