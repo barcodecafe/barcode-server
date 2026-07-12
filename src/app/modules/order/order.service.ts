@@ -1,0 +1,308 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { isValidObjectId } from 'mongoose';
+import { Order } from './order.model';
+import { Food } from '../food/food.model';
+import { User } from '../user/user.model';
+import { FoodService } from '../food/food.service';
+import { CouponService } from '../coupon/coupon.service';
+import { IChatMessage, OrderStatus, ORDER_STATUSES } from './order.interface';
+
+const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+
+type CreateItem = { id: number; quantity: number; selectedSize?: string | null };
+type CreatePayload = {
+  items: CreateItem[];
+  couponCode?: string;
+  branchId: number;
+  paymentMethod?: string;
+};
+
+// ── POST /orders — সার্ভারই দাম/কুপন/স্টক হিসাব করে; client-এর টাকা উপেক্ষা করা হয় ──
+const createOrderService = async (userId: string, payload: CreatePayload) => {
+  const user = await User.findById(userId);
+  if (!user) {
+    const err: any = new Error('User not found');
+    err.status = 401;
+    throw err;
+  }
+
+  const branchId = Number(payload.branchId);
+  if (!branchId || branchId <= 0) {
+    const err: any = new Error('A valid branchId is required.');
+    err.status = 400;
+    throw err;
+  }
+
+  if (!Array.isArray(payload.items) || payload.items.length === 0) {
+    const err: any = new Error('Order must contain at least one item.');
+    err.status = 400;
+    throw err;
+  }
+
+  // 1) প্রতিটা আইটেম সার্ভারে যাচাই — দাম ও স্টক (client যা পাঠায় তা বিশ্বাস নয়)
+  const lineItems: any[] = [];
+  let subtotal = 0;
+  for (const raw of payload.items) {
+    const qty = Number(raw.quantity);
+    if (!qty || qty < 1) {
+      const err: any = new Error('Invalid item quantity.');
+      err.status = 400;
+      throw err;
+    }
+    const food = await Food.findOne({ id: Number(raw.id) });
+    if (!food) {
+      const err: any = new Error(`Food not found (id ${raw.id}).`);
+      err.status = 400;
+      throw err;
+    }
+    const stock = FoodService.getBranchStock(food, branchId);
+    if (stock < qty) {
+      const err: any = new Error(`Insufficient stock for "${food.name}" (available ${stock}).`);
+      err.status = 409;
+      throw err;
+    }
+    const unitPrice = round2(FoodService.getUnitPrice(food, branchId, raw.selectedSize));
+    subtotal += unitPrice * qty;
+    lineItems.push({
+      id: food.id,
+      name: food.name,
+      category: food.category, // snapshot — analytics food-delete এ স্থিতিশীল
+      price: unitPrice,
+      quantity: qty,
+      image: food.image,
+      selectedSize: raw.selectedSize || null,
+    });
+  }
+  subtotal = round2(subtotal);
+
+  // 2) কুপন সার্ভারে re-validate (client-এর discount বিশ্বাস নয়)
+  let discount = 0;
+  let couponCode = '';
+  if (payload.couponCode && payload.couponCode.trim()) {
+    const coupon = await CouponService.validateCouponService(payload.couponCode, subtotal);
+    discount = round2((subtotal * coupon.discountPct) / 100);
+    couponCode = coupon.code;
+  }
+
+  const total = round2(subtotal - discount);
+
+  // 3) স্টক reserve (checkout-এই কমানো — oversell রোধ)
+  for (const item of lineItems) {
+    await FoodService.adjustBranchStock(item.id, branchId, -item.quantity);
+  }
+
+  // 4) অর্ডার তৈরি — status/paymentStatus সার্ভার নিয়ন্ত্রিত (client "Paid" পাঠাতে পারবে না)
+  const initialMessage: IChatMessage = {
+    sender: 'admin',
+    senderName: 'Barcode Admin',
+    text: 'Thank you for your order! We are reviewing it and will begin preparation shortly.',
+    timestamp: new Date(),
+  };
+
+  const order = await Order.create({
+    user: {
+      id: String(user._id),
+      name: user.name,
+      email: user.email,
+      phone: user.phone || '',
+      pickArea: user.pickArea || '',
+      address: user.address || '',
+    },
+    items: lineItems,
+    subtotal,
+    discount,
+    total,
+    couponCode,
+    status: 'Placed',
+    branchId,
+    paymentMethod: payload.paymentMethod || 'cod',
+    paymentStatus: 'Pending', // 🔒 কখনো client থেকে নয় — Phase 7-এ gateway verify করবে
+    transactionId: '',
+    chatHistory: [initialMessage],
+  });
+
+  return order;
+};
+
+// ── GET /orders (Admin — সব; user — শুধু নিজের) ──
+const getAllOrdersService = async (active?: boolean) => {
+  const filter: any = {};
+  if (active) filter.status = { $nin: ['Delivered', 'Rejected'] };
+  return Order.find(filter).sort({ createdAt: -1 });
+};
+
+const getOrdersForUserService = async (userId: string, active?: boolean) => {
+  const filter: any = { 'user.id': userId };
+  if (active) filter.status = { $nin: ['Delivered', 'Rejected'] }; // fix N4
+  return Order.find(filter).sort({ createdAt: -1 });
+};
+
+const getOrderByIdService = async (id: string) => {
+  if (!isValidObjectId(id)) return null;
+  return Order.findById(id);
+};
+
+// ── PATCH /orders/:id/status — canonical enum, reserve-aware stock, guard, system chat ──
+const LEGACY_MAP: Record<string, OrderStatus> = {
+  'pick order': 'Placed',
+  'ready to cook': 'Preparing',
+  'ready to pick': 'Preparing',
+  'on the way': 'Out for Delivery',
+  'order handover': 'Delivered',
+};
+
+const updateOrderStatusService = async (id: string, rawStatus: string) => {
+  if (!isValidObjectId(id)) {
+    const err: any = new Error('Order not found');
+    err.status = 404;
+    throw err;
+  }
+  const order = await Order.findById(id);
+  if (!order) {
+    const err: any = new Error('Order not found');
+    err.status = 404;
+    throw err;
+  }
+
+  let newStatus = (LEGACY_MAP[rawStatus] || rawStatus) as OrderStatus;
+  if (!ORDER_STATUSES.includes(newStatus)) {
+    const err: any = new Error(`Invalid status "${rawStatus}".`);
+    err.status = 400;
+    throw err;
+  }
+
+  // guard: rider ছাড়া Out for Delivery / Delivered নয় (fix #15)
+  if ((newStatus === 'Out for Delivery' || newStatus === 'Delivered')) {
+    if (!order.riderId || order.riderAcceptStatus !== 'accepted') {
+      const err: any = new Error('Assign and confirm a rider before marking this order out for delivery or delivered.');
+      err.status = 400;
+      throw err;
+    }
+  }
+
+  const oldStatus = order.status;
+
+  // reserve-aware স্টক: placement-এ reserve করা হয়েছে; শুধু Rejected-এ ফেরত, un-reject-এ আবার reserve
+  const wasReserved = oldStatus !== 'Rejected';
+  const willReserve = newStatus !== 'Rejected';
+  if (wasReserved && !willReserve) {
+    for (const item of order.items) await FoodService.adjustBranchStock(item.id, order.branchId, item.quantity);
+  } else if (!wasReserved && willReserve) {
+    for (const item of order.items) await FoodService.adjustBranchStock(item.id, order.branchId, -item.quantity);
+  }
+
+  order.status = newStatus;
+
+  // system chat message
+  const riderName = order.riderName || 'Your rider';
+  let text = `Order status updated to: ${newStatus}`;
+  let sender = 'admin';
+  let senderName = 'System';
+  if (newStatus === 'Accepted') { text = 'Your order has been accepted! Kitchen preparation will begin shortly.'; senderName = 'Barcode Admin'; }
+  else if (newStatus === 'Rejected') { text = 'We regret to inform you that your order has been rejected.'; senderName = 'Barcode Admin'; }
+  else if (newStatus === 'Preparing') { text = 'Chef is now preparing your delicious food!'; senderName = 'Barcode Kitchen'; }
+  else if (newStatus === 'Out for Delivery') { text = `${riderName} has picked up your food and is on the way!`; sender = 'rider'; senderName = riderName; }
+  else if (newStatus === 'Delivered') { text = 'Your order has been delivered. Enjoy your meal!'; sender = 'rider'; senderName = riderName; }
+
+  order.chatHistory.push({ sender, senderName, text, timestamp: new Date() } as IChatMessage);
+  await order.save();
+  return order;
+};
+
+// ── POST /orders/:id/messages ──
+const addChatMessageService = async (id: string, message: { sender: string; senderName: string; text: string }) => {
+  if (!isValidObjectId(id)) {
+    const err: any = new Error('Order not found');
+    err.status = 404;
+    throw err;
+  }
+  const order = await Order.findById(id);
+  if (!order) {
+    const err: any = new Error('Order not found');
+    err.status = 404;
+    throw err;
+  }
+  order.chatHistory.push({
+    sender: message.sender,
+    senderName: message.senderName,
+    text: message.text,
+    timestamp: new Date(),
+  } as IChatMessage);
+  await order.save();
+  return order;
+};
+
+// ── Rider assignment flow (rider = User role rider — N7) ──
+const sysMsg = (order: any, text: string, sender = 'admin', senderName = 'System') =>
+  order.chatHistory.push({ sender, senderName, text, timestamp: new Date() } as IChatMessage);
+
+const assignRiderToOrderService = async (orderId: string, riderId: string) => {
+  if (!isValidObjectId(orderId)) { const e: any = new Error('Order not found'); e.status = 404; throw e; }
+  const order = await Order.findById(orderId);
+  if (!order) { const e: any = new Error('Order not found'); e.status = 404; throw e; }
+  const rider = await User.findOne({ _id: isValidObjectId(riderId) ? riderId : undefined, role: 'rider', isDeleted: false });
+  if (!rider) { const e: any = new Error('Rider not found'); e.status = 400; throw e; }
+
+  order.riderId = String(rider._id);
+  order.riderName = rider.name;
+  order.riderAcceptStatus = 'pending';
+  sysMsg(order, `Rider ${rider.name} has been assigned to this delivery. Waiting for acceptance...`);
+  await order.save();
+  return order;
+};
+
+const acceptRiderOrderService = async (orderId: string, actorId: string) => {
+  if (!isValidObjectId(orderId)) { const e: any = new Error('Order not found'); e.status = 404; throw e; }
+  const order = await Order.findById(orderId);
+  if (!order) { const e: any = new Error('Order not found'); e.status = 404; throw e; }
+  if (order.riderId !== actorId) { const e: any = new Error('This order is not assigned to you.'); e.status = 403; throw e; }
+  order.riderAcceptStatus = 'accepted';
+  sysMsg(order, `${order.riderName || 'Rider'} accepted the delivery and is heading to the branch.`, 'rider', order.riderName || 'Rider');
+  await order.save();
+  return order;
+};
+
+const rejectRiderOrderService = async (orderId: string, actorId: string) => {
+  if (!isValidObjectId(orderId)) { const e: any = new Error('Order not found'); e.status = 404; throw e; }
+  const order = await Order.findById(orderId);
+  if (!order) { const e: any = new Error('Order not found'); e.status = 404; throw e; }
+  if (order.riderId !== actorId) { const e: any = new Error('This order is not assigned to you.'); e.status = 403; throw e; }
+
+  const oldName = order.riderName || 'Rider';
+  if (!order.rejectedRiderIds) order.rejectedRiderIds = [];
+  if (order.riderId) order.rejectedRiderIds.push(order.riderId);
+
+  // পরের available rider (যে reject করেনি) — সবাই আসল User, তাই login করতে পারবে (N7)
+  const next = await User.findOne({
+    role: 'rider',
+    isDeleted: false,
+    riderStatus: 'Available',
+    _id: { $nin: order.rejectedRiderIds.filter((x) => isValidObjectId(x)) },
+  });
+
+  if (next) {
+    order.riderId = String(next._id);
+    order.riderName = next.name;
+    order.riderAcceptStatus = 'pending';
+    sysMsg(order, `${oldName} rejected the delivery. Auto-assigned next available rider: ${next.name}. Waiting for acceptance...`);
+  } else {
+    order.riderId = null;
+    order.riderName = null;
+    order.riderAcceptStatus = null;
+    sysMsg(order, `${oldName} rejected the delivery. No other available riders — needs manual re-assignment.`);
+  }
+  await order.save();
+  return order;
+};
+
+export const OrderService = {
+  createOrderService,
+  getAllOrdersService,
+  getOrdersForUserService,
+  getOrderByIdService,
+  updateOrderStatusService,
+  addChatMessageService,
+  assignRiderToOrderService,
+  acceptRiderOrderService,
+  rejectRiderOrderService,
+};

@@ -1,0 +1,171 @@
+import { Food } from './food.model';
+import { getNextId } from '../../utils/counter';
+
+// GET /api/foods  (+ ?category=Mains)
+const getAllFoodsService = async (category?: string) => {
+  if (category && category !== 'All') {
+    return Food.find({ category }).sort({ id: 1 });
+  }
+  return Food.find({}).sort({ id: 1 });
+};
+
+// GET /api/foods/:id
+const getFoodByIdService = async (id: string | number) => {
+  const n = Number(id);
+  if (!Number.isFinite(n)) return null; // /foods/abc → clean 404, not a CastError 500
+  return Food.findOne({ id: n });
+};
+
+// GET /api/foods/popular?limit=6
+// admin-pinned আগে (featuredOrder asc), তারপর rating অনুযায়ী — foodsService-এর হুবহু লজিক
+const getPopularFoodsService = async (limit = 6) => {
+  const foods = await Food.find({});
+  const adminPicked = foods
+    .filter((f) => f.isAdminFeatured)
+    .sort((a, b) => (a.featuredOrder ?? 0) - (b.featuredOrder ?? 0));
+  const pickedIds = new Set(adminPicked.map((f) => f.id));
+  const byRating = foods
+    .filter((f) => !pickedIds.has(f.id))
+    .sort((a, b) => b.rating - a.rating);
+  return [...adminPicked, ...byRating].slice(0, limit);
+};
+
+// GET /api/foods/search?q=
+const searchFoodsService = async (query: string) => {
+  const q = (query || '').trim();
+  if (!q) return [];
+  const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); // escape regex
+  return Food.find({ $or: [{ name: rx }, { description: rx }, { category: rx }] }).sort({ id: 1 });
+};
+
+// GET /api/branches/:branchId/menu
+// খালি branchIds = সব ব্রাঞ্চে available; নাহলে ওই branchId থাকা foods
+const getFoodsByBranchService = async (branchId: string | number) => {
+  const bid = Number(branchId);
+  if (!bid || bid === 0) {
+    return Food.find({}).sort({ id: 1 });
+  }
+  return Food.find({ $or: [{ branchIds: { $size: 0 } }, { branchIds: bid }] }).sort({ id: 1 });
+};
+
+// ── সার্ভার-সাইড দাম হিসাব (foodsService.getActivePrice + getDiscountedPrice এর মিরর) ──
+// client-এর পাঠানো দাম কখনো বিশ্বাস করা হয় না — এটাই সত্য।
+const DEFAULT_STOCK = 10;
+
+const getUnitPrice = (food: any, branchId?: number, selectedSize?: string | null): number => {
+  if (!food) return 0;
+  let basePrice = Number(food.price) || 0;
+  if (selectedSize && Array.isArray(food.variations) && food.variations.length > 0) {
+    const v = food.variations.find((x: any) => x.name === selectedSize);
+    if (v) basePrice = Number(v.price) || basePrice;
+  }
+  let adjustment = 0;
+  if (branchId && food.branchPrices) {
+    const raw = food.branchPrices.get ? food.branchPrices.get(String(branchId)) : food.branchPrices[String(branchId)];
+    adjustment = Number(raw) || 0;
+  }
+  const active = basePrice + adjustment;
+  const pct = Number(food.discountPct) || 0;
+  return pct > 0 ? active * (1 - pct / 100) : active;
+};
+
+const getBranchStock = (food: any, branchId?: number): number => {
+  if (!food) return 0;
+  const key = String(branchId);
+  if (food.branchStocks && food.branchStocks.get) {
+    const v = food.branchStocks.get(key);
+    return v !== undefined ? Number(v) : DEFAULT_STOCK;
+  }
+  return DEFAULT_STOCK;
+};
+
+// checkout-এ স্টক reserve (কমানো) / reject-এ ফেরত দেওয়া
+const adjustBranchStock = async (foodId: number, branchId: number, delta: number) => {
+  const food = await Food.findOne({ id: Number(foodId) });
+  if (!food) return null;
+  const key = String(branchId);
+  const stocks = food.branchStocks as any; // runtime: Mongoose Map
+  const cur = stocks?.get ? stocks.get(key) : undefined;
+  const base = cur !== undefined ? Number(cur) : DEFAULT_STOCK;
+  const next = Math.max(0, base + delta);
+  stocks.set(key, next);
+  await food.save();
+  return next;
+};
+
+// ── Admin CRUD ──────────────────────────────────────────────
+const createFoodService = async (payload: any) => {
+  const id = await getNextId('food'); // atomic — race-free (Phase 4 QA fix)
+  const food = await Food.create({
+    id,
+    name: payload.name,
+    category: payload.category,
+    price: Number(payload.price) || 0,
+    image: payload.image || '',
+    rating: Number(payload.rating) || 0,
+    description: payload.description || '',
+    popular: !!payload.popular,
+    isAdminFeatured: !!payload.isAdminFeatured,
+    featuredOrder: payload.featuredOrder ?? null,
+    branchIds: payload.branchIds || payload.branches || [],
+    discountPct: Number(payload.discountPct) || 0,
+    branchPrices: payload.branchPrices || {},
+    branchStocks: payload.branchStocks || {},
+    variations: payload.variations || [],
+  });
+  return food;
+};
+
+const updateFoodService = async (id: string | number, payload: any) => {
+  const n = Number(id);
+  if (!Number.isFinite(n)) return null;
+  const food = await Food.findOne({ id: n });
+  if (!food) return null;
+
+  const scalar = [
+    'name', 'category', 'image', 'description', 'popular', 'isAdminFeatured', 'featuredOrder',
+  ];
+  for (const k of scalar) if (payload[k] !== undefined) (food as any)[k] = payload[k];
+  if (payload.price !== undefined) food.price = Number(payload.price) || 0;
+  if (payload.rating !== undefined) food.rating = Number(payload.rating) || 0;
+  if (payload.discountPct !== undefined) food.discountPct = Number(payload.discountPct) || 0;
+  if (payload.branchIds !== undefined || payload.branches !== undefined) {
+    food.branchIds = payload.branchIds || payload.branches || [];
+  }
+  if (payload.branchPrices !== undefined) food.set('branchPrices', payload.branchPrices);
+  if (payload.branchStocks !== undefined) food.set('branchStocks', payload.branchStocks);
+  if (payload.variations !== undefined) food.variations = payload.variations;
+
+  await food.save();
+  return food;
+};
+
+const deleteFoodService = async (id: string | number) => {
+  const n = Number(id);
+  if (!Number.isFinite(n)) return null;
+  return Food.findOneAndDelete({ id: n });
+};
+
+// PATCH /foods/:id/stock — ব্রাঞ্চ স্টক বাড়ানো/কমানো
+const setStockService = async (id: string | number, branchId: number, quantity: number, action?: string) => {
+  const n = Number(id);
+  if (!Number.isFinite(n)) return null;
+  const delta = action === 'decrease' ? -Math.abs(quantity) : Math.abs(quantity);
+  await adjustBranchStock(n, branchId, delta);
+  return Food.findOne({ id: n });
+};
+
+export const FoodService = {
+  getAllFoodsService,
+  getFoodByIdService,
+  getPopularFoodsService,
+  searchFoodsService,
+  getFoodsByBranchService,
+  getUnitPrice,
+  getBranchStock,
+  adjustBranchStock,
+  createFoodService,
+  updateFoodService,
+  deleteFoodService,
+  setStockService,
+};
