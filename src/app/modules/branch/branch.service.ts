@@ -21,8 +21,13 @@ const getBranchByIdService = async (id: string | number) => {
 const searchBranchesService = async (query: string) => {
   const q = (query || '').trim();
   if (!q) return [];
-  const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-  return Branch.find({ $or: [{ name: rx }, { location: rx }] }).sort({ id: 1 });
+  // Token-based: each word must match name or location (so "mezzan agrabad" works).
+  const tokens = q.split(/\s+/).filter(Boolean);
+  const and = tokens.map((t) => {
+    const rx = new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    return { $or: [{ name: rx }, { location: rx }] };
+  });
+  return Branch.find({ $and: and }).sort({ id: 1 });
 };
 
 // ── Admin CRUD ──

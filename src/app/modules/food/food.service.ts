@@ -34,8 +34,15 @@ const getPopularFoodsService = async (limit = 6) => {
 const searchFoodsService = async (query: string) => {
   const q = (query || '').trim();
   if (!q) return [];
-  const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); // escape regex
-  return Food.find({ $or: [{ name: rx }, { description: rx }, { category: rx }] }).sort({ id: 1 });
+  // Token-based: split into words, each word must match at least one field
+  // (AND across words, OR across fields). So "wood pizza" / "chocolate cake"
+  // match even when the words aren't adjacent in the name.
+  const tokens = q.split(/\s+/).filter(Boolean);
+  const and = tokens.map((t) => {
+    const rx = new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); // escape regex
+    return { $or: [{ name: rx }, { description: rx }, { category: rx }] };
+  });
+  return Food.find({ $and: and }).sort({ id: 1 });
 };
 
 // GET /api/branches/:branchId/menu
