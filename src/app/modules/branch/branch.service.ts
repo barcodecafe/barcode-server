@@ -56,6 +56,7 @@ const createBranchService = async (payload: any) => {
     features: normalizeFeatures(payload.features) || [],
     lat: typeof payload.lat === 'number' ? payload.lat : null,
     lng: typeof payload.lng === 'number' ? payload.lng : null,
+    regionId: typeof payload.regionId === 'number' ? payload.regionId : null,
   });
 };
 
@@ -73,6 +74,7 @@ const updateBranchService = async (id: string | number, payload: any) => {
   if (feats !== undefined) branch.features = feats;
   if (payload.lat !== undefined) branch.lat = typeof payload.lat === 'number' ? payload.lat : null;
   if (payload.lng !== undefined) branch.lng = typeof payload.lng === 'number' ? payload.lng : null;
+  if (payload.regionId !== undefined) branch.regionId = typeof payload.regionId === 'number' ? payload.regionId : null;
 
   await branch.save();
   return branch;

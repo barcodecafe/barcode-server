@@ -15,6 +15,7 @@ export const createBranchValidationSchema = z.object({
     features,
     lat: z.number().min(-90).max(90).nullable().optional(),
     lng: z.number().min(-180).max(180).nullable().optional(),
+    regionId: z.number().int().nullable().optional(),
   }),
 });
 
@@ -31,5 +32,6 @@ export const updateBranchValidationSchema = z.object({
     features,
     lat: z.number().min(-90).max(90).nullable().optional(),
     lng: z.number().min(-180).max(180).nullable().optional(),
+    regionId: z.number().int().nullable().optional(),
   }),
 });

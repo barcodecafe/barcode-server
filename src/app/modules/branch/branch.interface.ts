@@ -11,6 +11,7 @@ export interface IBranch {
   features: string[];
   lat?: number | null; // map latitude
   lng?: number | null; // map longitude
+  regionId?: number | null; // FK → Region.id (top-level grouping)
   createdAt?: Date;
   updatedAt?: Date;
 }

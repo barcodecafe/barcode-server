@@ -15,6 +15,7 @@ const branchSchema = new Schema<IBranch>(
     features: { type: [String], default: [] },
     lat: { type: Number, default: null }, // map latitude
     lng: { type: Number, default: null }, // map longitude
+    regionId: { type: Number, default: null, index: true }, // FK → Region.id
   },
   {
     timestamps: true,
