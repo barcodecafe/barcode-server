@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import mongoSanitize from 'express-mongo-sanitize';
 
+import config from './app/config';
 import { AuthRoutes } from './app/modules/auth/auth.routes';
 import { UserRoutes } from './app/modules/user/user.routes';
 import { FoodRoutes } from './app/modules/food/food.routes';
@@ -28,13 +29,21 @@ const app: Application = express();
 app.use(helmet());
 
 // ✅ Security: CORS
+const allowedOrigins: (string | RegExp)[] = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  /\.vercel\.app$/,
+];
+// Production frontend URL(s) from env — comma-separated, e.g. CLIENT_URL=https://app.example.com,https://www.example.com
+if (config.client_url) {
+  config.client_url.split(',').forEach((o) => {
+    const trimmed = o.trim();
+    if (trimmed) allowedOrigins.push(trimmed);
+  });
+}
 const corsOptions: CorsOptions = {
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:3000',
-    /\.vercel\.app$/,
-  ],
+  origin: allowedOrigins,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   credentials: true,
 };
