@@ -17,6 +17,7 @@ export const createFoodValidationSchema = z.object({
     branchIds: z.array(z.coerce.number()).optional(),
     branches: z.array(z.coerce.number()).optional(), // frontend alias
     branchPrices: z.record(z.coerce.number()).optional(),
+    variantLabel: z.string().optional(),
     variations: z.array(variation).optional(),
   }),
 });
@@ -36,6 +37,7 @@ export const updateFoodValidationSchema = z.object({
     branchIds: z.array(z.coerce.number()).optional(),
     branches: z.array(z.coerce.number()).optional(),
     branchPrices: z.record(z.coerce.number()).optional(),
+    variantLabel: z.string().optional(),
     variations: z.array(variation).optional(),
   }),
 });

@@ -91,6 +91,7 @@ const createFoodService = async (payload: any) => {
     branchIds: payload.branchIds || payload.branches || [],
     discountPct: Number(payload.discountPct) || 0,
     branchPrices: payload.branchPrices || {},
+    variantLabel: payload.variantLabel || 'Size',
     variations: payload.variations || [],
   });
   return food;
@@ -113,6 +114,7 @@ const updateFoodService = async (id: string | number, payload: any) => {
     food.branchIds = payload.branchIds || payload.branches || [];
   }
   if (payload.branchPrices !== undefined) food.set('branchPrices', payload.branchPrices);
+  if (payload.variantLabel !== undefined) food.variantLabel = payload.variantLabel || 'Size';
   if (payload.variations !== undefined) food.variations = payload.variations;
 
   await food.save();
