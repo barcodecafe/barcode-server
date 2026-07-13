@@ -3,9 +3,10 @@ import { isValidObjectId } from 'mongoose';
 import { Order } from './order.model';
 import { Food } from '../food/food.model';
 import { User } from '../user/user.model';
+import { Branch } from '../branch/branch.model';
 import { FoodService } from '../food/food.service';
 import { CouponService } from '../coupon/coupon.service';
-import { getDeliveryCharge } from './delivery.config';
+import { chargeFromBranch } from './delivery.config';
 import { IChatMessage, OrderStatus, ORDER_STATUSES } from './order.interface';
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
@@ -99,7 +100,8 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
   const deliveryPhone = (payload.deliveryPhone ?? user.phone ?? '').toString().trim();
   const deliveryAddress = (payload.deliveryAddress ?? user.address ?? '').toString().trim();
   const deliveryArea = (payload.deliveryArea ?? user.pickArea ?? '').toString().trim();
-  const deliveryCharge = round2(getDeliveryCharge(deliveryArea));
+  const branchDoc = await Branch.findOne({ id: branchId }); // per-branch zone → charge
+  const deliveryCharge = round2(chargeFromBranch(branchDoc, deliveryArea));
 
   const total = round2(subtotal - discount - pointsRedeemed + deliveryCharge);
 

@@ -1,3 +1,8 @@
+export interface IDeliveryZone {
+  name: string; // অঞ্চলের নাম (যেমন Agrabad, GEC)
+  charge: number; // এই ব্রাঞ্চ থেকে ওই অঞ্চলে ডেলিভারি চার্জ
+}
+
 export interface IBranch {
   id: number; // numeric, frontend-facing
   name: string;
@@ -12,6 +17,8 @@ export interface IBranch {
   lat?: number | null; // map latitude
   lng?: number | null; // map longitude
   regionId?: number | null; // FK → Region.id (top-level grouping)
+  deliveryZones?: IDeliveryZone[]; // এই ব্রাঞ্চের অঞ্চল-ভিত্তিক ডেলিভারি চার্জ
+  defaultDeliveryCharge?: number; // zone না মিললে fallback চার্জ
   createdAt?: Date;
   updatedAt?: Date;
 }

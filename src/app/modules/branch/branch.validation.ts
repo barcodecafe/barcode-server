@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const features = z.union([z.array(z.string()), z.string()]).optional(); // array বা comma-string
+const deliveryZone = z.object({ name: z.string().min(1), charge: z.coerce.number().nonnegative() });
 
 export const createBranchValidationSchema = z.object({
   body: z.object({
@@ -16,6 +17,8 @@ export const createBranchValidationSchema = z.object({
     lat: z.number().min(-90).max(90).nullable().optional(),
     lng: z.number().min(-180).max(180).nullable().optional(),
     regionId: z.number().int().nullable().optional(),
+    deliveryZones: z.array(deliveryZone).optional(),
+    defaultDeliveryCharge: z.coerce.number().nonnegative().optional(),
   }),
 });
 
@@ -33,5 +36,7 @@ export const updateBranchValidationSchema = z.object({
     lat: z.number().min(-90).max(90).nullable().optional(),
     lng: z.number().min(-180).max(180).nullable().optional(),
     regionId: z.number().int().nullable().optional(),
+    deliveryZones: z.array(deliveryZone).optional(),
+    defaultDeliveryCharge: z.coerce.number().nonnegative().optional(),
   }),
 });

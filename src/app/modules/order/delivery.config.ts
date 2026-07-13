@@ -17,3 +17,18 @@ export const getDeliveryCharge = (area?: string): number => {
   const key = String(area).trim();
   return DELIVERY_CHARGE_BY_AREA[key] ?? DEFAULT_DELIVERY_CHARGE;
 };
+
+// per-branch zone → charge (primary)। branch-এ zone মিললে ওটা, নাহলে branch default,
+// একদম না থাকলে global fallback। branch = Branch doc (deliveryZones, defaultDeliveryCharge)।
+export const chargeFromBranch = (branch: any, area?: string): number => {
+  const key = (area || '').toString().trim();
+  const zones = branch?.deliveryZones;
+  if (key && Array.isArray(zones)) {
+    const z = zones.find((x: any) => String(x.name).trim() === key);
+    if (z) return Number(z.charge) || 0;
+  }
+  if (branch && branch.defaultDeliveryCharge !== undefined && branch.defaultDeliveryCharge !== null) {
+    return Number(branch.defaultDeliveryCharge) || 0;
+  }
+  return getDeliveryCharge(area);
+};

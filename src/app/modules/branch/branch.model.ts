@@ -1,6 +1,14 @@
 import { Schema, model } from 'mongoose';
 import { IBranch } from './branch.interface';
 
+const deliveryZoneSchema = new Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    charge: { type: Number, required: true, min: 0 },
+  },
+  { _id: false }
+);
+
 const branchSchema = new Schema<IBranch>(
   {
     id: { type: Number, required: true, unique: true, index: true }, // numeric frontend id
@@ -16,6 +24,8 @@ const branchSchema = new Schema<IBranch>(
     lat: { type: Number, default: null }, // map latitude
     lng: { type: Number, default: null }, // map longitude
     regionId: { type: Number, default: null, index: true }, // FK → Region.id
+    deliveryZones: { type: [deliveryZoneSchema], default: [] }, // অঞ্চল → charge
+    defaultDeliveryCharge: { type: Number, default: 100, min: 0 }, // zone না মিললে
   },
   {
     timestamps: true,
