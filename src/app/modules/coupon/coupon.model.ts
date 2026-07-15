@@ -4,6 +4,10 @@ import { ICoupon } from './coupon.interface';
 const couponSchema = new Schema<ICoupon>(
   {
     code: { type: String, required: true, unique: true, uppercase: true, trim: true },
+    // unique + sparse: pre-existing coupons (no couponId yet) stay out of the
+    // index until they're backfilled, so their missing value can't collide.
+    couponId: { type: String, unique: true, sparse: true, trim: true },
+    qrImage: { type: String, default: '' },
     discountPct: { type: Number, required: true, default: 0 },
     minSpend: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
