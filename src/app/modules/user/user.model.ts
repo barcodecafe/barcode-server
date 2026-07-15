@@ -26,6 +26,10 @@ const userSchema = new Schema<IUser>(
     },
     favorites: { type: [Number], default: [] },
     points: { type: Number, default: 0, min: 0 }, // loyalty balance — visible to every user
+    // Loyalty card: unique+sparse so pre-existing users (no id yet) stay out of
+    // the index until backfilled. qr is a PNG data URL encoding the membershipId.
+    membershipId: { type: String, unique: true, sparse: true, trim: true },
+    membershipQr: { type: String, default: '' },
     isDeleted: { type: Boolean, default: false },
   },
   {

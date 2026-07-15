@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import config from '../../config';
 import { User } from '../user/user.model';
+import { ensureMembership } from '../../utils/membership';
 
 // Helper: access token তৈরি
 const generateToken = (payload: { _id: string; role: string; email: string }) => {
@@ -43,6 +44,9 @@ const registerUser = async (payload: RegisterPayload) => {
     pickArea: payload.pickArea?.trim() || '',
     address: payload.address?.trim() || '',
   });
+
+  // Issue a loyalty membership id + QR up front so the customer has it immediately.
+  await ensureMembership(newUser);
 
   const token = generateToken({
     _id: String(newUser._id),

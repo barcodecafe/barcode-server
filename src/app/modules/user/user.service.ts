@@ -1,9 +1,13 @@
 import { isValidObjectId } from 'mongoose';
 import { User } from './user.model';
+import { ensureMembership } from '../../utils/membership';
 
 // সব ইউজার তালিকা (Admin) — BACKEND: GET /api/users
 const getAllUsersService = async () => {
   const users = await User.find({ isDeleted: false }).sort({ createdAt: -1 });
+  // Lazy backfill: customers created before the loyalty-card feature have no
+  // membershipId/QR yet — generate them once, on first admin list.
+  await Promise.all(users.map((u) => (u.role === 'user' ? ensureMembership(u) : Promise.resolve(u))));
   return users;
 };
 

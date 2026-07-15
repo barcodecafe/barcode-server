@@ -16,6 +16,11 @@ export interface IUser {
   riderApprovalStatus?: 'none' | 'pending' | 'approved' | 'rejected';
   favorites?: number[]; // per-user favorite food ids (audit #23 fix)
   points?: number; // loyalty reward points balance (৳100 spent = 5 pts; 1 pt = ৳1 discount)
+  // Loyalty card: stable unique id (BRG-XXXXXXXX) + a QR that encodes it.
+  // Server-generated (never client-supplied); a POS scans the QR to identify
+  // the customer. Present for customers; generated at signup / lazily on list.
+  membershipId?: string;
+  membershipQr?: string;
   isDeleted?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
