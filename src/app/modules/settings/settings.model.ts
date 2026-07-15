@@ -3,6 +3,7 @@ import { Schema, model } from 'mongoose';
 export interface ISettings {
   logoLight: string;
   logoDark: string;
+  paymentBanner: string;
   footerDescription: string;
   footerAddress: string;
   footerPhone: string;
@@ -15,6 +16,7 @@ export interface ISettings {
 export const DEFAULT_SETTINGS: ISettings = {
   logoLight: '',
   logoDark: '',
+  paymentBanner: '',
   footerDescription:
     'Experience the art of modern dining at Barcode. We blend culinary innovation with premium atmospheres across all our branches.',
   footerAddress:
@@ -30,6 +32,7 @@ const settingsSchema = new Schema<ISettings>(
   {
     logoLight: { type: String, default: '' },
     logoDark: { type: String, default: '' },
+    paymentBanner: { type: String, default: '' },
     footerDescription: { type: String, default: DEFAULT_SETTINGS.footerDescription },
     footerAddress: { type: String, default: DEFAULT_SETTINGS.footerAddress },
     footerPhone: { type: String, default: DEFAULT_SETTINGS.footerPhone },
