@@ -53,7 +53,8 @@ export interface IOrder {
   total: number;
   couponCode?: string;
   status: OrderStatus;
-  branchId: number;
+  regionId?: number; // ordering region (delivery is region-based now)
+  branchId?: number; // optional — kept for legacy orders / future branch routing
   paymentMethod: string;
   paymentStatus: string; // Pending | Paid | Failed — সার্ভার নিয়ন্ত্রিত
   transactionId?: string;

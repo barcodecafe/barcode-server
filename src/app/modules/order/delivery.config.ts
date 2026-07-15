@@ -32,3 +32,19 @@ export const chargeFromBranch = (branch: any, area?: string): number => {
   }
   return getDeliveryCharge(area);
 };
+
+// per-region zone → charge (primary path now that ordering is region-based).
+// region-এ area মিললে ওটা, নাহলে region default, একদম না থাকলে global fallback।
+// region = Region doc (deliveryZones, defaultDeliveryCharge)।
+export const chargeFromRegion = (region: any, area?: string): number => {
+  const key = (area || '').toString().trim();
+  const zones = region?.deliveryZones;
+  if (key && Array.isArray(zones)) {
+    const z = zones.find((x: any) => String(x.name).trim() === key);
+    if (z) return Number(z.charge) || 0;
+  }
+  if (region && region.defaultDeliveryCharge) {
+    return Number(region.defaultDeliveryCharge) || 0;
+  }
+  return getDeliveryCharge(area);
+};

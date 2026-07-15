@@ -44,7 +44,8 @@ const orderSchema = new Schema<IOrder>(
     total: { type: Number, required: true },
     couponCode: { type: String, default: '' },
     status: { type: String, enum: ORDER_STATUSES, default: 'Placed' },
-    branchId: { type: Number, required: true },
+    regionId: { type: Number, default: null }, // ordering region (region-based delivery)
+    branchId: { type: Number, default: null }, // optional — legacy / future branch routing
     paymentMethod: { type: String, default: 'cod' },
     paymentStatus: { type: String, default: 'Pending' }, // server-controlled
     transactionId: { type: String, default: '' },

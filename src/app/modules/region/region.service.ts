@@ -10,6 +10,14 @@ const getRegionByIdService = async (id: string | number) => {
   return Region.findOne({ id: n });
 };
 
+// normalise delivery zones from the client (drop blank names, coerce charge)
+const cleanZones = (zones: any): { name: string; charge: number }[] =>
+  Array.isArray(zones)
+    ? zones
+        .map((z) => ({ name: String(z?.name || '').trim(), charge: Math.max(0, Number(z?.charge) || 0) }))
+        .filter((z) => z.name)
+    : [];
+
 const createRegionService = async (payload: any) => {
   const id = await getNextId('region'); // atomic
   return Region.create({
@@ -17,6 +25,8 @@ const createRegionService = async (payload: any) => {
     name: payload.name,
     image: payload.image || '',
     description: payload.description || '',
+    deliveryZones: cleanZones(payload.deliveryZones),
+    defaultDeliveryCharge: Math.max(0, Number(payload.defaultDeliveryCharge) || 0),
   });
 };
 
@@ -28,6 +38,10 @@ const updateRegionService = async (id: string | number, payload: any) => {
   if (payload.name !== undefined) region.name = payload.name;
   if (payload.image !== undefined) region.image = payload.image;
   if (payload.description !== undefined) region.description = payload.description;
+  if (payload.deliveryZones !== undefined) region.deliveryZones = cleanZones(payload.deliveryZones);
+  if (payload.defaultDeliveryCharge !== undefined) {
+    region.defaultDeliveryCharge = Math.max(0, Number(payload.defaultDeliveryCharge) || 0);
+  }
   await region.save();
   return region;
 };

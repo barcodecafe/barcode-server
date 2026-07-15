@@ -3,10 +3,10 @@ import { isValidObjectId } from 'mongoose';
 import { Order } from './order.model';
 import { Food } from '../food/food.model';
 import { User } from '../user/user.model';
-import { Branch } from '../branch/branch.model';
+import { Region } from '../region/region.model';
 import { FoodService } from '../food/food.service';
 import { CouponService } from '../coupon/coupon.service';
-import { chargeFromBranch } from './delivery.config';
+import { chargeFromRegion } from './delivery.config';
 import { IChatMessage, OrderStatus, ORDER_STATUSES } from './order.interface';
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
@@ -19,7 +19,8 @@ type CreatePayload = {
   deliveryArea?: string;
   deliveryAddress?: string;
   deliveryPhone?: string;
-  branchId: number;
+  regionId: number;
+  branchId?: number;
   paymentMethod?: string;
 };
 
@@ -35,9 +36,16 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     throw err;
   }
 
-  const branchId = Number(payload.branchId);
-  if (!branchId || branchId <= 0) {
-    const err: any = new Error('A valid branchId is required.');
+  // Ordering is region-based now — validate the region (not a branch).
+  const regionId = Number(payload.regionId);
+  if (!regionId || regionId <= 0) {
+    const err: any = new Error('Please select your delivery region.');
+    err.status = 400;
+    throw err;
+  }
+  const region = await Region.findOne({ id: regionId });
+  if (!region) {
+    const err: any = new Error('Selected region is not available.');
     err.status = 400;
     throw err;
   }
@@ -64,7 +72,8 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       err.status = 400;
       throw err;
     }
-    const unitPrice = round2(FoodService.getUnitPrice(food, branchId, raw.selectedSize));
+    // region-based ordering → no per-branch price adjustment; use the base price.
+    const unitPrice = round2(FoodService.getUnitPrice(food, undefined, raw.selectedSize));
     subtotal += unitPrice * qty;
     lineItems.push({
       id: food.id,
@@ -100,8 +109,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
   const deliveryPhone = (payload.deliveryPhone ?? user.phone ?? '').toString().trim();
   const deliveryAddress = (payload.deliveryAddress ?? user.address ?? '').toString().trim();
   const deliveryArea = (payload.deliveryArea ?? user.pickArea ?? '').toString().trim();
-  const branchDoc = await Branch.findOne({ id: branchId }); // per-branch zone → charge
-  const deliveryCharge = round2(chargeFromBranch(branchDoc, deliveryArea));
+  const deliveryCharge = round2(chargeFromRegion(region, deliveryArea)); // region zone → charge
 
   const total = round2(subtotal - discount - pointsRedeemed + deliveryCharge);
 
@@ -132,7 +140,8 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     total,
     couponCode,
     status: 'Placed',
-    branchId,
+    regionId,
+    branchId: Number(payload.branchId) > 0 ? Number(payload.branchId) : null,
     paymentMethod: payload.paymentMethod || 'cod',
     paymentStatus: 'Pending', // 🔒 কখনো client থেকে নয় — Phase 7-এ gateway verify করবে
     transactionId: '',
