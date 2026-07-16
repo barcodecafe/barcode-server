@@ -70,6 +70,11 @@ const getUnitPrice = (food: any, branchId?: number, selectedSize?: string | null
     adjustment = Number(raw) || 0;
   }
   const active = basePrice + adjustment;
+  // Discount: flat ৳ off per unit, or a percentage. Never below 0.
+  if (food.discountType === 'flat') {
+    const amt = Number(food.discountAmount) || 0;
+    return amt > 0 ? Math.max(0, active - amt) : active;
+  }
   const pct = Number(food.discountPct) || 0;
   return pct > 0 ? active * (1 - pct / 100) : active;
 };
@@ -89,7 +94,9 @@ const createFoodService = async (payload: any) => {
     isAdminFeatured: !!payload.isAdminFeatured,
     featuredOrder: payload.featuredOrder ?? null,
     branchIds: payload.branchIds || payload.branches || [],
-    discountPct: Number(payload.discountPct) || 0,
+    discountType: payload.discountType === 'flat' ? 'flat' : 'percent',
+    discountPct: payload.discountType === 'flat' ? 0 : (Number(payload.discountPct) || 0),
+    discountAmount: payload.discountType === 'flat' ? (Number(payload.discountAmount) || 0) : 0,
     branchPrices: payload.branchPrices || {},
     variantLabel: payload.variantLabel || 'Size',
     variations: payload.variations || [],
@@ -109,7 +116,16 @@ const updateFoodService = async (id: string | number, payload: any) => {
   for (const k of scalar) if (payload[k] !== undefined) (food as any)[k] = payload[k];
   if (payload.price !== undefined) food.price = Number(payload.price) || 0;
   if (payload.rating !== undefined) food.rating = Number(payload.rating) || 0;
+  // Discount: keep percent vs flat mutually exclusive based on the chosen type.
+  const discountTouched =
+    payload.discountType !== undefined || payload.discountPct !== undefined || payload.discountAmount !== undefined;
+  if (payload.discountType !== undefined) food.discountType = payload.discountType === 'flat' ? 'flat' : 'percent';
   if (payload.discountPct !== undefined) food.discountPct = Number(payload.discountPct) || 0;
+  if (payload.discountAmount !== undefined) food.discountAmount = Number(payload.discountAmount) || 0;
+  if (discountTouched) {
+    if (food.discountType === 'flat') food.discountPct = 0;
+    else food.discountAmount = 0;
+  }
   if (payload.branchIds !== undefined || payload.branches !== undefined) {
     food.branchIds = payload.branchIds || payload.branches || [];
   }

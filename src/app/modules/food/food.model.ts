@@ -22,7 +22,9 @@ const foodSchema = new Schema<IFood>(
     isAdminFeatured: { type: Boolean, default: false },
     featuredOrder: { type: Number, default: null },
     branchIds: { type: [Number], default: [] },
+    discountType: { type: String, enum: ['percent', 'flat'], default: 'percent' },
     discountPct: { type: Number, default: 0 },
+    discountAmount: { type: Number, default: 0 }, // flat ৳ off per unit when discountType === 'flat'
     // per-branch maps keyed by branchId → toJSON gives a plain object {"1": 5}
     // (Map handles default {} reliably on insertMany, unlike Mixed)
     branchPrices: { type: Map, of: Number, default: () => ({}) },

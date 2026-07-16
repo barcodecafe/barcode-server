@@ -7,7 +7,11 @@ export interface ICoupon {
   // QR code as a PNG data URL. Encodes the coupon `code` so a POS scanner can
   // read it and validate the discount server-side. Server-generated.
   qrImage?: string;
+  // Discount can be a percentage (discountPct) or a flat ৳ amount (discountAmount).
+  // discountType selects which one applies; defaults to 'percent' for legacy rows.
+  discountType?: 'percent' | 'flat';
   discountPct: number;
+  discountAmount?: number;
   minSpend: number;
   isActive: boolean;
   createdAt?: Date;

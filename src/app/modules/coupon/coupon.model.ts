@@ -8,7 +8,9 @@ const couponSchema = new Schema<ICoupon>(
     // index until they're backfilled, so their missing value can't collide.
     couponId: { type: String, unique: true, sparse: true, trim: true },
     qrImage: { type: String, default: '' },
+    discountType: { type: String, enum: ['percent', 'flat'], default: 'percent' },
     discountPct: { type: Number, required: true, default: 0 },
+    discountAmount: { type: Number, default: 0 }, // flat ৳ off when discountType === 'flat'
     minSpend: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
   },

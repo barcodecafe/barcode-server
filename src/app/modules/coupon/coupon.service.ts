@@ -79,12 +79,18 @@ const createCouponService = async (payload: Partial<ICoupon>) => {
   const couponId = await generateUniqueCouponId();
   const qrImage = await buildQrImage(code);
 
+  // Discount is either a percentage or a flat ৳ amount (mutually exclusive).
+  const discountType = payload.discountType === 'flat' ? 'flat' : 'percent';
+  const discountPct = discountType === 'percent' ? Math.min(100, Math.max(0, Number(payload.discountPct) || 0)) : 0;
+  const discountAmount = discountType === 'flat' ? Math.max(0, Number(payload.discountAmount) || 0) : 0;
+
   return Coupon.create({
     code,
     couponId,
     qrImage,
-    // discountPct 0-100 এ ক্ল্যাম্প করা (>100% হলে negative total রোধ)
-    discountPct: Math.min(100, Math.max(0, Number(payload.discountPct) || 0)),
+    discountType,
+    discountPct,
+    discountAmount,
     minSpend: Math.max(0, Number(payload.minSpend) || 0),
     isActive: payload.isActive !== undefined ? payload.isActive : true,
   });

@@ -92,7 +92,10 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
   let couponCode = '';
   if (payload.couponCode && payload.couponCode.trim()) {
     const coupon = await CouponService.validateCouponService(payload.couponCode, subtotal);
-    discount = round2((subtotal * coupon.discountPct) / 100);
+    discount =
+      coupon.discountType === 'flat'
+        ? round2(Math.min(Number(coupon.discountAmount) || 0, subtotal)) // flat ৳, capped at subtotal
+        : round2((subtotal * coupon.discountPct) / 100);
     couponCode = coupon.code;
   }
 
