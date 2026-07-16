@@ -10,5 +10,6 @@ router.get('/revenue-by-branch', ...adminOnly, AnalyticsController.revenueByBran
 router.get('/orders-by-category', ...adminOnly, AnalyticsController.ordersByCategoryController);
 router.get('/revenue-trend', ...adminOnly, AnalyticsController.revenueTrendController);
 router.get('/top-dishes', ...adminOnly, AnalyticsController.topDishesController);
+router.get('/top-customers', ...adminOnly, AnalyticsController.topCustomersController);
 
 export const AnalyticsRoutes = router;

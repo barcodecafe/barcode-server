@@ -137,10 +137,45 @@ const getDashboardSummaryService = async () => {
   };
 };
 
+// GET /analytics/top-customers?limit=N
+// Per-customer lifetime purchase record (Rejected orders excluded), ranked by
+// total spent. Returns every customer with ≥1 valid order so the admin registry
+// can show each customer's spend; a dashboard widget can slice the top N.
+const getTopCustomersService = async (limit = 0) => {
+  const n = Math.floor(Number(limit));
+  const safeLimit = Number.isFinite(n) && n > 0 ? Math.min(n, 500) : 0; // 0 = all
+  const pipeline: any[] = [
+    { $match: VALID },
+    {
+      $group: {
+        _id: '$user.id',
+        name: { $last: '$user.name' }, // most recent order's snapshot name
+        email: { $last: '$user.email' },
+        totalSpent: { $sum: '$total' },
+        orderCount: { $sum: 1 },
+        lastOrderAt: { $max: '$createdAt' },
+      },
+    },
+    { $sort: { totalSpent: -1 } },
+  ];
+  if (safeLimit) pipeline.push({ $limit: safeLimit });
+  const rows = await Order.aggregate(pipeline);
+  return rows.map((r: any, i: number) => ({
+    rank: i + 1,
+    userId: r._id,
+    name: r.name || 'Unknown',
+    email: r.email || '',
+    totalSpent: round2(r.totalSpent),
+    orderCount: r.orderCount,
+    lastOrderAt: r.lastOrderAt,
+  }));
+};
+
 export const AnalyticsService = {
   getRevenueByBranchService,
   getOrdersByCategoryService,
   getRevenueTrendService,
   getTopDishesService,
   getDashboardSummaryService,
+  getTopCustomersService,
 };
