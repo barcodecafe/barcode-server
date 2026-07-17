@@ -23,6 +23,7 @@ const branchSchema = new Schema<IBranch>(
     features: { type: [String], default: [] },
     lat: { type: Number, default: null }, // map latitude
     lng: { type: Number, default: null }, // map longitude
+    brandId: { type: Number, default: null, index: true }, // FK → Brand.id
     regionId: { type: Number, default: null, index: true }, // FK → Region.id
     deliveryZones: { type: [deliveryZoneSchema], default: [] }, // অঞ্চল → charge
     defaultDeliveryCharge: { type: Number, default: 100, min: 0 }, // zone না মিললে

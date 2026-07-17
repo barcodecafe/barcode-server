@@ -16,6 +16,7 @@ export interface IBranch {
   features: string[];
   lat?: number | null; // map latitude
   lng?: number | null; // map longitude
+  brandId?: number | null; // FK → Brand.id (which brand this branch belongs to)
   regionId?: number | null; // FK → Region.id (top-level grouping)
   deliveryZones?: IDeliveryZone[]; // এই ব্রাঞ্চের অঞ্চল-ভিত্তিক ডেলিভারি চার্জ
   defaultDeliveryCharge?: number; // zone না মিললে fallback চার্জ

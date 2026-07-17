@@ -23,6 +23,21 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
   }
 };
 
+// Optional auth — attaches req.user when a valid Bearer token is present but
+// never blocks the request. Lets a public endpoint quietly tailor its response
+// for a logged-in admin (e.g. include hidden records) without gating the route.
+export const optionalAuth = (req: Request, _res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      (req as any).user = jwt.verify(authHeader.split(' ')[1], config.jwt.access_secret);
+    } catch {
+      // ignore an invalid/expired token on a public route
+    }
+  }
+  next();
+};
+
 // Role-based Authorization middleware
 // Usage: authorize('admin')  → only listed roles can pass
 export const authorize = (...allowedRoles: string[]) => {

@@ -10,6 +10,7 @@ import { AuthRoutes } from './app/modules/auth/auth.routes';
 import { UserRoutes } from './app/modules/user/user.routes';
 import { FoodRoutes } from './app/modules/food/food.routes';
 import { BranchRoutes } from './app/modules/branch/branch.routes';
+import { BrandRoutes } from './app/modules/brand/brand.routes';
 import { RegionRoutes } from './app/modules/region/region.routes';
 import { CouponRoutes } from './app/modules/coupon/coupon.routes';
 import { OrderRoutes } from './app/modules/order/order.routes';
@@ -105,6 +106,7 @@ app.use('/api/users/me/favorites', FavoritesRoutes); // ⚠️ /api/users এর
 app.use('/api/users', UserRoutes);
 app.use('/api/foods', FoodRoutes);
 app.use('/api/branches', BranchRoutes);
+app.use('/api/brands', BrandRoutes);
 app.use('/api/regions', RegionRoutes);
 app.use('/api/coupons', CouponRoutes);
 app.use('/api/orders', OrderRoutes);
