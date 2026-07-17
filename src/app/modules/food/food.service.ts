@@ -126,8 +126,15 @@ const updateFoodService = async (id: string | number, payload: any) => {
     if (food.discountType === 'flat') food.discountPct = 0;
     else food.discountAmount = 0;
   }
-  if (payload.branchIds !== undefined || payload.branches !== undefined) {
-    food.branchIds = payload.branchIds || payload.branches || [];
+  // `branchIds` is authoritative — [] is a real value here, meaning "all branches".
+  // The legacy `branches` alias only applies when it is non-empty: older admin
+  // bundles sent `branches: []` whenever they had failed to load the existing
+  // ticks, which silently wiped a dish's branch assignments. Ignoring the empty
+  // case makes a stale client fail to save rather than destroy data.
+  if (payload.branchIds !== undefined) {
+    food.branchIds = payload.branchIds;
+  } else if (Array.isArray(payload.branches) && payload.branches.length > 0) {
+    food.branchIds = payload.branches;
   }
   if (payload.branchPrices !== undefined) food.set('branchPrices', payload.branchPrices);
   if (payload.variantLabel !== undefined) food.variantLabel = payload.variantLabel || 'Size';
