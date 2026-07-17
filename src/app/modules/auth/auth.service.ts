@@ -6,6 +6,15 @@ import config from '../../config';
 import { User } from '../user/user.model';
 import { ensureMembership } from '../../utils/membership';
 
+// Store BD numbers in one canonical shape (+8801XXXXXXXXX) regardless of how the
+// customer typed them, so lookups (POS, SSLCommerz cus_phone) stay consistent.
+const normalizeBdPhone = (raw?: string): string => {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (/^01[3-9]\d{8}$/.test(digits)) return `+88${digits}`;
+  if (/^8801[3-9]\d{8}$/.test(digits)) return `+${digits}`;
+  return String(raw || '').trim();
+};
+
 // Helper: access token তৈরি
 const generateToken = (payload: { _id: string; role: string; email: string }) => {
   return jwt.sign(payload, config.jwt.access_secret, {
@@ -40,7 +49,7 @@ const registerUser = async (payload: RegisterPayload) => {
     email,
     password: payload.password,
     role: 'user',
-    phone: payload.phone?.trim() || '',
+    phone: normalizeBdPhone(payload.phone),
     pickArea: payload.pickArea?.trim() || '',
     address: payload.address?.trim() || '',
   });

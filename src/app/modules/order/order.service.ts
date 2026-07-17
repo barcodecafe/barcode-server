@@ -156,6 +156,18 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     await User.findByIdAndUpdate(user._id, { $inc: { points: -pointsRedeemed } });
   }
 
+  // Backfill the customer's profile from this order's delivery details when the
+  // profile fields are still empty. Checkout collects phone/area even when signup
+  // didn't, so this is where AdminCustomers finally gets a phone + pick area to
+  // show instead of "Not Set". Only fills blanks — never overwrites saved values.
+  const profileFill: Record<string, string> = {};
+  if (!String(user.phone || '').trim() && deliveryPhone) profileFill.phone = deliveryPhone;
+  if (!String(user.pickArea || '').trim() && deliveryArea) profileFill.pickArea = deliveryArea;
+  if (!String(user.address || '').trim() && deliveryAddress) profileFill.address = deliveryAddress;
+  if (Object.keys(profileFill).length > 0) {
+    await User.updateOne({ _id: user._id }, { $set: profileFill });
+  }
+
   return order;
 };
 
