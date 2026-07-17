@@ -1,4 +1,5 @@
 import { Food } from './food.model';
+import { Order } from '../order/order.model';
 import { getNextId } from '../../utils/counter';
 
 // GET /api/foods  (+ ?category=Mains)
@@ -17,17 +18,40 @@ const getFoodByIdService = async (id: string | number) => {
 };
 
 // GET /api/foods/popular?limit=6
-// admin-pinned আগে (featuredOrder asc), তারপর rating অনুযায়ী — foodsService-এর হুবহু লজিক
+// ক্লায়েন্টের সংজ্ঞা: popular = admin-এর "Mark as Popular" টিক + কাস্টমাররা যেগুলো
+// সবচেয়ে বেশি কিনেছে। Admin-এর বাছাই আগে, তারপর বিক্রি অনুযায়ী বাকিগুলো।
 const getPopularFoodsService = async (limit = 6) => {
-  const foods = await Food.find({});
-  const adminPicked = foods
-    .filter((f) => f.isAdminFeatured)
-    .sort((a, b) => (a.featuredOrder ?? 0) - (b.featuredOrder ?? 0));
+  const [foods, sales] = await Promise.all([
+    Food.find({}),
+    // Rejected বাদ দিয়ে প্রতি dish-এর মোট বিক্রি (analytics-এর top-dishes এর মতোই)
+    Order.aggregate([
+      { $match: { status: { $ne: 'Rejected' } } },
+      { $unwind: '$items' },
+      { $group: { _id: '$items.id', sold: { $sum: '$items.quantity' } } },
+    ]),
+  ]);
+  const soldById = new Map<number, number>(sales.map((r: any) => [r._id, r.sold]));
+  const soldOf = (f: any) => soldById.get(f.id) ?? 0;
+
+  // ১. admin যেগুলোতে টিক দিয়েছে — নিজেদের মধ্যে বিক্রি অনুযায়ী
+  const adminPicked = foods.filter((f) => f.popular).sort((a, b) => soldOf(b) - soldOf(a));
   const pickedIds = new Set(adminPicked.map((f) => f.id));
-  const byRating = foods
-    .filter((f) => !pickedIds.has(f.id))
-    .sort((a, b) => b.rating - a.rating);
-  return [...adminPicked, ...byRating].slice(0, limit);
+
+  // ২. বাকিদের মধ্যে যারা আসলেই বিক্রি হয়েছে — বেশি বিক্রি আগে (rating টাই-ব্রেকার)
+  const bestSelling = foods
+    .filter((f) => !pickedIds.has(f.id) && soldOf(f) > 0)
+    .sort((a, b) => soldOf(b) - soldOf(a) || b.rating - a.rating);
+
+  return [...adminPicked, ...bestSelling].slice(0, limit);
+};
+
+// GET /api/foods/featured?limit=6
+// শুধু admin যেগুলো "Featured Menu" হিসেবে বেছেছে — তার সাজানো ক্রমে।
+const getFeaturedFoodsService = async (limit = 6) => {
+  const foods = await Food.find({ isAdminFeatured: true });
+  return foods
+    .sort((a, b) => (a.featuredOrder ?? Number.MAX_SAFE_INTEGER) - (b.featuredOrder ?? Number.MAX_SAFE_INTEGER))
+    .slice(0, limit);
 };
 
 // GET /api/foods/search?q=
@@ -154,6 +178,7 @@ export const FoodService = {
   getAllFoodsService,
   getFoodByIdService,
   getPopularFoodsService,
+  getFeaturedFoodsService,
   searchFoodsService,
   getFoodsByBranchService,
   getUnitPrice,

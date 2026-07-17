@@ -24,6 +24,17 @@ const getPopularFoodsController = async (req: Request, res: Response) => {
   }
 };
 
+// GET /api/foods/featured?limit=6
+const getFeaturedFoodsController = async (req: Request, res: Response) => {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 6;
+    const foods = await FoodService.getFeaturedFoodsService(limit);
+    res.status(200).json({ success: true, data: foods });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // GET /api/foods/search?q=
 const searchFoodsController = async (req: Request, res: Response) => {
   try {
@@ -85,6 +96,7 @@ const deleteFoodController = async (req: Request, res: Response) => {
 export const FoodController = {
   getAllFoodsController,
   getPopularFoodsController,
+  getFeaturedFoodsController,
   searchFoodsController,
   getFoodByIdController,
   createFoodController,

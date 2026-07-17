@@ -10,9 +10,10 @@ import {
 const router = express.Router();
 const adminOnly = [authMiddleware, authorize('admin')];
 
-// ⚠️ /popular ও /search অবশ্যই /:id এর আগে থাকতে হবে (route ordering)
+// ⚠️ /popular, /featured ও /search অবশ্যই /:id এর আগে থাকতে হবে (route ordering)
 router.get('/', FoodController.getAllFoodsController); // + ?category=
 router.get('/popular', FoodController.getPopularFoodsController); // + ?limit=
+router.get('/featured', FoodController.getFeaturedFoodsController); // + ?limit=
 router.get('/search', FoodController.searchFoodsController); // + ?q=
 router.get('/:id', FoodController.getFoodByIdController);
 
