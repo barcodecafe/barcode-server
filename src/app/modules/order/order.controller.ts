@@ -33,6 +33,9 @@ const getOrdersController = async (req: Request, res: Response) => {
       data = userId
         ? await OrderService.getOrdersForUserService(userId, active)
         : await OrderService.getAllOrdersService(active);
+    } else if (actor.role === 'rider') {
+      // riders see the deliveries assigned to them, not orders they placed
+      data = await OrderService.getOrdersForRiderService(actor._id, active);
     } else {
       // 🔒 non-admin কখনো অন্যের অর্ডার দেখতে পারবে না — userId param উপেক্ষিত
       data = await OrderService.getOrdersForUserService(actor._id, active);

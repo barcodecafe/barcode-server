@@ -51,6 +51,7 @@ const orderSchema = new Schema<IOrder>(
     transactionId: { type: String, default: '' },
     riderId: { type: String, default: null },
     riderName: { type: String, default: null },
+    riderPhone: { type: String, default: null }, // snapshot for the customer's Call button
     riderAcceptStatus: { type: String, enum: ['pending', 'accepted', null], default: null },
     rejectedRiderIds: { type: [String], default: [] },
     chatHistory: { type: [chatMessageSchema], default: [] },

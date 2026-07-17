@@ -184,6 +184,15 @@ const getOrdersForUserService = async (userId: string, active?: boolean) => {
   return Order.find(filter).sort({ createdAt: -1 });
 };
 
+// Orders assigned to a rider (what their delivery dashboard needs). Without this
+// a rider hitting GET /orders only saw orders they PLACED as a customer — i.e.
+// nothing — so their dashboard was always empty.
+const getOrdersForRiderService = async (riderId: string, active?: boolean) => {
+  const filter: any = { riderId };
+  if (active) filter.status = { $nin: ['Delivered', 'Rejected'] };
+  return Order.find(filter).sort({ createdAt: -1 });
+};
+
 const getOrderByIdService = async (id: string) => {
   if (!isValidObjectId(id)) return null;
   return Order.findById(id);
@@ -318,6 +327,7 @@ const assignRiderToOrderService = async (orderId: string, riderId: string) => {
 
   order.riderId = String(rider._id);
   order.riderName = rider.name;
+  order.riderPhone = rider.phone || '';
   order.riderAcceptStatus = 'pending';
   sysMsg(order, `Rider ${rider.name} has been assigned to this delivery. Waiting for acceptance...`);
   await order.save();
@@ -359,11 +369,13 @@ const rejectRiderOrderService = async (orderId: string, actorId: string) => {
   if (next) {
     order.riderId = String(next._id);
     order.riderName = next.name;
+    order.riderPhone = next.phone || '';
     order.riderAcceptStatus = 'pending';
     sysMsg(order, `${oldName} rejected the delivery. Auto-assigned next available rider: ${next.name}. Waiting for acceptance...`);
   } else {
     order.riderId = null;
     order.riderName = null;
+    order.riderPhone = null;
     order.riderAcceptStatus = null;
     sysMsg(order, `${oldName} rejected the delivery. No other available riders — needs manual re-assignment.`);
   }
@@ -377,6 +389,7 @@ export const OrderService = {
   createOrderService,
   getAllOrdersService,
   getOrdersForUserService,
+  getOrdersForRiderService,
   getOrderByIdService,
   updateOrderStatusService,
   addChatMessageService,

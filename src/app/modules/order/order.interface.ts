@@ -60,6 +60,7 @@ export interface IOrder {
   transactionId?: string;
   riderId?: string | null;
   riderName?: string | null;
+  riderPhone?: string | null; // snapshot so the customer can call the actual rider
   riderAcceptStatus?: 'pending' | 'accepted' | null;
   rejectedRiderIds?: string[];
   chatHistory: IChatMessage[];
