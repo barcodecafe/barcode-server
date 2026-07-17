@@ -3,26 +3,37 @@ import { isValidObjectId } from 'mongoose';
 import jwt from 'jsonwebtoken';
 import config from '../../config';
 import { User } from '../user/user.model';
+import { Order } from '../order/order.model';
 import { RiderApplication } from '../riderApplication/riderApplication.model';
 
 // rider = User(role:'rider') — unified identity (N7)। fleet shape: {id,name,phone,vehicle,status}
-const toRiderShape = (u: any) => ({
+const toRiderShape = (u: any, activeOrders = 0) => ({
   id: String(u._id),
   name: u.name,
   phone: u.phone || '',
   vehicle: u.vehicle || '',
   status: u.riderStatus || 'Available',
+  activeOrders, // in-flight deliveries assigned to this rider (0 = free to take one)
 });
 
 // Active fleet (for order assignment) — excludes pending/rejected rider signups.
-// Legacy riders (field absent) are treated as active via $nin.
+// Legacy riders (field absent) are treated as active via $nin. Each rider carries
+// a live count of in-flight orders so the admin can see who is actually busy.
 const getAllRidersService = async () => {
   const riders = await User.find({
     role: 'rider',
     isDeleted: false,
     riderApprovalStatus: { $nin: ['pending', 'rejected'] },
   }).sort({ createdAt: -1 });
-  return riders.map(toRiderShape);
+
+  // count each rider's in-flight (assigned, not-yet-finished) orders in one pass
+  const counts = await Order.aggregate([
+    { $match: { riderId: { $ne: null }, status: { $nin: ['Delivered', 'Rejected'] } } },
+    { $group: { _id: '$riderId', n: { $sum: 1 } } },
+  ]);
+  const activeByRider = new Map<string, number>(counts.map((c: any) => [String(c._id), c.n]));
+
+  return riders.map((r) => toRiderShape(r, activeByRider.get(String(r._id)) || 0));
 };
 
 // Dedicated rider signup: creates a rider account (pending approval) + an

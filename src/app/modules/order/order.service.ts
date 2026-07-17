@@ -189,6 +189,23 @@ const getOrderByIdService = async (id: string) => {
   return Order.findById(id);
 };
 
+// Recompute a rider's Available/Busy flag from their live workload: Busy while
+// they have any accepted delivery still in flight, Available once none remain.
+// Called wherever an assignment is accepted or an order reaches a terminal state,
+// so the Busy/Active status reflects reality instead of only manual toggles.
+const syncRiderAvailability = async (riderId?: string | null) => {
+  if (!riderId || !isValidObjectId(riderId)) return;
+  const activeCount = await Order.countDocuments({
+    riderId,
+    riderAcceptStatus: 'accepted',
+    status: { $nin: ['Delivered', 'Rejected'] },
+  });
+  await User.updateOne(
+    { _id: riderId, role: 'rider' },
+    { $set: { riderStatus: activeCount > 0 ? 'Busy' : 'Available' } },
+  );
+};
+
 // ── PATCH /orders/:id/status — canonical enum, reserve-aware stock, guard, system chat ──
 const LEGACY_MAP: Record<string, OrderStatus> = {
   'pick order': 'Placed',
@@ -257,6 +274,11 @@ const updateOrderStatusService = async (id: string, rawStatus: string) => {
 
   order.chatHistory.push({ sender, senderName, text, timestamp: new Date() } as IChatMessage);
   await order.save();
+
+  // Terminal states free the rider (if this was their last active delivery).
+  if (newStatus === 'Delivered' || newStatus === 'Rejected') {
+    await syncRiderAvailability(order.riderId);
+  }
   return order;
 };
 
@@ -310,6 +332,8 @@ const acceptRiderOrderService = async (orderId: string, actorId: string) => {
   order.riderAcceptStatus = 'accepted';
   sysMsg(order, `${order.riderName || 'Rider'} accepted the delivery and is heading to the branch.`, 'rider', order.riderName || 'Rider');
   await order.save();
+  // Accepting an active delivery marks the rider Busy.
+  await syncRiderAvailability(order.riderId);
   return order;
 };
 
@@ -320,6 +344,7 @@ const rejectRiderOrderService = async (orderId: string, actorId: string) => {
   if (order.riderId !== actorId) { const e: any = new Error('This order is not assigned to you.'); e.status = 403; throw e; }
 
   const oldName = order.riderName || 'Rider';
+  const oldRiderId = order.riderId; // free them below once they're off this order
   if (!order.rejectedRiderIds) order.rejectedRiderIds = [];
   if (order.riderId) order.rejectedRiderIds.push(order.riderId);
 
@@ -343,6 +368,8 @@ const rejectRiderOrderService = async (orderId: string, actorId: string) => {
     sysMsg(order, `${oldName} rejected the delivery. No other available riders — needs manual re-assignment.`);
   }
   await order.save();
+  // The rider who rejected is off this order — free them if nothing else is active.
+  await syncRiderAvailability(oldRiderId);
   return order;
 };
 
