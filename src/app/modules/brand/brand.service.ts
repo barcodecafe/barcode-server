@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Brand } from './brand.model';
 import { Branch } from '../branch/branch.model';
+import { Food } from '../food/food.model';
 import { getNextId } from '../../utils/counter';
 
 const slugify = (s: string) =>
@@ -44,6 +45,27 @@ const getBrandByIdService = async (id: string | number) => {
 
 const getBrandBySlugService = async (slug: string) => {
   return Brand.findOne({ slug: String(slug || '').toLowerCase().trim() });
+};
+
+// The branches that belong to a brand (its microsite's "Our Branches").
+const getBrandBranchesService = async (slug: string) => {
+  const brand = await getBrandBySlugService(slug);
+  if (!brand) return null;
+  const branches = await Branch.find({ brandId: brand.id }).sort({ id: 1 });
+  return { brand, branches };
+};
+
+// The menu for a brand = dishes served at any of the brand's branches. A dish
+// with an empty branchIds is available everywhere, so it shows for every brand.
+const getBrandMenuService = async (slug: string) => {
+  const brand = await getBrandBySlugService(slug);
+  if (!brand) return null;
+  const branches = await Branch.find({ brandId: brand.id }).select('id');
+  const branchIds = branches.map((b) => b.id);
+  const foods = await Food.find({
+    $or: [{ branchIds: { $size: 0 } }, { branchIds: { $in: branchIds } }],
+  }).sort({ id: 1 });
+  return { brand, foods };
 };
 
 const createBrandService = async (payload: any) => {
@@ -107,6 +129,8 @@ export const BrandService = {
   getAllBrandsService,
   getBrandByIdService,
   getBrandBySlugService,
+  getBrandBranchesService,
+  getBrandMenuService,
   createBrandService,
   updateBrandService,
   deleteBrandService,

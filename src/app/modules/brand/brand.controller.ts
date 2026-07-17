@@ -24,6 +24,26 @@ const getBrandBySlugController = async (req: Request, res: Response) => {
   }
 };
 
+const getBrandBranchesController = async (req: Request, res: Response) => {
+  try {
+    const result = await BrandService.getBrandBranchesService(req.params.slug);
+    if (!result) return res.status(404).json({ success: false, message: 'Brand not found' });
+    res.status(200).json({ success: true, data: result });
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+const getBrandMenuController = async (req: Request, res: Response) => {
+  try {
+    const result = await BrandService.getBrandMenuService(req.params.slug);
+    if (!result) return res.status(404).json({ success: false, message: 'Brand not found' });
+    res.status(200).json({ success: true, data: result });
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
 const getBrandByIdController = async (req: Request, res: Response) => {
   try {
     const brand = await BrandService.getBrandByIdService(req.params.id);
@@ -66,6 +86,8 @@ const deleteBrandController = async (req: Request, res: Response) => {
 export const BrandController = {
   getAllBrandsController,
   getBrandBySlugController,
+  getBrandBranchesController,
+  getBrandMenuController,
   getBrandByIdController,
   createBrandController,
   updateBrandController,

@@ -10,6 +10,8 @@ const adminOnly = [authMiddleware, authorize('admin')];
 // ⚠️ /slug/:slug must come before /:id so a slug is never parsed as an id
 router.get('/', optionalAuth, BrandController.getAllBrandsController); // public (admins may pass ?all=true)
 router.get('/slug/:slug', BrandController.getBrandBySlugController); // public — brand microsite lookup
+router.get('/slug/:slug/branches', BrandController.getBrandBranchesController); // public — brand's branches
+router.get('/slug/:slug/menu', BrandController.getBrandMenuController); // public — brand's menu
 router.get('/:id', BrandController.getBrandByIdController); // public
 
 // Admin CRUD
