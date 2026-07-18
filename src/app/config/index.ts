@@ -33,4 +33,10 @@ export default {
 
   // Client
   client_url: process.env.CLIENT_URL || 'http://localhost:5173',
+  // Public API base — used for gateway callbacks (SSLCommerz IPN). In production
+  // set SERVER_URL to the real API origin (e.g. https://barcoderestaurantgroup.com);
+  // in dev it falls back to the client host on the API port (:5001).
+  server_url:
+    process.env.SERVER_URL ||
+    (process.env.CLIENT_URL || 'http://localhost:5173').replace(/:\d+$/, ':5001'),
 };

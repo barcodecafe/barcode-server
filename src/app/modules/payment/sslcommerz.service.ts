@@ -21,7 +21,7 @@ const initSession = async (payload: {
   customerPhone?: string;
 }) => {
   const { amount, tranId, customerName, customerEmail, customerPhone } = payload;
-  const serverBase = config.client_url.replace(/:\d+$/, ':5001');
+  const serverBase = config.server_url; // public API origin (SERVER_URL in prod)
 
   if (IS_DEMO) {
     return {
