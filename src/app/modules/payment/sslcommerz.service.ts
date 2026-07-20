@@ -53,8 +53,17 @@ const initSession = async (payload: {
   form.append('product_category', 'Food');
   form.append('product_profile', 'general');
 
-  const response = await fetch(`${BASE_URL}/gwprocess/v4`, { method: 'POST', body: form });
-  return response.json();
+  // ⚠️ Must be /gwprocess/v4/api.php — the JSON API. Plain /gwprocess/v4 renders
+  // the hosted checkout as HTML, so parsing it as JSON throws and payment init
+  // fails outright (verified against the live gateway).
+  const response = await fetch(`${BASE_URL}/gwprocess/v4/api.php`, { method: 'POST', body: form });
+  const raw = await response.text();
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Surface the gateway's actual reply instead of a JSON parse error.
+    throw new Error(`SSLCommerz returned a non-JSON response (HTTP ${response.status}).`);
+  }
 };
 
 // ── 2. Validate Transaction (gateway-verified — এটাই আসল সত্য) ──
