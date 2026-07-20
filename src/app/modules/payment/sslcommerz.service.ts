@@ -38,9 +38,11 @@ const initSession = async (payload: {
   form.append('total_amount', String(amount));
   form.append('currency', 'BDT');
   form.append('tran_id', tranId);
-  form.append('success_url', `${config.client_url}/payment/success`);
-  form.append('fail_url', `${config.client_url}/payment/fail`);
-  form.append('cancel_url', `${config.client_url}/payment/cancel`);
+  // Return URLs point at the API, not the SPA: the gateway POSTs a form here and
+  // the server settles + redirects the customer on to the frontend result page.
+  form.append('success_url', `${serverBase}/api/payments/success`);
+  form.append('fail_url', `${serverBase}/api/payments/fail`);
+  form.append('cancel_url', `${serverBase}/api/payments/cancel`);
   form.append('ipn_url', `${serverBase}/api/payments/ipn`);
   form.append('cus_name', customerName);
   form.append('cus_email', customerEmail);
