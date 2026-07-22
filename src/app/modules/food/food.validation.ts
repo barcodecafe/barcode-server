@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const variation = z.object({ name: z.string(), price: z.coerce.number() });
+const variation = z.object({ name: z.string(), price: z.coerce.number(), image: z.string().optional().nullable(), });
 
 export const createFoodValidationSchema = z.object({
   body: z.object({

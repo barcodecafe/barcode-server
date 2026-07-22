@@ -5,6 +5,7 @@ const variationSchema = new Schema(
   {
     name: { type: String, required: true },
     price: { type: Number, required: true },
+    image: { type: String, default: '' }, //  Variant specific image support
   },
   { _id: false }
 );

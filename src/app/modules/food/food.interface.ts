@@ -1,6 +1,7 @@
 export interface IVariation {
   name: string;
   price: number;
+  image?: string; //Variant specific image support (optional)
 }
 
 // ফ্রন্ট এন্ড numeric `id` ব্যবহার করে (branchIds, branchPrices, featuredFoodId) → ObjectId নয়
