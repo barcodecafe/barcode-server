@@ -1,13 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Request, Response } from 'express';
+import { isValidObjectId } from 'mongoose';
 import config from '../../config';
 import { PaymentService } from './payment.service';
 
 // The gateway POSTs a form to success/fail/cancel — a SPA can't receive a POST,
-// so the gateway lands here and we 302 the customer on to the frontend page.
+// so the gateway lands here and we 302 the customer on to the frontend.
+//
+// We send them to order tracking rather than a standalone result page: that is
+// where the live status, the payment status and the retry button already are,
+// so the customer ends up somewhere they can act instead of a dead end. The
+// /payment/* pages remain the fallback for a callback with no usable order id.
 const frontendRedirect = (res: Response, page: string, orderId?: string) => {
-  const q = orderId ? `?order=${encodeURIComponent(orderId)}` : '';
-  return res.redirect(302, `${config.client_url}/payment/${page}${q}`);
+  if (orderId && isValidObjectId(orderId)) {
+    return res.redirect(302, `${config.client_url}/order-tracking/${orderId}?payment=${page}`);
+  }
+  return res.redirect(302, `${config.client_url}/payment/${page}`);
 };
 
 const orderIdFrom = (req: Request) =>
