@@ -11,5 +11,6 @@ router.get('/orders-by-category', ...adminOnly, AnalyticsController.ordersByCate
 router.get('/revenue-trend', ...adminOnly, AnalyticsController.revenueTrendController);
 router.get('/top-dishes', ...adminOnly, AnalyticsController.topDishesController);
 router.get('/top-customers', ...adminOnly, AnalyticsController.topCustomersController);
+router.get('/top-riders', ...adminOnly, AnalyticsController.topRidersController);
 
 export const AnalyticsRoutes = router;

@@ -146,6 +146,10 @@ const getTopCustomersService = async (limit = 0) => {
   const safeLimit = Number.isFinite(n) && n > 0 ? Math.min(n, 500) : 0; // 0 = all
   const pipeline: any[] = [
     { $match: VALID },
+    // ⚠️ Required for $last to mean what it says: an unsorted $group reads in
+    // natural (insertion) order, so $last was returning the OLDEST snapshot —
+    // a customer who changed their name kept showing the old one.
+    { $sort: { createdAt: 1 } },
     {
       $group: {
         _id: '$user.id',
@@ -171,6 +175,101 @@ const getTopCustomersService = async (limit = 0) => {
   }));
 };
 
+// GET /analytics/top-riders?limit=5
+//
+// Ranked on completed deliveries, because that is the thing a rider actually
+// controls. Earnings and delivered value follow from it and are returned so the
+// admin can see the money too, but they are not the ranking — a rider who
+// happened to carry expensive orders is not a better rider.
+//
+// Rejections are counted per rider (a delivery they refused, not a cancelled
+// order) and surfaced as a reliability figure, since the client's whole reason
+// for wanting this list is to see who to rely on.
+const getTopRidersService = async (limit = 5) => {
+  const n = Math.floor(Number(limit));
+  const safeLimit = Number.isFinite(n) && n > 0 ? Math.min(n, 100) : 5;
+
+  const [delivered, refusals] = await Promise.all([
+    Order.aggregate([
+      // Membership matches the settlement view: an order delivered and later
+      // flipped to Rejected still counts — the rider did the work.
+      { $match: { riderId: { $ne: null }, $or: [{ status: 'Delivered' }, { deliveredAt: { $ne: null } }] } },
+      // ⚠️ $group with no $sort consumes documents in natural order, so $last is
+      // the OLDEST document, not the newest. Without this a rider who changed
+      // their phone number would show the old one forever and the admin would
+      // call a dead line.
+      { $sort: { createdAt: 1 } },
+      {
+        $group: {
+          _id: '$riderId',
+          name: { $last: '$riderName' }, // snapshot — survives a deleted rider
+          phone: { $last: '$riderPhone' },
+          deliveries: { $sum: 1 },
+          deliveredValue: { $sum: '$total' },
+          // ⚠️ NOT $ifNull on riderCommission: the schema defaults that field to
+          // 0, so Mongoose stamps a 0 onto any legacy order the moment it is
+          // saved for ANY reason (a chat message is enough). $ifNull only fires
+          // on an absent key, so earnings would silently collapse toward ৳0.
+          // deliveredAt is the snapshot signal — same rule as readCommission().
+          earnings: {
+            $sum: {
+              $cond: [
+                { $ifNull: ['$deliveredAt', false] },
+                { $ifNull: ['$riderCommission', 0] },
+                { $ifNull: ['$deliveryCharge', 0] },
+              ],
+            },
+          },
+          lastDeliveryAt: { $max: { $ifNull: ['$deliveredAt', '$createdAt'] } },
+        },
+      },
+      { $sort: { deliveries: -1, deliveredValue: -1 } },
+      { $limit: safeLimit },
+    ]),
+    // Deliveries a rider actually turned down.
+    Order.aggregate([
+      { $match: { rejectedRiderIds: { $exists: true, $ne: [] } } },
+      // Dedupe within an order: a rider re-assigned to a delivery they already
+      // refused gets pushed onto the array a second time.
+      { $set: { rejectedRiderIds: { $setUnion: ['$rejectedRiderIds', []] } } },
+      { $unwind: '$rejectedRiderIds' },
+      // Refusing an order you were later re-assigned and DID deliver is not a
+      // refusal on your record — otherwise the same order counts on both sides
+      // and a rider who completed everything they ended up holding reads 50%.
+      {
+        $match: {
+          $expr: {
+            $not: [{ $and: [{ $eq: ['$rejectedRiderIds', '$riderId'] }, { $eq: ['$status', 'Delivered'] }] }],
+          },
+        },
+      },
+      { $group: { _id: '$rejectedRiderIds', rejected: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const rejectedBy = new Map(refusals.map((r: any) => [String(r._id), r.rejected]));
+
+  return delivered.map((r: any, i: number) => {
+    const rejected = rejectedBy.get(String(r._id)) || 0;
+    const offered = r.deliveries + rejected;
+    return {
+      rank: i + 1,
+      riderId: r._id,
+      name: r.name || 'Unknown rider',
+      phone: r.phone || '',
+      deliveries: r.deliveries,
+      rejected,
+      // Share of the deliveries that reached a decision which this rider
+      // completed. In-flight orders are deliberately not in the denominator —
+      // they haven't been won or lost yet.
+      acceptanceRate: offered ? Math.round((r.deliveries / offered) * 100) : 100,
+      deliveredValue: round2(r.deliveredValue),
+      earnings: round2(r.earnings),
+      lastDeliveryAt: r.lastDeliveryAt,
+    };
+  });
+};
+
 export const AnalyticsService = {
   getRevenueByBranchService,
   getOrdersByCategoryService,
@@ -178,4 +277,5 @@ export const AnalyticsService = {
   getTopDishesService,
   getDashboardSummaryService,
   getTopCustomersService,
+  getTopRidersService,
 };

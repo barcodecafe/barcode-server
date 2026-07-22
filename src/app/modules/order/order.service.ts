@@ -376,7 +376,11 @@ const rejectRiderOrderService = async (orderId: string, actorId: string) => {
   const oldName = order.riderName || 'Rider';
   const oldRiderId = order.riderId; // free them below once they're off this order
   if (!order.rejectedRiderIds) order.rejectedRiderIds = [];
-  if (order.riderId) order.rejectedRiderIds.push(order.riderId);
+  // Record the refusal once. A rider re-assigned to a delivery they already
+  // turned down would otherwise be listed twice and read as two refusals.
+  if (order.riderId && !order.rejectedRiderIds.includes(order.riderId)) {
+    order.rejectedRiderIds.push(order.riderId);
+  }
 
   // পরের available rider (যে reject করেনি) — সবাই আসল User, তাই login করতে পারবে (N7)
   const next = await User.findOne({

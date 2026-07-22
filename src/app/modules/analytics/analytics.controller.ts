@@ -53,8 +53,18 @@ const topCustomersController = async (req: Request, res: Response) => {
   }
 };
 
+const topRidersController = async (req: Request, res: Response) => {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 5;
+    res.status(200).json({ success: true, data: await AnalyticsService.getTopRidersService(limit) });
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
 export const AnalyticsController = {
   summaryController,
+  topRidersController,
   revenueByBranchController,
   ordersByCategoryController,
   revenueTrendController,
