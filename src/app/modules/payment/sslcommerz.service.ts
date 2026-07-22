@@ -73,18 +73,36 @@ const initSession = async (payload: {
     // the request never reached SSLCommerz (a proxy, firewall or captive portal
     // answered instead), so the body identifies the culprit immediately.
     const snippet = raw.replace(/\s+/g, ' ').trim().slice(0, 300);
+
+    // SSLCommerz sits behind a WAF that inspects the callback URLs we send and
+    // rejects the whole request — with an HTML page, not JSON — when they are on
+    // a host it doesn't recognise. Verified against the live gateway: identical
+    // credentials and payload succeed with the registered domain and are
+    // rejected with an sslip.io IP-based host. Name it, because "non-JSON reply"
+    // sends you hunting for a network fault that isn't there.
+    const wafRejected = /Request Rejected|support ID/i.test(raw);
+
     // eslint-disable-next-line no-console
     console.error(
       `[payments] SSLCommerz did not return JSON.\n` +
-        `  url:      ${url}\n` +
-        `  is_live:  ${config.sslcommerz.is_live}\n` +
-        `  store_id: ${config.sslcommerz.store_id ? `set (${String(config.sslcommerz.store_id).slice(0, 4)}…)` : 'MISSING'}\n` +
-        `  status:   ${response.status} ${response.statusText}\n` +
-        `  body:     ${snippet}`,
+        `  url:       ${url}\n` +
+        `  is_live:   ${config.sslcommerz.is_live}\n` +
+        `  store_id:  ${config.sslcommerz.store_id ? `set (${String(config.sslcommerz.store_id).slice(0, 4)}…)` : 'MISSING'}\n` +
+        `  callbacks: ${serverBase}/api/payments/*\n` +
+        `  status:    ${response.status} ${response.statusText}\n` +
+        `  body:      ${snippet}` +
+        (wafRejected
+          ? `\n  → The gateway's firewall rejected this request. The callback host above` +
+            `\n    is almost certainly not the domain registered with SSLCommerz.` +
+            `\n    Serve the API from the registered domain (proxy /api to this server)` +
+            `\n    and set SERVER_URL to it.`
+          : ''),
     );
+
     throw new Error(
-      `The payment gateway did not respond correctly (HTTP ${response.status}). ` +
-        `Check the server logs for the gateway's actual reply.`,
+      wafRejected
+        ? 'The payment gateway rejected the request. Its callback URLs must be on the domain registered with SSLCommerz — see the server logs.'
+        : `The payment gateway did not respond correctly (HTTP ${response.status}). Check the server logs for the gateway's actual reply.`,
     );
   }
 };
