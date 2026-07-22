@@ -11,11 +11,21 @@ import { PaymentService } from './payment.service';
 // where the live status, the payment status and the retry button already are,
 // so the customer ends up somewhere they can act instead of a dead end. The
 // /payment/* pages remain the fallback for a callback with no usable order id.
+// Built by hand rather than by template: a stray slash here (a trailing one on
+// CLIENT_URL, say) produces a path like /order-tracking//<id>, which React
+// Router does not match — the customer lands on a blank page right after paying,
+// with no clue anything worked. Normalise so that cannot happen.
+const clientPath = (...segments: string[]) =>
+  `${config.client_url.replace(/\/+$/, '')}/${segments
+    .map((s) => String(s).replace(/^\/+|\/+$/g, ''))
+    .filter(Boolean)
+    .join('/')}`;
+
 const frontendRedirect = (res: Response, page: string, orderId?: string) => {
   if (orderId && isValidObjectId(orderId)) {
-    return res.redirect(302, `${config.client_url}/order-tracking/${orderId}?payment=${page}`);
+    return res.redirect(302, `${clientPath('order-tracking', orderId)}?payment=${encodeURIComponent(page)}`);
   }
-  return res.redirect(302, `${config.client_url}/payment/${page}`);
+  return res.redirect(302, clientPath('payment', page));
 };
 
 const orderIdFrom = (req: Request) =>
