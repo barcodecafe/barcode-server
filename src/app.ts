@@ -1,5 +1,5 @@
 import cors, { CorsOptions } from 'cors';
-import express, { Application, Request, Response } from 'express';
+import express, { Application, NextFunction, Request, Response } from 'express';
 import path from 'path';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -50,6 +50,29 @@ const corsOptions: CorsOptions = {
   credentials: true,
 };
 app.use(cors(corsOptions));
+
+// 🔁 Restore the /api path prefix when a reverse proxy has stripped it.
+//
+// Serving this API from https://<domain>/api makes the proxy forward /branches
+// instead of /api/branches, so every route 404s with "Cannot GET /branches".
+// Restoring the prefix here lets the same build run at a domain root or behind a
+// path prefix without caring which.
+//
+// This matters beyond convenience: SSLCommerz's firewall rejects a payment
+// session whose callback URLs are on an unregistered host, so the API has to be
+// reachable on the registered domain — which is exactly the path-prefix setup.
+//
+// Everything the app serves outside /api is listed here and passes through
+// untouched; anything else is assumed to be an API call missing its prefix.
+const PROXY_PASSTHROUGH_PREFIXES = ['/api', '/uploads'];
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  const isRoot = req.url === '/' || req.url.startsWith('/?');
+  const isPassthrough = PROXY_PASSTHROUGH_PREFIXES.some(
+    (p) => req.url === p || req.url.startsWith(`${p}/`) || req.url.startsWith(`${p}?`),
+  );
+  if (!isRoot && !isPassthrough) req.url = `/api${req.url}`;
+  next();
+});
 
 // ✅ Security: Rate Limiting (global — 500 req / 15min / IP)
 const globalLimiter = rateLimit({
