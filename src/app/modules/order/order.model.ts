@@ -55,6 +55,16 @@ const orderSchema = new Schema<IOrder>(
     riderAcceptStatus: { type: String, enum: ['pending', 'accepted', null], default: null },
     rejectedRiderIds: { type: [String], default: [] },
     chatHistory: { type: [chatMessageSchema], default: [] },
+
+    // ── Rider cash settlement (snapshotted at Delivered — see order.service) ──
+    deliveredAt: { type: Date, default: null },
+    riderCommission: { type: Number, default: 0 },
+    cashCollected: { type: Number, default: 0 },
+    isSubmittedToAdmin: { type: Boolean, default: false },
+    cashSubmittedAt: { type: Date, default: null },
+    isCashSettledByAdmin: { type: Boolean, default: false },
+    cashSettledAt: { type: Date, default: null },
+    cashSettledBy: { type: String, default: null },
   },
   {
     timestamps: true,

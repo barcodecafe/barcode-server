@@ -78,6 +78,19 @@ export interface IOrder {
   riderAcceptStatus?: 'pending' | 'accepted' | null;
   rejectedRiderIds?: string[];
   chatHistory: IChatMessage[];
+
+  // ── Rider cash settlement ────────────────────────────────────────────────
+  // Snapshotted once, when the order is marked Delivered, so a later change to
+  // the commission rule or the delivery charge can never rewrite history.
+  deliveredAt?: Date | null; // when the rider actually handed the food over
+  riderCommission?: number; // what the rider earns on this delivery
+  cashCollected?: number; // cash taken at the door — 0 when already paid online
+  isSubmittedToAdmin?: boolean; // rider says they handed the cash over
+  cashSubmittedAt?: Date | null;
+  isCashSettledByAdmin?: boolean; // admin confirms they received it
+  cashSettledAt?: Date | null;
+  cashSettledBy?: string | null; // admin user id
+
   createdAt?: Date;
   updatedAt?: Date;
 }

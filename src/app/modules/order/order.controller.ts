@@ -128,7 +128,50 @@ const rejectRiderController = async (req: Request, res: Response) => {
   }
 };
 
+// POST /api/orders/submit-daily-cash (rider) — hand the day's cash to the admin
+const submitDailyCashController = async (req: Request, res: Response) => {
+  try {
+    // A rider can only ever submit their OWN cash — never trust a riderId from
+    // the body, or one rider could settle another's takings.
+    const riderId = String((req as any).user?._id);
+    const data = await OrderService.submitRiderDailyCashService(riderId, req.body?.date);
+    res.status(200).json({ success: true, message: 'Cash submitted to admin for confirmation', data });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
+// POST /api/orders/confirm-cash-settlement (admin) — confirm the money arrived
+const confirmCashSettlementController = async (req: Request, res: Response) => {
+  try {
+    const data = await OrderService.confirmRiderCashSettlementService(
+      String(req.body?.riderId || ''),
+      req.body?.date,
+      String((req as any).user?._id),
+    );
+    res.status(200).json({ success: true, message: 'Cash settlement confirmed', data });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
+// GET /api/orders/settlement-summary?riderId=&date= (admin, or a rider for themselves)
+const settlementSummaryController = async (req: Request, res: Response) => {
+  try {
+    const actor = (req as any).user;
+    const riderId = actor?.role === 'admin' ? String(req.query.riderId || '') : String(actor?._id);
+    if (!riderId) return res.status(400).json({ success: false, message: 'riderId is required' });
+    const data = await OrderService.getRiderSettlementSummaryService(riderId, req.query.date);
+    res.status(200).json({ success: true, data });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
 export const OrderController = {
+  submitDailyCashController,
+  confirmCashSettlementController,
+  settlementSummaryController,
   createOrderController,
   getOrdersController,
   getOrderByIdController,

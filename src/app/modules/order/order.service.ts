@@ -7,6 +7,14 @@ import { Region } from '../region/region.model';
 import { FoodService } from '../food/food.service';
 import { CouponService } from '../coupon/coupon.service';
 import { chargeFromRegion } from './delivery.config';
+import {
+  riderCommissionFor,
+  cashCollectedFor,
+  settlementTotals,
+  normaliseDateKey,
+  orderSettlementDate,
+  isSnapshotted,
+} from './settlement.config';
 import { IChatMessage, OrderStatus, ORDER_STATUSES } from './order.interface';
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
@@ -256,6 +264,18 @@ const updateOrderStatusService = async (id: string, rawStatus: string) => {
 
   order.status = newStatus;
 
+  // ── ক্যাশ settlement snapshot (Delivered-এ একবারই) ──
+  // এই মুহূর্তেই টাকা হাতবদল হয়, তাই কমিশন ও কত ক্যাশ তোলা হলো তা এখানেই ধরে
+  // রাখা হয় — পরে delivery charge বা কমিশনের নিয়ম বদলালেও পুরনো হিসাব বদলাবে না।
+  // ⚠️ `!order.deliveredAt` — একবারই। শুধু oldStatus দেখলে Delivered → Placed →
+  // Delivered করলে আবার snapshot হতো; আর ততক্ষণে settlement paymentStatus 'Paid'
+  // করে দেওয়ায় cashCollected ০ হয়ে যেত — তোলা টাকাটা হিসাব থেকে উবে যেত।
+  if (newStatus === 'Delivered' && !order.deliveredAt) {
+    order.deliveredAt = new Date();
+    order.riderCommission = riderCommissionFor(order);
+    order.cashCollected = cashCollectedFor(order);
+  }
+
   // ── লয়্যালটি settlement (oldStatus guard-এ একবারই) ──
   // Delivered → subtotal-ভিত্তিক পয়েন্ট credit (৳100 = 5 pts)
   if (newStatus === 'Delivered' && oldStatus !== 'Delivered' && !order.pointsEarned) {
@@ -385,7 +405,199 @@ const rejectRiderOrderService = async (orderId: string, actorId: string) => {
   return order;
 };
 
+// ─── Rider cash settlement ───────────────────────────────────────────────────
+// The UI for this shipped before the backend did, so both endpoints below were
+// being called and 404ing — which is why a rider's collection never reset.
+
+/**
+ * Orders that belong to one rider's settlement on one business day.
+ *
+ * ⚠️ Membership is the snapshot (`deliveredAt`), not the *current* status. An
+ * order that was delivered and later flipped to Rejected still had its cash
+ * handed over — filtering on `status: 'Delivered'` alone made that money vanish
+ * from a day the admin had already confirmed. Status changes are routine here,
+ * so this is not hypothetical.
+ *
+ * Consequence, deliberately accepted: a delivery that is later reversed still
+ * counts as cash the rider collected. It did change hands; a refund is a
+ * separate movement of money, not a retroactive edit of this one.
+ */
+const settlementOrdersFor = async (riderId: string, dateKey: string) => {
+  const orders = await Order.find({
+    riderId,
+    $or: [{ status: 'Delivered' }, { deliveredAt: { $ne: null } }],
+  });
+  return orders.filter((o) => orderSettlementDate(o) === dateKey);
+};
+
+/**
+ * Freeze the money on orders delivered before settlement existed.
+ *
+ * Every delivered order in the live database predates these fields, so without
+ * this the first settlement would compute from live values — and because
+ * settling also flips the payment to 'Paid', the very next read would see a paid
+ * order and conclude ৳0 cash was collected. The day's takings would silently
+ * disappear. Snapshot first, using the payment state as it is *now*, then settle.
+ */
+const backfillSnapshots = async (orders: any[]) => {
+  const legacy = orders.filter((o) => !isSnapshotted(o));
+  if (!legacy.length) return orders;
+
+  await Promise.all(
+    legacy.map((o) =>
+      Order.updateOne(
+        { _id: o._id, deliveredAt: null },
+        {
+          $set: {
+            // createdAt keeps the order on the settlement day it already showed on
+            deliveredAt: o.createdAt || new Date(),
+            riderCommission: riderCommissionFor(o),
+            cashCollected: cashCollectedFor(o),
+          },
+        },
+        { timestamps: false }, // must not bump updatedAt — see orderSettlementDate
+      ),
+    ),
+  );
+  return orders;
+};
+
+const buildSummary = (orders: any[], dateKey: string) => {
+  const totals = settlementTotals(orders);
+  const settled = orders.filter((o) => o.isCashSettledByAdmin);
+  const submitted = orders.filter((o) => o.isSubmittedToAdmin);
+  // Outstanding is what still has to change hands: once the admin confirms an
+  // order, it leaves the balance entirely. That is the "collection goes to zero"
+  // the client asked for.
+  const outstanding = settlementTotals(orders.filter((o) => !o.isCashSettledByAdmin));
+  return {
+    date: dateKey,
+    deliveries: orders.length,
+    ...totals,
+    outstandingCollected: outstanding.collected,
+    outstandingCommission: outstanding.commission,
+    outstandingNetPayable: outstanding.netPayable,
+    isSubmittedByRider: orders.length > 0 && submitted.length === orders.length,
+    hasUnsubmitted: orders.some((o) => !o.isSubmittedToAdmin),
+    isConfirmedByAdmin: orders.length > 0 && settled.length === orders.length,
+    orderIds: orders.map((o) => String(o._id)),
+  };
+};
+
+/** POST /orders/submit-daily-cash (rider) — "I've handed today's cash over." */
+const submitRiderDailyCashService = async (riderId: string, date: unknown) => {
+  const dateKey = normaliseDateKey(date);
+  if (!dateKey) { const e: any = new Error('A valid date is required.'); e.status = 400; throw e; }
+
+  const orders = await settlementOrdersFor(riderId, dateKey);
+  if (!orders.length) {
+    const e: any = new Error('No delivered orders to submit for that date.'); e.status = 400; throw e;
+  }
+
+  const pending = orders.filter((o) => !o.isSubmittedToAdmin && !o.isCashSettledByAdmin);
+  if (!pending.length) {
+    const e: any = new Error('That day\'s cash has already been submitted.'); e.status = 400; throw e;
+  }
+
+  await backfillSnapshots(orders);
+
+  const now = new Date();
+  const result = await Order.updateMany(
+    { _id: { $in: pending.map((o) => o._id) }, isSubmittedToAdmin: { $ne: true } },
+    { $set: { isSubmittedToAdmin: true, cashSubmittedAt: now } },
+    { timestamps: false },
+  );
+  // Nothing changed means a concurrent submit beat us to it — don't report a
+  // success the caller didn't cause.
+  if (!result.modifiedCount) {
+    const e: any = new Error('That day\'s cash has already been submitted.'); e.status = 400; throw e;
+  }
+
+  return buildSummary(await settlementOrdersFor(riderId, dateKey), dateKey);
+};
+
+/**
+ * POST /orders/confirm-cash-settlement (admin) — "I have the money."
+ *
+ * This is also where a cash order finally becomes Paid: until now nothing in
+ * the system ever marked one, so every customer's payment history showed
+ * ৳0.00 paid no matter how many orders they had received.
+ */
+const confirmRiderCashSettlementService = async (
+  riderId: string,
+  date: unknown,
+  adminId: string,
+) => {
+  const dateKey = normaliseDateKey(date);
+  if (!dateKey) { const e: any = new Error('A valid date is required.'); e.status = 400; throw e; }
+  if (!riderId) { const e: any = new Error('A rider is required.'); e.status = 400; throw e; }
+
+  const orders = await settlementOrdersFor(riderId, dateKey);
+  if (!orders.length) {
+    const e: any = new Error('No delivered orders to settle for that date.'); e.status = 400; throw e;
+  }
+
+  const unsettled = orders.filter((o) => !o.isCashSettledByAdmin);
+  if (!unsettled.length) {
+    const e: any = new Error('That day is already settled.'); e.status = 400; throw e;
+  }
+
+  // 🔒 Step 1 — freeze the money BEFORE the payment flips to 'Paid'. Reversed,
+  // cashCollected would be recomputed against a paid order and read ৳0.
+  await backfillSnapshots(orders);
+
+  const ids = unsettled.map((o) => o._id);
+
+  // 🔒 Step 2 — mark the payments Paid BEFORE the settle flags.
+  //
+  // These two writes can't share a transaction (that needs a replica set we
+  // can't assume), so the order is chosen to make a crash between them
+  // recoverable: payments end up Paid but the day stays unsettled, and simply
+  // re-running confirm finishes the job — the backfill no-ops, this flip no-ops
+  // (it only touches 'Pending'), and the flags land. The other order round would
+  // strand Pending payments on a day that already refuses to be confirmed again.
+  //
+  // Cash that reached the admin is genuinely paid. Online orders keep whatever
+  // the gateway decided — a Failed/Cancelled payment is never overwritten.
+  await Order.updateMany(
+    { _id: { $in: ids }, paymentStatus: 'Pending' },
+    { $set: { paymentStatus: 'Paid' } },
+    { timestamps: false },
+  );
+
+  // 🔒 Step 3 — claim the settlement.
+  const result = await Order.updateMany(
+    { _id: { $in: ids }, isCashSettledByAdmin: { $ne: true } },
+    {
+      $set: {
+        isSubmittedToAdmin: true, // confirming implies it was handed over
+        isCashSettledByAdmin: true,
+        cashSettledAt: new Date(),
+        cashSettledBy: adminId,
+      },
+    },
+    { timestamps: false },
+  );
+  // Two admins can reach here together. Only the one whose write actually landed
+  // may be told they settled it — otherwise both believe they took the cash.
+  if (!result.modifiedCount) {
+    const e: any = new Error('That day was just settled by someone else.'); e.status = 409; throw e;
+  }
+
+  return buildSummary(await settlementOrdersFor(riderId, dateKey), dateKey);
+};
+
+/** GET /orders/settlement-summary?riderId=&date= — authoritative server-side maths. */
+const getRiderSettlementSummaryService = async (riderId: string, date: unknown) => {
+  const dateKey = normaliseDateKey(date);
+  if (!dateKey) { const e: any = new Error('A valid date is required.'); e.status = 400; throw e; }
+  return buildSummary(await settlementOrdersFor(riderId, dateKey), dateKey);
+};
+
 export const OrderService = {
+  submitRiderDailyCashService,
+  confirmRiderCashSettlementService,
+  getRiderSettlementSummaryService,
   createOrderService,
   getAllOrdersService,
   getOrdersForUserService,

@@ -16,6 +16,12 @@ router.post('/', authMiddleware, validateRequest(createOrderValidationSchema), O
 // তালিকা — admin সব / user নিজের
 router.get('/', authMiddleware, OrderController.getOrdersController);
 
+// ── ক্যাশ সেটেলমেন্ট ──
+// ⚠️ '/:id' এর **আগে** থাকতে হবে, নাহলে Express এগুলোকে order id ভেবে বসবে।
+router.post('/submit-daily-cash', authMiddleware, authorize('rider'), OrderController.submitDailyCashController);
+router.post('/confirm-cash-settlement', authMiddleware, authorize('admin'), OrderController.confirmCashSettlementController);
+router.get('/settlement-summary', authMiddleware, authorize('admin', 'rider'), OrderController.settlementSummaryController);
+
 // একটি অর্ডার — ownership যাচাই
 router.get('/:id', authMiddleware, OrderController.getOrderByIdController);
 
