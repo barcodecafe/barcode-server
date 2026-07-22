@@ -25,7 +25,7 @@ const getPopularFoodsService = async (limit = 6) => {
     Food.find({}),
     // Rejected বাদ দিয়ে প্রতি dish-এর মোট বিক্রি (analytics-এর top-dishes এর মতোই)
     Order.aggregate([
-      { $match: { status: { $ne: 'Rejected' } } },
+      { $match: { status: { $nin: ['Rejected', 'Awaiting Payment'] } } }, // unpaid online orders are not sales yet
       { $unwind: '$items' },
       { $group: { _id: '$items.id', sold: { $sum: '$items.quantity' } } },
     ]),

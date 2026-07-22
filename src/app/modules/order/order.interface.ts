@@ -1,4 +1,5 @@
 export type OrderStatus =
+  | 'Awaiting Payment'
   | 'Placed'
   | 'Accepted'
   | 'Preparing'
@@ -7,6 +8,7 @@ export type OrderStatus =
   | 'Rejected';
 
 export const ORDER_STATUSES: OrderStatus[] = [
+  'Awaiting Payment',
   'Placed',
   'Accepted',
   'Preparing',
@@ -14,6 +16,20 @@ export const ORDER_STATUSES: OrderStatus[] = [
   'Delivered',
   'Rejected',
 ];
+
+/**
+ * An order the customer chose to pay online but hasn't paid for yet.
+ *
+ * It is NOT a real order: it must never reach the admin queue, the kitchen, a
+ * rider, or analytics. It exists only so the gateway has something to attach a
+ * transaction to, and it becomes 'Placed' the moment the gateway confirms the
+ * payment. Before this, an abandoned online payment left behind an order that
+ * looked exactly like a paid one and got cooked.
+ */
+export const AWAITING_PAYMENT: OrderStatus = 'Awaiting Payment';
+
+/** Statuses that are not a live order in the business sense. */
+export const NON_LIVE_STATUSES: OrderStatus[] = ['Awaiting Payment'];
 
 // Payment lifecycle. Only the server ever writes these — a client cannot claim
 // to have paid. 'Cancelled' means the customer backed out at the gateway,

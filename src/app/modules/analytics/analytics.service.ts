@@ -5,7 +5,9 @@ import { Food } from '../food/food.model';
 import { Branch } from '../branch/branch.model';
 
 // Rejected বাদ দিয়ে valid orders
-const VALID = { status: { $ne: 'Rejected' } };
+// 'Awaiting Payment' orders are not real orders yet — they must not appear in
+// revenue, top dishes or any other business figure until the money arrives.
+const VALID = { status: { $nin: ['Rejected', 'Awaiting Payment'] } };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 

@@ -15,7 +15,13 @@ import {
   orderSettlementDate,
   isSnapshotted,
 } from './settlement.config';
-import { IChatMessage, OrderStatus, ORDER_STATUSES } from './order.interface';
+import {
+  IChatMessage,
+  OrderStatus,
+  ORDER_STATUSES,
+  AWAITING_PAYMENT,
+  NON_LIVE_STATUSES,
+} from './order.interface';
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -125,10 +131,18 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
   const total = round2(subtotal - discount - pointsRedeemed + deliveryCharge);
 
   // অর্ডার তৈরি — status/paymentStatus সার্ভার নিয়ন্ত্রিত (client "Paid" পাঠাতে পারবে না)
+  //
+  // অনলাইন পেমেন্ট বেছে নিলে অর্ডারটা **এখনো আসল অর্ডার নয়** — 'Awaiting Payment'
+  // অবস্থায় থাকে, অ্যাডমিন/রান্নাঘর/রাইডার কেউ দেখে না। গেটওয়ে পেমেন্ট নিশ্চিত
+  // করলে তবেই 'Placed' হয়। এটা না থাকায় টাকা না দিয়েও অর্ডার ঢুকে যেত।
+  const isOnlinePayment = (payload.paymentMethod || 'cod') !== 'cod';
+
   const initialMessage: IChatMessage = {
     sender: 'admin',
     senderName: 'Barcode Admin',
-    text: 'Thank you for your order! We are reviewing it and will begin preparation shortly.',
+    text: isOnlinePayment
+      ? 'We are holding your order. It will be confirmed as soon as your online payment goes through.'
+      : 'Thank you for your order! We are reviewing it and will begin preparation shortly.',
     timestamp: new Date(),
   };
 
@@ -150,7 +164,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     deliveryCharge,
     total,
     couponCode,
-    status: 'Placed',
+    status: isOnlinePayment ? AWAITING_PAYMENT : 'Placed',
     regionId,
     branchId: Number(payload.branchId) > 0 ? Number(payload.branchId) : null,
     paymentMethod: payload.paymentMethod || 'cod',
@@ -180,12 +194,15 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
 };
 
 // ── GET /orders (Admin — সব; user — শুধু নিজের) ──
+// 🔒 'Awaiting Payment' অর্ডার অ্যাডমিনের তালিকায় আসে না — টাকা না আসা পর্যন্ত
+// ওটা অর্ডারই নয়, আর রান্নাঘর যেন ভুল করে রান্না না করে।
 const getAllOrdersService = async (active?: boolean) => {
-  const filter: any = {};
-  if (active) filter.status = { $nin: ['Delivered', 'Rejected'] };
+  const filter: any = { status: { $nin: NON_LIVE_STATUSES } };
+  if (active) filter.status = { $nin: [...NON_LIVE_STATUSES, 'Delivered', 'Rejected'] };
   return Order.find(filter).sort({ createdAt: -1 });
 };
 
+// কাস্টমার নিজের অপেক্ষমাণ অর্ডারটা দেখতে পায় — সে-ই তো টাকা দেবে।
 const getOrdersForUserService = async (userId: string, active?: boolean) => {
   const filter: any = { 'user.id': userId };
   if (active) filter.status = { $nin: ['Delivered', 'Rejected'] }; // fix N4

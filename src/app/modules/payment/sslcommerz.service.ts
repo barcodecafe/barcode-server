@@ -62,13 +62,30 @@ const initSession = async (payload: {
   // ⚠️ Must be /gwprocess/v4/api.php — the JSON API. Plain /gwprocess/v4 renders
   // the hosted checkout as HTML, so parsing it as JSON throws and payment init
   // fails outright (verified against the live gateway).
-  const response = await fetch(`${BASE_URL}/gwprocess/v4/api.php`, { method: 'POST', body: form });
+  const url = `${BASE_URL}/gwprocess/v4/api.php`;
+  const response = await fetch(url, { method: 'POST', body: form });
   const raw = await response.text();
   try {
     return JSON.parse(raw);
   } catch {
-    // Surface the gateway's actual reply instead of a JSON parse error.
-    throw new Error(`SSLCommerz returned a non-JSON response (HTTP ${response.status}).`);
+    // Log what the gateway actually said. Throwing away the body left us with
+    // "non-JSON response" and nothing to act on — an HTML 200 here usually means
+    // the request never reached SSLCommerz (a proxy, firewall or captive portal
+    // answered instead), so the body identifies the culprit immediately.
+    const snippet = raw.replace(/\s+/g, ' ').trim().slice(0, 300);
+    // eslint-disable-next-line no-console
+    console.error(
+      `[payments] SSLCommerz did not return JSON.\n` +
+        `  url:      ${url}\n` +
+        `  is_live:  ${config.sslcommerz.is_live}\n` +
+        `  store_id: ${config.sslcommerz.store_id ? `set (${String(config.sslcommerz.store_id).slice(0, 4)}…)` : 'MISSING'}\n` +
+        `  status:   ${response.status} ${response.statusText}\n` +
+        `  body:     ${snippet}`,
+    );
+    throw new Error(
+      `The payment gateway did not respond correctly (HTTP ${response.status}). ` +
+        `Check the server logs for the gateway's actual reply.`,
+    );
   }
 };
 

@@ -2,6 +2,8 @@
 import { isValidObjectId } from 'mongoose';
 import config from '../../config';
 import { Order } from '../order/order.model';
+import { User } from '../user/user.model';
+import { AWAITING_PAYMENT } from '../order/order.interface';
 import { SslcommerzService, isDemoMode } from './sslcommerz.service';
 
 // 🔒 demo mode (free payments) production-এ চলতে দেওয়া যাবে না (QA §2.2)
@@ -19,14 +21,33 @@ const findOrderByTranId = async (tranId: string) =>
 // দুটোই পাস করে **দুটো "Payment received" মেসেজ** বসাত, আর পুরো ডকুমেন্ট save করায়
 // এর মাঝে হওয়া rider-assign/chat লেখা মুছে যেতে পারত। এখন একটাই শর্তসাপেক্ষ আপডেট।
 const markOrderPaid = async (order: any, tranId: string) => {
+  // অনলাইন অর্ডার এতক্ষণ 'Awaiting Payment'-এ ধরে রাখা ছিল — আসল অর্ডার নয়।
+  // টাকা নিশ্চিত হলো, তাই এখনই সেটা সত্যিকারের অর্ডার হয়ে অ্যাডমিনের কিউতে ঢোকে।
+  const isHeld = order.status === AWAITING_PAYMENT;
+
   return Order.findOneAndUpdate(
     { _id: order._id, paymentStatus: { $ne: 'Paid' } },
     {
-      $set: { paymentStatus: 'Paid', transactionId: tranId },
+      $set: {
+        paymentStatus: 'Paid',
+        transactionId: tranId,
+        ...(isHeld ? { status: 'Placed' } : {}),
+      },
       $push: {
         chatHistory: {
-          sender: 'admin', senderName: 'System',
-          text: 'Payment received successfully. Thank you!', timestamp: new Date(),
+          $each: [
+            {
+              sender: 'admin', senderName: 'System',
+              text: 'Payment received successfully. Thank you!', timestamp: new Date(),
+            },
+            ...(isHeld
+              ? [{
+                  sender: 'admin', senderName: 'Barcode Admin',
+                  text: 'Your order is confirmed! We are reviewing it and will begin preparation shortly.',
+                  timestamp: new Date(),
+                }]
+              : []),
+          ],
         },
       },
     },
@@ -188,6 +209,15 @@ const handleGatewayFailureService = async (body: any, outcome: 'Failed' | 'Cance
     { new: true, runValidators: true },
   );
   if (!updated) return { updated: false, reason: 'already recorded by a concurrent callback' };
+
+  // Loyalty points are taken when the order is created, so an order that never
+  // gets paid must give them back — otherwise a failed payment quietly costs the
+  // customer their points. Safe to do here: the update above is atomic, so only
+  // one caller ever reaches this line for a given order.
+  if ((updated.pointsRedeemed || 0) > 0) {
+    await User.findByIdAndUpdate(updated.user.id, { $inc: { points: updated.pointsRedeemed } });
+  }
+
   return { updated: true, orderId: String(order._id) };
 };
 
