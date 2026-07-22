@@ -149,7 +149,7 @@ const getTopCustomersService = async (limit = 0) => {
     // ⚠️ Required for $last to mean what it says: an unsorted $group reads in
     // natural (insertion) order, so $last was returning the OLDEST snapshot —
     // a customer who changed their name kept showing the old one.
-    { $sort: { createdAt: 1 } },
+    { $sort: { createdAt: 1, _id: 1 } },
     {
       $group: {
         _id: '$user.id',
@@ -189,6 +189,14 @@ const getTopRidersService = async (limit = 5) => {
   const n = Math.floor(Number(limit));
   const safeLimit = Number.isFinite(n) && n > 0 ? Math.min(n, 100) : 5;
 
+  // "This rider delivered this order." Used by BOTH aggregations below — they
+  // must agree, or an order counts as a delivery on one side while failing to
+  // cancel its own earlier refusal on the other, and the rider's acceptance rate
+  // halves for work they actually completed.
+  const WAS_DELIVERED_EXPR = {
+    $or: [{ $eq: ['$status', 'Delivered'] }, { $ne: ['$deliveredAt', null] }],
+  };
+
   const [delivered, refusals] = await Promise.all([
     Order.aggregate([
       // Membership matches the settlement view: an order delivered and later
@@ -197,8 +205,9 @@ const getTopRidersService = async (limit = 5) => {
       // ⚠️ $group with no $sort consumes documents in natural order, so $last is
       // the OLDEST document, not the newest. Without this a rider who changed
       // their phone number would show the old one forever and the admin would
-      // call a dead line.
-      { $sort: { createdAt: 1 } },
+      // call a dead line. createdAt alone is not a total order — _id breaks ties
+      // so two orders sharing a timestamp resolve deterministically.
+      { $sort: { createdAt: 1, _id: 1 } },
       {
         $group: {
           _id: '$riderId',
@@ -210,12 +219,22 @@ const getTopRidersService = async (limit = 5) => {
           // 0, so Mongoose stamps a 0 onto any legacy order the moment it is
           // saved for ANY reason (a chat message is enough). $ifNull only fires
           // on an absent key, so earnings would silently collapse toward ৳0.
-          // deliveredAt is the snapshot signal — same rule as readCommission().
+          // deliveredAt is the snapshot signal — same rule as readCommission(),
+          // including its Number.isFinite guard: an absent, null or NaN
+          // commission must fall back, and NaN would otherwise poison the whole
+          // $sum and read the rider's entire earnings as ৳0. NaN sorts below
+          // every number in BSON, so $gte 0 rejects it.
           earnings: {
             $sum: {
               $cond: [
-                { $ifNull: ['$deliveredAt', false] },
-                { $ifNull: ['$riderCommission', 0] },
+                {
+                  $and: [
+                    { $ifNull: ['$deliveredAt', false] },
+                    { $isNumber: '$riderCommission' },
+                    { $gte: ['$riderCommission', 0] },
+                  ],
+                },
+                '$riderCommission',
                 { $ifNull: ['$deliveryCharge', 0] },
               ],
             },
@@ -223,6 +242,7 @@ const getTopRidersService = async (limit = 5) => {
           lastDeliveryAt: { $max: { $ifNull: ['$deliveredAt', '$createdAt'] } },
         },
       },
+      // createdAt alone is not a total order; _id breaks ties deterministically.
       { $sort: { deliveries: -1, deliveredValue: -1 } },
       { $limit: safeLimit },
     ]),
@@ -231,15 +251,24 @@ const getTopRidersService = async (limit = 5) => {
       { $match: { rejectedRiderIds: { $exists: true, $ne: [] } } },
       // Dedupe within an order: a rider re-assigned to a delivery they already
       // refused gets pushed onto the array a second time.
-      { $set: { rejectedRiderIds: { $setUnion: ['$rejectedRiderIds', []] } } },
+      // ⚠️ $setUnion throws on a non-array, which a bare $unwind tolerated — one
+      // malformed document would 500 the endpoint and blank the card for everyone.
+      {
+        $set: {
+          rejectedRiderIds: {
+            $cond: [{ $isArray: '$rejectedRiderIds' }, { $setUnion: ['$rejectedRiderIds', []] }, []],
+          },
+        },
+      },
       { $unwind: '$rejectedRiderIds' },
       // Refusing an order you were later re-assigned and DID deliver is not a
       // refusal on your record — otherwise the same order counts on both sides
       // and a rider who completed everything they ended up holding reads 50%.
+      // Uses the SAME delivered test as the aggregation above, deliberately.
       {
         $match: {
           $expr: {
-            $not: [{ $and: [{ $eq: ['$rejectedRiderIds', '$riderId'] }, { $eq: ['$status', 'Delivered'] }] }],
+            $not: [{ $and: [{ $eq: ['$rejectedRiderIds', '$riderId'] }, WAS_DELIVERED_EXPR] }],
           },
         },
       },
