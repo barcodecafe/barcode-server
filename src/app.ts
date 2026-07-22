@@ -73,6 +73,20 @@ const authLimiter = rateLimit({
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 
+// ✅ Security: the gateway's fail/cancel return URLs must stay public, but each
+// call can cost us an outbound verification request to SSLCommerz. Cap them so
+// an anonymous caller can't burn the merchant's gateway quota. A real customer
+// hits these at most a couple of times per checkout.
+const gatewayReturnLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests. Please try again later.' },
+});
+app.use('/api/payments/fail', gatewayReturnLimiter);
+app.use('/api/payments/cancel', gatewayReturnLimiter);
+
 // ✅ Parsers
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));

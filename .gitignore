@@ -22,3 +22,6 @@ private-uploads
 !.vscode/extensions.json
 .idea
 .DS_Store
+
+# Local test scaffolding (never committed)
+scratchpad

@@ -13,11 +13,47 @@ const frontendRedirect = (res: Response, page: string, orderId?: string) => {
 const orderIdFrom = (req: Request) =>
   String((req.body?.tran_id || req.body?.tranId || req.query?.tran_id || '') as string);
 
+// 🔑 The public origin the gateway must call back on.
+//
+// This is the fix for the production bug where SSLCommerz reported success but
+// the order stayed 'Pending' forever: SERVER_URL was unset, config's fallback
+// produced the FRONTEND origin, and the gateway's callback POSTed into the
+// static site — nginx answered "405 Not Allowed" and the server never heard
+// about the payment.
+//
+// SERVER_URL still wins when it is set (explicit config beats inference). When
+// it isn't, we use the origin of the request the customer's browser just made,
+// which by definition arrived at this API's real public host — so callbacks
+// work even if nobody ever configures the env var.
+//
+// Note: Host is a client-supplied header, so a caller can point *their own*
+// payment's callback elsewhere. That is harmless here — settlement is never
+// based on the callback itself, only on a gateway-verified val_id lookup.
+// exported for tests — this one function decides whether payments settle at all
+export const publicApiBase = (req: Request): string => {
+  if (config.server_url_explicit) return config.server_url_explicit;
+
+  const first = (v: unknown) => String(v || '').split(',')[0].trim();
+  const proto = first(req.headers['x-forwarded-proto']) || req.protocol || 'http';
+  const host = first(req.headers['x-forwarded-host']) || first(req.headers.host);
+  if (host) return `${proto}://${host}`;
+
+  return config.server_url; // last resort — dev only
+};
+
 // POST /api/payments/init  { orderId }  (auth)
 const initController = async (req: Request, res: Response) => {
   try {
     const actor = (req as any).user;
-    const result = await PaymentService.initPaymentService(req.body.orderId, actor);
+    const callbackBase = publicApiBase(req);
+    if (!config.server_url_explicit && config.node_env === 'production') {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[payments] SERVER_URL is not set; using the request origin (${callbackBase}) for gateway callbacks. ` +
+          'Set SERVER_URL to the API origin to make this explicit.',
+      );
+    }
+    const result = await PaymentService.initPaymentService(req.body.orderId, actor, callbackBase);
     res.status(200).json({ success: true, message: 'Payment session created', data: result });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -41,20 +77,55 @@ const ipnController = async (req: Request, res: Response) => {
 const successController = async (req: Request, res: Response) => {
   const orderId = orderIdFrom(req);
   try {
-    await PaymentService.handleIpnService({ ...req.body, ...req.query });
-  } catch {
+    const result = await PaymentService.handleIpnService({ ...req.body, ...req.query });
+    if (!result?.updated) {
+      // Not fatal — the real IPN retries — but silence here is exactly why the
+      // production failure was invisible for so long. Leave a trail.
+      // eslint-disable-next-line no-console
+      console.warn(`[payments] success callback did not settle order ${orderId}: ${result?.reason}`);
+    }
+  } catch (error: any) {
+    // eslint-disable-next-line no-console
+    console.error(`[payments] settle failed for order ${orderId}:`, error?.message || error);
     // settlement is retried by the real IPN; never block the redirect
   }
   return frontendRedirect(res, 'success', orderId);
 };
 
-// POST|GET /api/payments/fail
-const failController = async (req: Request, res: Response) =>
-  frontendRedirect(res, 'fail', orderIdFrom(req));
+// POST|GET /api/payments/fail — record the failure, then redirect.
+const failController = async (req: Request, res: Response) => {
+  const orderId = orderIdFrom(req);
+  try {
+    await PaymentService.handleGatewayFailureService({ ...req.body, ...req.query }, 'Failed');
+  } catch (error: any) {
+    // eslint-disable-next-line no-console
+    console.error(`[payments] could not record failure for order ${orderId}:`, error?.message || error);
+  }
+  return frontendRedirect(res, 'fail', orderId);
+};
 
-// POST|GET /api/payments/cancel
-const cancelController = async (req: Request, res: Response) =>
-  frontendRedirect(res, 'cancel', orderIdFrom(req));
+// POST|GET /api/payments/cancel — customer backed out at the gateway.
+const cancelController = async (req: Request, res: Response) => {
+  const orderId = orderIdFrom(req);
+  try {
+    await PaymentService.handleGatewayFailureService({ ...req.body, ...req.query }, 'Cancelled');
+  } catch (error: any) {
+    // eslint-disable-next-line no-console
+    console.error(`[payments] could not record cancellation for order ${orderId}:`, error?.message || error);
+  }
+  return frontendRedirect(res, 'cancel', orderId);
+};
+
+// POST /api/payments/recheck/:orderId (admin) — ask the gateway what really
+// happened and settle if it confirms. Rescues orders whose callback never landed.
+const recheckController = async (req: Request, res: Response) => {
+  try {
+    const result = await PaymentService.recheckPaymentService(req.params.orderId);
+    res.status(200).json({ success: true, message: result.reason, data: result });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
 
 // GET /api/payments/status/:orderId  (auth, owner/admin)
 const statusController = async (req: Request, res: Response) => {
@@ -74,5 +145,6 @@ export const PaymentController = {
   successController,
   failController,
   cancelController,
+  recheckController,
   statusController,
 };

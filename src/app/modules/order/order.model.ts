@@ -1,5 +1,5 @@
 import { Schema, model } from 'mongoose';
-import { IOrder, ORDER_STATUSES } from './order.interface';
+import { IOrder, ORDER_STATUSES, PAYMENT_STATUSES } from './order.interface';
 
 const orderItemSchema = new Schema(
   {
@@ -47,7 +47,7 @@ const orderSchema = new Schema<IOrder>(
     regionId: { type: Number, default: null }, // ordering region (region-based delivery)
     branchId: { type: Number, default: null }, // optional — legacy / future branch routing
     paymentMethod: { type: String, default: 'cod' },
-    paymentStatus: { type: String, default: 'Pending' }, // server-controlled
+    paymentStatus: { type: String, enum: PAYMENT_STATUSES, default: 'Pending' }, // server-controlled
     transactionId: { type: String, default: '' },
     riderId: { type: String, default: null },
     riderName: { type: String, default: null },

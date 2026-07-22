@@ -19,9 +19,13 @@ const initSession = async (payload: {
   customerName: string;
   customerEmail: string;
   customerPhone?: string;
+  /** Public API origin the gateway must call back on. Resolved per-request by
+   *  the controller so a missing SERVER_URL can't silently point the gateway at
+   *  the frontend. Falls back to config only when the caller has nothing. */
+  callbackBase?: string;
 }) => {
   const { amount, tranId, customerName, customerEmail, customerPhone } = payload;
-  const serverBase = config.server_url; // public API origin (SERVER_URL in prod)
+  const serverBase = (payload.callbackBase || config.server_url).replace(/\/+$/, '');
 
   if (IS_DEMO) {
     return {
@@ -78,4 +82,27 @@ const validateTransaction = async (valId: string) => {
   return response.json();
 };
 
-export const SslcommerzService = { initSession, validateTransaction };
+// ── 3. Query a transaction by our own tran_id ──
+// Used to rescue orders whose callback never arrived (misconfigured callback
+// URL, gateway retry exhausted, customer closed the tab). Unlike validateTransaction
+// this needs no val_id — we only know our order id.
+// Returns { APIConnect, no_of_trans_found, element: [ { status, tran_id, val_id, amount, currency, ... } ] }
+const queryByTransactionId = async (tranId: string) => {
+  if (IS_DEMO) {
+    return { APIConnect: 'DONE', no_of_trans_found: 0, element: [], isDemo: true };
+  }
+  const url =
+    `${BASE_URL}/validator/api/merchantTransIDvalidationAPI.php` +
+    `?tran_id=${encodeURIComponent(tranId)}` +
+    `&store_id=${config.sslcommerz.store_id}` +
+    `&store_passwd=${config.sslcommerz.store_pass}&format=json`;
+  const response = await fetch(url);
+  const raw = await response.text();
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error(`SSLCommerz returned a non-JSON response (HTTP ${response.status}).`);
+  }
+};
+
+export const SslcommerzService = { initSession, validateTransaction, queryByTransactionId };

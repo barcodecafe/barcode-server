@@ -1,6 +1,6 @@
 import express from 'express';
 import { PaymentController } from './payment.controller';
-import { authMiddleware } from '../../middlewares/auth';
+import { authMiddleware, authorize } from '../../middlewares/auth';
 
 const router = express.Router();
 
@@ -19,6 +19,9 @@ router.post('/fail', PaymentController.failController);
 router.get('/fail', PaymentController.failController);
 router.post('/cancel', PaymentController.cancelController);
 router.get('/cancel', PaymentController.cancelController);
+
+// gateway-কে আবার জিজ্ঞেস করে আটকে থাকা order settle করা — admin only
+router.post('/recheck/:orderId', authMiddleware, authorize('admin'), PaymentController.recheckController);
 
 // পেমেন্ট স্ট্যাটাস — owner/admin
 router.get('/status/:orderId', authMiddleware, PaymentController.statusController);

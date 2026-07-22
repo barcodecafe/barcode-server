@@ -15,6 +15,20 @@ export const ORDER_STATUSES: OrderStatus[] = [
   'Rejected',
 ];
 
+// Payment lifecycle. Only the server ever writes these — a client cannot claim
+// to have paid. 'Cancelled' means the customer backed out at the gateway,
+// 'Failed' means the gateway rejected or the attempt died.
+export type PaymentStatus = 'Pending' | 'Paid' | 'Failed' | 'Cancelled' | 'Refunded';
+
+// ⚠️ এই তালিকা model-এ enum হিসেবে বসে, আর Mongoose `.save()` **পুরো ডকুমেন্ট**
+// validate করে — শুধু বদলানো ফিল্ড নয়। তাই তালিকার বাইরের কোনো মান একবার DB-তে
+// ঢুকে গেলে ঐ order আর কখনো save হবে না (status বদল, chat, rider assign — সব আটকে
+// যাবে)। নতুন কোনো অবস্থা লেখার আগে **আগে এখানে যোগ করতে হবে**।
+// 'Refunded' আগেভাগেই রাখা হলো — UI ইতিমধ্যেই রিফান্ডের কথা বলে।
+export const PAYMENT_STATUSES: PaymentStatus[] = [
+  'Pending', 'Paid', 'Failed', 'Cancelled', 'Refunded',
+];
+
 export interface IOrderItem {
   id: number; // foodId (numeric)
   name: string;
@@ -56,7 +70,7 @@ export interface IOrder {
   regionId?: number; // ordering region (delivery is region-based now)
   branchId?: number; // optional — kept for legacy orders / future branch routing
   paymentMethod: string;
-  paymentStatus: string; // Pending | Paid | Failed — সার্ভার নিয়ন্ত্রিত
+  paymentStatus: PaymentStatus; // সার্ভার নিয়ন্ত্রিত — PAYMENT_STATUSES দেখুন
   transactionId?: string;
   riderId?: string | null;
   riderName?: string | null;

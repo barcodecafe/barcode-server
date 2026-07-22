@@ -33,10 +33,22 @@ export default {
 
   // Client
   client_url: process.env.CLIENT_URL || 'http://localhost:5173',
-  // Public API base — used for gateway callbacks (SSLCommerz IPN). In production
-  // set SERVER_URL to the real API origin (e.g. https://barcoderestaurantgroup.com);
-  // in dev it falls back to the client host on the API port (:5001).
+  // Public API base — used for gateway callbacks (SSLCommerz IPN/return URLs).
+  //
+  // ⚠️ This fallback is a trap in production and cost us real money once: when
+  // SERVER_URL is unset and CLIENT_URL has no :port (e.g. https://example.com),
+  // the regex matches nothing and server_url becomes the FRONTEND origin. The
+  // gateway then POSTs its callback into the static site, nginx answers
+  // "405 Not Allowed", the server never hears about the payment, and the order
+  // sits at paymentStatus 'Pending' forever while the customer has been charged.
+  //
+  // So this value is now only a last resort: the payment module prefers
+  // server_url_explicit, then the origin of the live request (see
+  // publicApiBase() in payment.controller.ts).
   server_url:
     process.env.SERVER_URL ||
     (process.env.CLIENT_URL || 'http://localhost:5173').replace(/:\d+$/, ':5001'),
+  // Empty unless SERVER_URL was actually configured — lets callers tell a real
+  // setting apart from the fallback above.
+  server_url_explicit: (process.env.SERVER_URL || '').replace(/\/+$/, ''),
 };
