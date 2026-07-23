@@ -29,7 +29,7 @@ const orderSchema = new Schema<IOrder>(
     user: {
       id: { type: String, required: true },
       name: { type: String, required: true },
-      email: { type: String, default: '' },
+      email: { type: String, default: '' }, // 🎯 FIX: required: true সরিয়ে default: '' করা হয়েছে
       phone: { type: String, default: '' },
       pickArea: { type: String, default: '' },
       address: { type: String, default: '' },
