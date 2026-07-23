@@ -6,7 +6,14 @@ import { IUser } from './user.interface';
 const userSchema = new Schema<IUser>(
   {
     name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    // 🎯 ইমেইল আপডেট: required বাদ দেওয়া হয়েছে এবং sparse: true যুক্ত করা হয়েছে
+    email: {
+      type: String,
+      unique: true,
+      sparse: true, // 👈 এটি না দিলে ইমেইল ছাড়া একাধিক ইউজার রেজিস্টার করলে Duplicate Key Error আসবে
+      lowercase: true,
+      trim: true,
+    },
     password: { type: String, required: true, select: false }, // never returned by default
     role: {
       type: String,
@@ -26,8 +33,6 @@ const userSchema = new Schema<IUser>(
     },
     favorites: { type: [Number], default: [] },
     points: { type: Number, default: 0, min: 0 }, // loyalty balance — visible to every user
-    // Loyalty card: unique+sparse so pre-existing users (no id yet) stay out of
-    // the index until backfilled. qr is a PNG data URL encoding the membershipId.
     membershipId: { type: String, unique: true, sparse: true, trim: true },
     membershipQr: { type: String, default: '' },
     isDeleted: { type: Boolean, default: false },
@@ -36,7 +41,6 @@ const userSchema = new Schema<IUser>(
     timestamps: true,
     toJSON: {
       virtuals: true,
-      // ফ্রন্ট এন্ডের public user shape: { id, name, email, role, phone, pickArea, address, createdAt }
       transform(_doc, ret: any) {
         ret.id = ret._id?.toString();
         delete ret._id;

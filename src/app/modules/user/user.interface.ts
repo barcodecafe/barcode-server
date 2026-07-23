@@ -3,7 +3,7 @@ export type TUserRole = 'user' | 'rider' | 'admin';
 // ফ্রন্ট এন্ড এই shape আশা করে (passwordHash কখনো রিটার্ন হবে না)
 export interface IUser {
   name: string;
-  email: string;
+  email?: string;
   password: string;
   role: TUserRole;
   phone?: string;

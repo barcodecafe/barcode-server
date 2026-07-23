@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 // Bangladeshi mobile number: 01[3-9] + 8 digits, optionally with +880 / 880.
 // Accepts "01712345678", "+8801712345678", "8801712345678".
@@ -12,21 +12,26 @@ const STRICT_EMAIL = /^[^\s@.][^\s@]*@[^\s@.]+(?:\.[^\s@.]+)+$/;
 // রেজিস্টার — role ইচ্ছাকৃতভাবে গ্রহণ করা হয় না (সার্ভারই role ঠিক করে)
 export const registerValidationSchema = z.object({
   body: z.object({
-    name: z.string().min(1, 'Name is required'),
+    name: z.string().min(1, "Name is required"),
     email: z
       .string()
-      .email('Valid email is required')
-      .regex(STRICT_EMAIL, 'Please enter a valid email address'),
+      .email("Valid email is required")
+      .regex(STRICT_EMAIL, "Please enter a valid email address")
+      .optional(), // 👈 এখানে .optional() যুক্ত করা হয়েছে
     password: z
       .string()
-      .min(8, 'Password must be at least 8 characters')
-      .regex(/[a-z]/, 'Password must contain a lowercase letter')
-      .regex(/[A-Z]/, 'Password must contain an uppercase letter')
-      .regex(/[0-9]/, 'Password must contain a number'),
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[a-z]/, "Password must contain a lowercase letter")
+      .regex(/[A-Z]/, "Password must contain an uppercase letter")
+      .regex(/[0-9]/, "Password must contain a number"),
     phone: z
       .string()
       .trim()
-      .regex(BD_PHONE, 'Enter a valid Bangladeshi mobile number (e.g. 01712345678)'),
+      .regex(
+        BD_PHONE,
+        "Enter a valid Bangladeshi mobile number (e.g. 01712345678)",
+      ),
+    role: z.string().optional(), // 👈 ফ্রন্টএন্ড থেকে role পাঠালে যেন Zod ফিল্টার না করে
     pickArea: z.string().optional(),
     address: z.string().optional(),
   }),
@@ -34,7 +39,7 @@ export const registerValidationSchema = z.object({
 
 export const loginValidationSchema = z.object({
   body: z.object({
-    email: z.string().email('Valid email is required'),
-    password: z.string().min(1, 'Password is required'),
+    email: z.string().email("Valid email is required"),
+    password: z.string().min(1, "Password is required"),
   }),
 });
