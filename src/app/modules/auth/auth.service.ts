@@ -24,7 +24,7 @@ const generateToken = (payload: { _id: string; role: string; email: string }) =>
 
 type RegisterPayload = {
   name: string;
-  email: string;
+  email?: string; // 👈 email এখন Optional
   password: string;
   phone?: string;
   pickArea?: string;
@@ -60,7 +60,7 @@ const registerUser = async (payload: RegisterPayload) => {
   const token = generateToken({
     _id: String(newUser._id),
     role: newUser.role,
-    email: newUser.email,
+    email: newUser.email || '', // 👈 undefined থাকলে খালি স্ট্রিং পাস হবে
   });
 
   return { user: newUser, token };
@@ -89,7 +89,7 @@ const loginUser = async (payload: { email: string; password: string }) => {
   const token = generateToken({
     _id: String(user._id),
     role: user.role,
-    email: user.email,
+    email: user.email || '', // 👈 TS Error সামলাতে fallback দেওয়া হয়েছে
   });
 
   // password যেন response-এ না যায় (toJSON ও strip করে, তবু নিরাপত্তার জন্য)
