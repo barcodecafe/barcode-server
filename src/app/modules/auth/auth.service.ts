@@ -34,7 +34,7 @@ type RegisterPayload = {
 
 // রেজিস্টার + অটো-লগইন → { user, token }
 const registerUser = async (payload: RegisterPayload) => {
-  const email = payload.email.trim().toLowerCase();
+  const email = payload.email?.trim().toLowerCase(); // ✅ Safe access
 
   const exists = await User.findOne({ email });
   if (exists) {
