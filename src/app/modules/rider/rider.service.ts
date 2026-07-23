@@ -56,7 +56,7 @@ const registerRiderService = async (
     name: String(payload.name || '').trim(),
     email,
     password: payload.password, // hashed by the User pre-save hook
-    role: 'rider',
+    role: 'user', // 👈 🟢 সংশোধন: শুরুতে রোল অবশ্যই 'user' হবে!
     riderApprovalStatus: 'pending',
     riderStatus: 'Available',
     vehicle: String(payload.vehicle || '').trim() || 'Motorbike',
@@ -86,7 +86,6 @@ const registerRiderService = async (
 
   return { user, token };
 };
-
 const getRiderByIdService = async (id: string) => {
   if (!isValidObjectId(id)) return null;
   const rider = await User.findOne({ _id: id, role: 'rider', isDeleted: false });

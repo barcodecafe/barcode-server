@@ -27,6 +27,11 @@ const submitApplicationService = async (
     throw err;
   }
 
+  // 💡 ১. ইউজার টেবিলে riderApprovalStatus আপডেট করে দিন
+  user.riderApprovalStatus = 'pending';
+  await user.save();
+
+  // ২. রাইডার অ্যাপ্লিকেশন অবজেক্ট তৈরি করা
   return RiderApplication.create({
     userId,
     name: payload.name || user.name,

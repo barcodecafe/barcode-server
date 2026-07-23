@@ -47,7 +47,7 @@ const userSchema = new Schema<IUser>(
         delete ret.__v;
         delete ret.password;
         delete ret.isDeleted;
-        if (ret.role !== 'rider') {
+        if (ret.role !== 'rider' && ret.riderApprovalStatus === 'none') {
           delete ret.vehicle;
           delete ret.riderStatus;
           delete ret.riderApprovalStatus;
