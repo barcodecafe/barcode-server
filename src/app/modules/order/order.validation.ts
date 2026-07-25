@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-// 🎯 FIX 1: ফ্রন্টএন্ড থেকে পাঠানো ছোট হাতের ('cod', 'sslcommerz') এবং বড় হাতের উভয় মানই সাপোর্ট করবে
 export const PaymentMethodEnum = z.enum([
   'cod',
   'sslcommerz',
@@ -11,17 +10,11 @@ export const PaymentMethodEnum = z.enum([
   'CARD',
 ]);
 
+// 🎯 FIX: 'Rejected', 'Accepted', 'Confirmed', 'Preparing' সহ PascalCase ও UPPERCASE সব ফরম্যাট যোগ করা হলো
 export const OrderStatusEnum = z.enum([
-  'PENDING',
-  'PROCESSING',
-  'SHIPPED',
-  'DELIVERED',
-  'CANCELLED',
-  'pending',
-  'processing',
-  'shipped',
-  'delivered',
-  'cancelled',
+  'PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'ACCEPTED', 'CONFIRMED', 'PREPARING',
+  'pending', 'processing', 'shipped', 'delivered', 'cancelled', 'rejected', 'accepted', 'confirmed', 'preparing',
+  'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Rejected', 'Accepted', 'Confirmed', 'Preparing'
 ]);
 
 export const createOrderValidationSchema = z.object({
@@ -43,8 +36,7 @@ export const createOrderValidationSchema = z.object({
 
     deliveryArea: z.string().optional(),
     deliveryAddress: z.string().min(1, 'Delivery address is required').optional(),
-    
-    // 🎯 FIX 2: '+880' সহ কিংবা সরাসরি '01' দিয়ে শুরু হওয়া সব বিডি মোবাইল নম্বর এলাউ করবে
+
     deliveryPhone: z
       .string()
       .regex(/^(?:\+?880|0)1[3-9]\d{8}$/, 'Please provide a valid Bangladeshi phone number')
