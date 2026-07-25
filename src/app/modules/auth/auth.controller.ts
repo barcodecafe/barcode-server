@@ -13,9 +13,19 @@ const registerController = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     // duplicate-email race: unique-index E11000 আসতে পারে pre-check এড়িয়ে → clean 409
+    
+    // 🔄 NEW CHANGE: ইমেইল এর পাশাপাশি ফোন নম্বর ডুপ্লিকেট চেক এবং ডায়নামিক মেসেজ হ্যান্ডলিং যোগ করা হয়েছে
     const isDup = error?.code === 11000;
     const status = error.status || (isDup ? 409 : 500);
-    const message = isDup ? 'An account with this email already exists.' : error.message;
+
+    let dupMessage = 'An account with this phone number already exists.';
+    if (error?.keyPattern?.email || error?.message?.includes('email')) {
+      dupMessage = 'An account with this email already exists.';
+    } else if (error?.keyPattern?.phone || error?.message?.includes('phone')) {
+      dupMessage = 'An account with this phone number already exists.';
+    }
+
+    const message = isDup ? dupMessage : error.message;
     res.status(status).json({ success: false, message });
   }
 };
