@@ -27,6 +27,9 @@ export interface ICoupon {
   isOneTime?: boolean; // কুপনটি ১-টাইম ইউজেবল কিনা (Default: true)
   isUsed?: boolean;    // ইতিমধ্যে ব্যবহার করা হয়েছে কিনা (Default: false)
 
+  // 💡 যে কাস্টমাররা কুপনটি ব্যবহার করেছেন তাদের ফোন নম্বরের তালিকা
+  usedByPhones?: string[]; // 👈 এই লাইনটি যোগ করতে হবে
+
   isActive: boolean;
   createdAt?: Date;
   updatedAt?: Date;

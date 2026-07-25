@@ -6,10 +6,10 @@ const router = express.Router();
 
 const adminOnly = [authMiddleware, authorize('admin')];
 
-// চেকআউটে কুপন যাচাই (লগইন করা ইউজার বা কাস্টমারের জন্য)
-router.post('/validate', authMiddleware, CouponController.validateCouponController);
+// 💡 চেকআউটে কুপন যাচাই (গেস্ট ও নিবন্ধিত উভয় গ্রাহকদের জন্য)
+router.post('/validate', CouponController.validateCouponController);
 
-// 💡 POS বা কাস্টমারের অর্ডারের সময় কুপন রিডিম/ব্যবহার সম্পন্ন করার রাউট
+// 💡 কুপন রিডিম/ব্যবহার সম্পন্ন করার রাউট
 router.post('/redeem', authMiddleware, CouponController.redeemCouponController);
 
 // Admin Routes

@@ -26,7 +26,7 @@ const couponSchema = new Schema<ICoupon>(
     isUsed: { type: Boolean, default: false },
 
     // 💡 যে কাস্টমাররা (ফোন নম্বর) কুপনটি ব্যবহার করেছে তাদের ট্র্যাক রাখার জন্য
-    usedByPhones: { type: [String], default: [] },
+    usedByPhones: { type: [String], default: [] }, // 👈 এই লাইনটি নিশ্চিত করুন
 
     isActive: { type: Boolean, default: true },
   },

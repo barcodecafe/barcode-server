@@ -30,7 +30,6 @@ const generateUniqueCode = async (): Promise<string> => {
   return `BRC${randToken(6)}${Date.now().toString(36).toUpperCase()}`;
 };
 
-// 💡 QR কোডের ভেতর নাম, ফোন এবং কোড সাজিয়ে দেওয়ার হেলপার
 const buildQrPayload = (code: string, customerName?: string, customerPhone?: string, category?: string) => {
   if (category === 'printable' && (customerName || customerPhone)) {
     return `Code: ${code}\nName: ${customerName || 'N/A'}\nPhone: ${customerPhone || 'N/A'}`;
@@ -38,7 +37,6 @@ const buildQrPayload = (code: string, customerName?: string, customerPhone?: str
   return code;
 };
 
-// 💡 POS / QR স্ক্যানার থেকে স্ক্যান করা র টেক্সট থেকে সঠিক Coupon Code বের করে নেওয়ার ফিল্টার
 const extractCodeFromInput = (input: string) => {
   const raw = (input || '').trim();
   const codeMatch = raw.match(/Code:\s*([^\s\n]+)/i);
@@ -110,7 +108,7 @@ const createCouponService = async (payload: Partial<ICoupon>) => {
     minSpend: Math.max(0, Number(payload.minSpend) || 0),
     isOneTime: payload.isOneTime !== undefined ? payload.isOneTime : true,
     isUsed: false,
-    usedByPhones: [], // 💡 ইনিশিয়ালি খালি থাকবে
+    usedByPhones: [],
     isActive: payload.isActive !== undefined ? payload.isActive : true,
   });
 };
@@ -120,7 +118,7 @@ const deleteCouponService = async (id: string) => {
   return Coupon.findByIdAndDelete(id);
 };
 
-// 💡 চেকআউটে ভ্যালিডেশন (ফোন নম্বর সহ চেক করবে)
+// 💡 চেকআউটে ভ্যালিডেশন
 const validateCouponService = async (code: string, subtotal: number, customerPhone?: string) => {
   const cleaned = extractCodeFromInput(code);
   const match = await Coupon.findOne({
@@ -139,18 +137,17 @@ const validateCouponService = async (code: string, subtotal: number, customerPho
     throw err;
   }
 
-  // 💡 ১. গ্লোবালি কুপনটি ইউজড হয়ে থাকলে ব্লক করবে
   if (match.isOneTime && match.isUsed) {
     const err: any = new Error('This coupon has already been used and is no longer valid.');
     err.status = 400;
     throw err;
   }
 
-  // 💡 ২. একই কাস্টমারের ফোন নম্বর দিয়ে ইতিমধ্যে ব্যবহৃত হয়ে থাকলে ব্লক করবে
   if (customerPhone) {
-    const cleanInputPhone = customerPhone.replace(/[^\d]/g, ''); // ডিজিট ফিল্টার
+    const cleanInputPhone = customerPhone.replace(/[^\d]/g, '');
+    // 🎯 (phone: string) দিয়ে TS7006 ফিক্স করা হয়েছে
     const alreadyUsed = match.usedByPhones?.some(
-      (phone) => phone.replace(/[^\d]/g, '') === cleanInputPhone
+      (phone: string) => phone.replace(/[^\d]/g, '') === cleanInputPhone
     );
 
     if (alreadyUsed) {
@@ -169,7 +166,7 @@ const validateCouponService = async (code: string, subtotal: number, customerPho
   return match;
 };
 
-// 💡 অর্ডার প্লেস বা রিডিম সম্পূর্ণ হলে isUsed: true এবং usedByPhones এ ফোন নম্বর সেভ করার সার্ভিস
+// 💡 কুপন রিডিম সম্পন্ন করার সার্ভিস
 const markCouponAsUsedService = async (codeOrId: string, customerPhone?: string) => {
   const cleaned = extractCodeFromInput(codeOrId);
   const updateQuery: any = { isUsed: true };
