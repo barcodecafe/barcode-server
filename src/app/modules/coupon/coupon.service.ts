@@ -30,7 +30,7 @@ const generateUniqueCode = async (): Promise<string> => {
   return `BRC${randToken(6)}${Date.now().toString(36).toUpperCase()}`;
 };
 
-// 💡 ১. QR কোডের ভেতর নাম, ফোন এবং কোড সাজিয়ে দেওয়ার হেলপার
+// 💡 QR কোডের ভেতর নাম, ফোন এবং কোড সাজিয়ে দেওয়ার হেলপার
 const buildQrPayload = (code: string, customerName?: string, customerPhone?: string, category?: string) => {
   if (category === 'printable' && (customerName || customerPhone)) {
     return `Code: ${code}\nName: ${customerName || 'N/A'}\nPhone: ${customerPhone || 'N/A'}`;
@@ -38,7 +38,7 @@ const buildQrPayload = (code: string, customerName?: string, customerPhone?: str
   return code;
 };
 
-// 💡 ২. POS স্ক্যানার দিয়ে স্ক্যান করা হলে যেন পুরো মাল্টি-লাইন টেক্সট থেকেও আসল Coupon Code আলাদা করা যায়
+// 💡 POS / QR স্ক্যানার থেকে স্ক্যান করা র টেক্সট থেকে সঠিক Coupon Code বের করে নেওয়ার ফিল্টার
 const extractCodeFromInput = (input: string) => {
   const raw = (input || '').trim();
   const codeMatch = raw.match(/Code:\s*([^\s\n]+)/i);
@@ -90,7 +90,6 @@ const createCouponService = async (payload: Partial<ICoupon>) => {
   const customerName = payload.customerName || '';
   const customerPhone = payload.customerPhone || '';
 
-  // 💡 নাম ও ফোন নম্বর সহ QR Data তৈরি
   const qrPayload = buildQrPayload(code, customerName, customerPhone, category);
   const qrImage = await buildQrImage(qrPayload);
 
@@ -111,6 +110,7 @@ const createCouponService = async (payload: Partial<ICoupon>) => {
     minSpend: Math.max(0, Number(payload.minSpend) || 0),
     isOneTime: payload.isOneTime !== undefined ? payload.isOneTime : true,
     isUsed: false,
+    usedByPhones: [], // 💡 ইনিশিয়ালি খালি থাকবে
     isActive: payload.isActive !== undefined ? payload.isActive : true,
   });
 };
@@ -120,9 +120,8 @@ const deleteCouponService = async (id: string) => {
   return Coupon.findByIdAndDelete(id);
 };
 
-// চেকআউটে ভ্যালিডেশন
-const validateCouponService = async (code: string, subtotal: number) => {
-  // 💡 স্ক্যান করা টেক্সট থেকে সঠিক কোড বের করে নেওয়া
+// 💡 চেকআউটে ভ্যালিডেশন (ফোন নম্বর সহ চেক করবে)
+const validateCouponService = async (code: string, subtotal: number, customerPhone?: string) => {
   const cleaned = extractCodeFromInput(code);
   const match = await Coupon.findOne({
     $or: [{ code: cleaned }, { couponId: cleaned }],
@@ -133,17 +132,32 @@ const validateCouponService = async (code: string, subtotal: number) => {
     err.status = 400;
     throw err;
   }
+
   if (!match.isActive) {
     const err: any = new Error('This coupon is no longer active.');
     err.status = 400;
     throw err;
   }
-  
-  // ওয়ান-টাইম কুপন ব্যবহারের স্ট্যাটাস চেক
-  if (match.isUsed) {
-    const err: any = new Error('This coupon has already been used once and is no longer valid.');
+
+  // 💡 ১. গ্লোবালি কুপনটি ইউজড হয়ে থাকলে ব্লক করবে
+  if (match.isOneTime && match.isUsed) {
+    const err: any = new Error('This coupon has already been used and is no longer valid.');
     err.status = 400;
     throw err;
+  }
+
+  // 💡 ২. একই কাস্টমারের ফোন নম্বর দিয়ে ইতিমধ্যে ব্যবহৃত হয়ে থাকলে ব্লক করবে
+  if (customerPhone) {
+    const cleanInputPhone = customerPhone.replace(/[^\d]/g, ''); // ডিজিট ফিল্টার
+    const alreadyUsed = match.usedByPhones?.some(
+      (phone) => phone.replace(/[^\d]/g, '') === cleanInputPhone
+    );
+
+    if (alreadyUsed) {
+      const err: any = new Error('You have already used this coupon code once with your phone number.');
+      err.status = 400;
+      throw err;
+    }
   }
 
   if (Number(subtotal) < match.minSpend) {
@@ -151,15 +165,22 @@ const validateCouponService = async (code: string, subtotal: number) => {
     err.status = 400;
     throw err;
   }
+
   return match;
 };
 
-// কুপন রিডিম/ব্যবহার সম্পন্ন হলে isUsed: true ফ্ল্যাগ করার সার্ভিস
-const markCouponAsUsedService = async (codeOrId: string) => {
+// 💡 অর্ডার প্লেস বা রিডিম সম্পূর্ণ হলে isUsed: true এবং usedByPhones এ ফোন নম্বর সেভ করার সার্ভিস
+const markCouponAsUsedService = async (codeOrId: string, customerPhone?: string) => {
   const cleaned = extractCodeFromInput(codeOrId);
+  const updateQuery: any = { isUsed: true };
+
+  if (customerPhone && customerPhone.trim()) {
+    updateQuery.$addToSet = { usedByPhones: customerPhone.trim() };
+  }
+
   return Coupon.findOneAndUpdate(
     { $or: [{ code: cleaned }, { couponId: cleaned }] },
-    { isUsed: true },
+    updateQuery,
     { new: true }
   );
 };

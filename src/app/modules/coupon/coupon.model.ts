@@ -21,9 +21,12 @@ const couponSchema = new Schema<ICoupon>(
     discountAmount: { type: Number, default: 0 }, // flat ৳ off when discountType === 'flat'
     minSpend: { type: Number, default: 0 },
 
-    // 💡 ওয়ান-টাইম ইউজ লিমিট এবং স্ট্যাটাস ট্র্যাকিং
+    // 💡 ওয়ান-টাইম ইউজ লিমিট এবং স্ট্যাটাস ট্র্যাকিং
     isOneTime: { type: Boolean, default: true },
     isUsed: { type: Boolean, default: false },
+
+    // 💡 যে কাস্টমাররা (ফোন নম্বর) কুপনটি ব্যবহার করেছে তাদের ট্র্যাক রাখার জন্য
+    usedByPhones: { type: [String], default: [] },
 
     isActive: { type: Boolean, default: true },
   },
