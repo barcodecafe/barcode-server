@@ -1,8 +1,28 @@
 import { z } from 'zod';
 
-// প্রয়োজন অনুযায়ী আপনার অ্যাপের Enum-গুলো নির্দিষ্ট করতে পারেন
-export const PaymentMethodEnum = z.enum(['COD', 'BKASH', 'NAGAD', 'CARD']);
-export const OrderStatusEnum = z.enum(['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']);
+// 🎯 FIX 1: ফ্রন্টএন্ড থেকে পাঠানো ছোট হাতের ('cod', 'sslcommerz') এবং বড় হাতের উভয় মানই সাপোর্ট করবে
+export const PaymentMethodEnum = z.enum([
+  'cod',
+  'sslcommerz',
+  'COD',
+  'SSLCOMMERZ',
+  'BKASH',
+  'NAGAD',
+  'CARD',
+]);
+
+export const OrderStatusEnum = z.enum([
+  'PENDING',
+  'PROCESSING',
+  'SHIPPED',
+  'DELIVERED',
+  'CANCELLED',
+  'pending',
+  'processing',
+  'shipped',
+  'delivered',
+  'cancelled',
+]);
 
 export const createOrderValidationSchema = z.object({
   body: z.object({
@@ -20,14 +40,16 @@ export const createOrderValidationSchema = z.object({
     branchId: z.coerce.number().optional(),
     couponCode: z.string().trim().optional(),
     pointsToRedeem: z.coerce.number().int().min(0).optional(),
-    
+
     deliveryArea: z.string().optional(),
     deliveryAddress: z.string().min(1, 'Delivery address is required').optional(),
+    
+    // 🎯 FIX 2: '+880' সহ কিংবা সরাসরি '01' দিয়ে শুরু হওয়া সব বিডি মোবাইল নম্বর এলাউ করবে
     deliveryPhone: z
       .string()
-      .regex(/^01[3-9]\d{8}$/, 'Please provide a valid Bangladeshi phone number')
+      .regex(/^(?:\+?880|0)1[3-9]\d{8}$/, 'Please provide a valid Bangladeshi phone number')
       .optional(),
-      
+
     paymentMethod: PaymentMethodEnum.optional(),
   }),
 });
