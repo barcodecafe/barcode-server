@@ -28,31 +28,29 @@ const generateToken = (payload: {
 
 type RegisterPayload = {
   name: string;
-  email?: string; // 👈 Optional
+  email?: string;
   password: string;
   phone?: string;
   pickArea?: string;
   address?: string;
-  // NOTE: client পাঠালেও `role` ইচ্ছাকৃতভাবে এখানে নেওয়া হয় না — security fix #5
 };
 
 type LoginPayload = {
-  email?: string; // 👈 Dynamic (Admin/Rider-এর জন্য Email)
-  phone?: string; // 👈 Dynamic (User/Customer-এর জন্য Phone)
+  email?: string;
+  phone?: string;
   password: string;
 };
 
 // রেজিস্টার + অটো-লগইন → { user, token }
 const registerUser = async (payload: RegisterPayload) => {
-  const email = payload.email?.trim().toLowerCase();
-  const normalizedPhone = payload.phone
-    ? normalizeBdPhone(payload.phone)
-    : undefined;
+  // 🛠️ ফাঁকা স্ট্রিং ("") আসলে undefined নিশ্চিত করা হচ্ছে যাতে Sparse Index এরর না দেয়
+  const cleanEmail = payload.email?.trim() ? payload.email.trim().toLowerCase() : undefined;
+  const cleanPhone = payload.phone?.trim() ? normalizeBdPhone(payload.phone) : undefined;
 
   // 🎯 ১. ফোন নম্বর ডুপ্লিকেট চেক (যদি ফোন নম্বর থাকে)
-  if (normalizedPhone) {
+  if (cleanPhone) {
     const phoneExists = await User.findOne({
-      phone: normalizedPhone,
+      phone: cleanPhone,
       isDeleted: false,
     });
     if (phoneExists) {
@@ -65,8 +63,8 @@ const registerUser = async (payload: RegisterPayload) => {
   }
 
   // 🎯 ২. ইমেইল ডুপ্লিকেট চেক (যদি ইমেইল থাকে)
-  if (email) {
-    const emailExists = await User.findOne({ email, isDeleted: false });
+  if (cleanEmail) {
+    const emailExists = await User.findOne({ email: cleanEmail, isDeleted: false });
     if (emailExists) {
       const err: any = new Error("An account with this email already exists.");
       err.status = 409;
@@ -74,51 +72,57 @@ const registerUser = async (payload: RegisterPayload) => {
     }
   }
 
-  // 🔒 role সবসময় সার্ভারে 'user' — client কখনো admin/rider হতে পারবে না
-  // registerUser মেথডের ডাটা সেভ করার অংশ:
+  // 🎯 ৩. নতুন ইউজার তৈরি (খালি ফিল্ডের ক্ষেত্রে undefined পাঠানো হচ্ছে)
   const newUser = await User.create({
     name: payload.name.trim(),
-    email: email || undefined, // 👈 ফাঁকা হলে undefined পাঠাবে, '' না
+    email: cleanEmail, // 👈 undefined পাঠালে MongoDB-তে email ফিল্ড সেভ হবে না
     password: payload.password,
     role: "user",
-    phone: normalizedPhone || undefined, // 👈 '' এর বদলে undefined দেওয়া জরুরি!
+    phone: cleanPhone, // 👈 undefined পাঠালে MongoDB-তে phone ফিল্ড সেভ হবে না
     pickArea: payload.pickArea?.trim() || "",
     address: payload.address?.trim() || "",
   });
 
-  // Issue a loyalty membership id + QR up front so the customer has it immediately.
+  // Loyalty Membership QR ও ID জেনারেট
   await ensureMembership(newUser);
 
   const token = generateToken({
     _id: String(newUser._id),
     role: newUser.role,
-    email: newUser.email || "", // 👈 undefined থাকলে খালি স্ট্রিং পাস হবে
+    email: newUser.email || "",
   });
 
   return { user: newUser, token };
 };
 
-// লগইন → { user, token } (Handles both Email and Phone Login)
+// লগইন → { user, token } (Handles both Email and Phone Login Dynamically)
 const loginUser = async (payload: LoginPayload) => {
   const { email, phone, password } = payload;
 
-  const query: Record<string, any> = { isDeleted: false };
+  // 🎯 ফ্রন্টএন্ড email বা phone যে নামেই ভ্যালু পাঠাক না কেন, তা রিসিভ করা
+  const rawIdentifier = (phone || email || "").trim();
 
-  // 🎯 ৩. Phone অথবা Email দিয়ে ডায়নামিক কোয়েরি তৈরি
-  if (phone) {
-    query.phone = normalizeBdPhone(phone);
-  } else if (email) {
-    query.email = email.trim().toLowerCase();
-  } else {
+  if (!rawIdentifier || !password) {
     const err: any = new Error(
-      "Please provide a mobile number or email address.",
+      "Please provide a mobile number/email and password.",
     );
     err.status = 400;
     throw err;
   }
 
-  // password field select:false → এখানে স্পষ্টভাবে আনতে হবে
-  const user = await User.findOne(query).select("+password");
+  // 🎯 ইনপুটটিকে ফোন নম্বর (+8801...) এবং ইমেইল দুটো রূপেই প্রসেস করা
+  const normalizedPhone = normalizeBdPhone(rawIdentifier);
+  const normalizedEmail = rawIdentifier.toLowerCase();
+
+  // 🎯 Smart Query: ডাটাবেজে ফোন (নরমাল বা +88 সহ) কিংবা ইমেইল—যেটির সাথেই মিলুক না কেন ইউজার পেয়ে যাবে
+  const user = await User.findOne({
+    isDeleted: false,
+    $or: [
+      { phone: normalizedPhone },
+      { phone: rawIdentifier },
+      { email: normalizedEmail },
+    ],
+  }).select("+password"); // 👈 password ফিল্ডটি স্পষ্টভাবে নিয়ে আসা হচ্ছে
 
   if (!user) {
     const err: any = new Error("Invalid mobile number/email or password.");
@@ -126,6 +130,7 @@ const loginUser = async (payload: LoginPayload) => {
     throw err;
   }
 
+  // 🎯 পাসওয়ার্ড ভ্যালিডেশন
   const isMatch = await bcrypt.compare(password, user.password || "");
   if (!isMatch) {
     const err: any = new Error("Invalid mobile number/email or password.");
@@ -136,7 +141,7 @@ const loginUser = async (payload: LoginPayload) => {
   const token = generateToken({
     _id: String(user._id),
     role: user.role,
-    email: user.email || "", // 👈 TS Error সামলাতে fallback দেওয়া হয়েছে
+    email: user.email || "",
   });
 
   // password যেন response-এ না যায়

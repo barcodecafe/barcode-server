@@ -7,21 +7,23 @@ const userSchema = new Schema<IUser>(
   {
     name: { type: String, required: true, trim: true },
     
-    // 🎯 ইমেইল: sparse: true দেওয়া আছে যাতে কাস্টমারদের ইমেইল না থাকলেও ইউনিক এরর না মারে
+    // 🎯 ইমেইল: sparse: true + set (খালি স্ট্রিং "" আসলে undefined করে দেবে যাতে Duplicate Key Error না মারে)
     email: {
       type: String,
       unique: true,
       sparse: true,
       lowercase: true,
       trim: true,
+      set: (v: string) => (v === '' ? undefined : v), // 🛠️ খালি স্ট্রিং আসলে undefined করে দেবে
     },
 
-    // 🎯 ফোন: unique ও sparse করা হয়েছে এবং default: '' সরিয়ে নেওয়া হয়েছে
+    // 🎯 ফোন: sparse: true + set (খালি স্ট্রিং "" আসলে undefined করে দেবে)
     phone: {
       type: String,
       unique: true,
       sparse: true,
       trim: true,
+      set: (v: string) => (v === '' ? undefined : v), // 🛠️ খালি স্ট্রিং আসলে undefined করে দেবে
     },
 
     password: { type: String, required: true, select: false }, // never returned by default
@@ -44,7 +46,16 @@ const userSchema = new Schema<IUser>(
     },
     favorites: { type: [Number], default: [] },
     points: { type: Number, default: 0, min: 0 }, // loyalty balance — visible to every user
-    membershipId: { type: String, unique: true, sparse: true, trim: true },
+    
+    // 🎯 মেম্বারশিপ আইডি: sparse: true + set
+    membershipId: { 
+      type: String, 
+      unique: true, 
+      sparse: true, 
+      trim: true,
+      set: (v: string) => (v === '' ? undefined : v), // 🛠️ খালি স্ট্রিং আসলে undefined করে দেবে
+    },
+    
     membershipQr: { type: String, default: '' },
     isDeleted: { type: Boolean, default: false },
   },
@@ -69,7 +80,8 @@ const userSchema = new Schema<IUser>(
   }
 );
 
-// পাসওয়ার্ড হ্যাশিং — সেভের আগে (bcrypt, real hashing)
+// 🎯 পাসওয়ার্ড হ্যাশিং — সেভের আগে (bcrypt, real hashing)
+// ⚠️ দ্রষ্টব্য: Controller-এ আলাদা করে পাসওয়ার্ড হ্যাশ করার দরকার নেই, Mongoose স্বয়ংক্রিয়ভাবে এখান থেকেই হ্যাশ করে নেবে।
 userSchema.pre('save', async function (next) {
   if (this.isModified('password') && this.password) {
     const rounds = Number(config.bcrypt_salt_rounds) || 12;
