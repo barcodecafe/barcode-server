@@ -30,8 +30,26 @@ const generateUniqueCode = async (): Promise<string> => {
   return `BRC${randToken(6)}${Date.now().toString(36).toUpperCase()}`;
 };
 
-const buildQrImage = (code: string): Promise<string> =>
-  QRCode.toDataURL(code, { errorCorrectionLevel: 'M', margin: 1, width: 240 });
+// 💡 ১. QR কোডের ভেতর নাম, ফোন এবং কোড সাজিয়ে দেওয়ার হেলপার
+const buildQrPayload = (code: string, customerName?: string, customerPhone?: string, category?: string) => {
+  if (category === 'printable' && (customerName || customerPhone)) {
+    return `Code: ${code}\nName: ${customerName || 'N/A'}\nPhone: ${customerPhone || 'N/A'}`;
+  }
+  return code;
+};
+
+// 💡 ২. POS স্ক্যানার দিয়ে স্ক্যান করা হলে যেন পুরো মাল্টি-লাইন টেক্সট থেকেও আসল Coupon Code আলাদা করা যায়
+const extractCodeFromInput = (input: string) => {
+  const raw = (input || '').trim();
+  const codeMatch = raw.match(/Code:\s*([^\s\n]+)/i);
+  if (codeMatch && codeMatch[1]) {
+    return codeMatch[1].toUpperCase().trim();
+  }
+  return raw.toUpperCase();
+};
+
+const buildQrImage = (qrData: string): Promise<string> =>
+  QRCode.toDataURL(qrData, { errorCorrectionLevel: 'M', margin: 1, width: 240 });
 
 // ── Services ────────────────────────────────────────────────────────────────
 const getAllCouponsService = async () => {
@@ -44,7 +62,8 @@ const getAllCouponsService = async () => {
         changed = true;
       }
       if (!c.qrImage) {
-        c.qrImage = await buildQrImage(c.code);
+        const qrPayload = buildQrPayload(c.code, c.customerName, c.customerPhone, c.category);
+        c.qrImage = await buildQrImage(qrPayload);
         changed = true;
       }
       if (changed) await c.save();
@@ -67,7 +86,13 @@ const createCouponService = async (payload: Partial<ICoupon>) => {
   }
 
   const couponId = await generateUniqueCouponId();
-  const qrImage = await buildQrImage(code);
+  const category = payload.category === 'printable' ? 'printable' : 'standard';
+  const customerName = payload.customerName || '';
+  const customerPhone = payload.customerPhone || '';
+
+  // 💡 নাম ও ফোন নম্বর সহ QR Data তৈরি
+  const qrPayload = buildQrPayload(code, customerName, customerPhone, category);
+  const qrImage = await buildQrImage(qrPayload);
 
   const discountType = payload.discountType === 'flat' ? 'flat' : 'percent';
   const discountPct = discountType === 'percent' ? Math.min(100, Math.max(0, Number(payload.discountPct) || 0)) : 0;
@@ -77,15 +102,15 @@ const createCouponService = async (payload: Partial<ICoupon>) => {
     code,
     couponId,
     qrImage,
-    category: payload.category === 'printable' ? 'printable' : 'standard', // 💡 Standard or Printable
-    customerName: payload.customerName || '',                             // 💡 Customer Name
-    customerPhone: payload.customerPhone || '',                           // 💡 Customer Phone
+    category,
+    customerName,
+    customerPhone,
     discountType,
     discountPct,
     discountAmount,
     minSpend: Math.max(0, Number(payload.minSpend) || 0),
-    isOneTime: payload.isOneTime !== undefined ? payload.isOneTime : true, // 💡 Default One-Time
-    isUsed: false,                                                         // 💡 Initially Not Used
+    isOneTime: payload.isOneTime !== undefined ? payload.isOneTime : true,
+    isUsed: false,
     isActive: payload.isActive !== undefined ? payload.isActive : true,
   });
 };
@@ -97,7 +122,8 @@ const deleteCouponService = async (id: string) => {
 
 // চেকআউটে ভ্যালিডেশন
 const validateCouponService = async (code: string, subtotal: number) => {
-  const cleaned = (code || '').toUpperCase().trim();
+  // 💡 স্ক্যান করা টেক্সট থেকে সঠিক কোড বের করে নেওয়া
+  const cleaned = extractCodeFromInput(code);
   const match = await Coupon.findOne({
     $or: [{ code: cleaned }, { couponId: cleaned }],
   });
@@ -113,7 +139,7 @@ const validateCouponService = async (code: string, subtotal: number) => {
     throw err;
   }
   
-  // 💡 ১. ওয়ান-টাইম কুপন ব্যবহারের স্ট্যাটাস চেক
+  // ওয়ান-টাইম কুপন ব্যবহারের স্ট্যাটাস চেক
   if (match.isUsed) {
     const err: any = new Error('This coupon has already been used once and is no longer valid.');
     err.status = 400;
@@ -128,9 +154,9 @@ const validateCouponService = async (code: string, subtotal: number) => {
   return match;
 };
 
-// 💡 ২. কুপন রিডিম/ব্যবহার সম্পন্ন হলে isUsed: true ফ্ল্যাগ করার সার্ভিস
+// কুপন রিডিম/ব্যবহার সম্পন্ন হলে isUsed: true ফ্ল্যাগ করার সার্ভিস
 const markCouponAsUsedService = async (codeOrId: string) => {
-  const cleaned = (codeOrId || '').toUpperCase().trim();
+  const cleaned = extractCodeFromInput(codeOrId);
   return Coupon.findOneAndUpdate(
     { $or: [{ code: cleaned }, { couponId: cleaned }] },
     { isUsed: true },
