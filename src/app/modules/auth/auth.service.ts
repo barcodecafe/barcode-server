@@ -1,22 +1,26 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/modules/auth/auth.service.ts
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
-import config from '../../config';
-import { User } from '../user/user.model';
-import { ensureMembership } from '../../utils/membership';
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+import config from "../../config";
+import { User } from "../user/user.model";
+import { ensureMembership } from "../../utils/membership";
 
 // Store BD numbers in one canonical shape (+8801XXXXXXXXX) regardless of how the
 // customer typed them, so lookups (POS, SSLCommerz cus_phone) stay consistent.
 const normalizeBdPhone = (raw?: string): string => {
-  const digits = String(raw || '').replace(/\D/g, '');
+  const digits = String(raw || "").replace(/\D/g, "");
   if (/^01[3-9]\d{8}$/.test(digits)) return `+88${digits}`;
   if (/^8801[3-9]\d{8}$/.test(digits)) return `+${digits}`;
-  return String(raw || '').trim();
+  return String(raw || "").trim();
 };
 
 // Helper: access token তৈরি
-const generateToken = (payload: { _id: string; role: string; email: string }) => {
+const generateToken = (payload: {
+  _id: string;
+  role: string;
+  email: string;
+}) => {
   return jwt.sign(payload, config.jwt.access_secret, {
     expiresIn: config.jwt.access_expires_in as any,
   });
@@ -41,13 +45,20 @@ type LoginPayload = {
 // রেজিস্টার + অটো-লগইন → { user, token }
 const registerUser = async (payload: RegisterPayload) => {
   const email = payload.email?.trim().toLowerCase();
-  const normalizedPhone = payload.phone ? normalizeBdPhone(payload.phone) : undefined;
+  const normalizedPhone = payload.phone
+    ? normalizeBdPhone(payload.phone)
+    : undefined;
 
   // 🎯 ১. ফোন নম্বর ডুপ্লিকেট চেক (যদি ফোন নম্বর থাকে)
   if (normalizedPhone) {
-    const phoneExists = await User.findOne({ phone: normalizedPhone, isDeleted: false });
+    const phoneExists = await User.findOne({
+      phone: normalizedPhone,
+      isDeleted: false,
+    });
     if (phoneExists) {
-      const err: any = new Error('An account with this phone number already exists.');
+      const err: any = new Error(
+        "An account with this phone number already exists.",
+      );
       err.status = 409;
       throw err;
     }
@@ -57,21 +68,22 @@ const registerUser = async (payload: RegisterPayload) => {
   if (email) {
     const emailExists = await User.findOne({ email, isDeleted: false });
     if (emailExists) {
-      const err: any = new Error('An account with this email already exists.');
+      const err: any = new Error("An account with this email already exists.");
       err.status = 409;
       throw err;
     }
   }
 
   // 🔒 role সবসময় সার্ভারে 'user' — client কখনো admin/rider হতে পারবে না
+  // registerUser মেথডের ডাটা সেভ করার অংশ:
   const newUser = await User.create({
     name: payload.name.trim(),
-    email: email || undefined,
+    email: email || undefined, // 👈 ফাঁকা হলে undefined পাঠাবে, '' না
     password: payload.password,
-    role: 'user',
-    phone: normalizedPhone || '',
-    pickArea: payload.pickArea?.trim() || '',
-    address: payload.address?.trim() || '',
+    role: "user",
+    phone: normalizedPhone || undefined, // 👈 '' এর বদলে undefined দেওয়া জরুরি!
+    pickArea: payload.pickArea?.trim() || "",
+    address: payload.address?.trim() || "",
   });
 
   // Issue a loyalty membership id + QR up front so the customer has it immediately.
@@ -80,7 +92,7 @@ const registerUser = async (payload: RegisterPayload) => {
   const token = generateToken({
     _id: String(newUser._id),
     role: newUser.role,
-    email: newUser.email || '', // 👈 undefined থাকলে খালি স্ট্রিং পাস হবে
+    email: newUser.email || "", // 👈 undefined থাকলে খালি স্ট্রিং পাস হবে
   });
 
   return { user: newUser, token };
@@ -98,23 +110,25 @@ const loginUser = async (payload: LoginPayload) => {
   } else if (email) {
     query.email = email.trim().toLowerCase();
   } else {
-    const err: any = new Error('Please provide a mobile number or email address.');
+    const err: any = new Error(
+      "Please provide a mobile number or email address.",
+    );
     err.status = 400;
     throw err;
   }
 
   // password field select:false → এখানে স্পষ্টভাবে আনতে হবে
-  const user = await User.findOne(query).select('+password');
+  const user = await User.findOne(query).select("+password");
 
   if (!user) {
-    const err: any = new Error('Invalid mobile number/email or password.');
+    const err: any = new Error("Invalid mobile number/email or password.");
     err.status = 401;
     throw err;
   }
 
-  const isMatch = await bcrypt.compare(password, user.password || '');
+  const isMatch = await bcrypt.compare(password, user.password || "");
   if (!isMatch) {
-    const err: any = new Error('Invalid mobile number/email or password.');
+    const err: any = new Error("Invalid mobile number/email or password.");
     err.status = 401;
     throw err;
   }
@@ -122,7 +136,7 @@ const loginUser = async (payload: LoginPayload) => {
   const token = generateToken({
     _id: String(user._id),
     role: user.role,
-    email: user.email || '', // 👈 TS Error সামলাতে fallback দেওয়া হয়েছে
+    email: user.email || "", // 👈 TS Error সামলাতে fallback দেওয়া হয়েছে
   });
 
   // password যেন response-এ না যায়
@@ -134,7 +148,7 @@ const loginUser = async (payload: LoginPayload) => {
 const getMe = async (userId: string) => {
   const user = await User.findOne({ _id: userId, isDeleted: false });
   if (!user) {
-    const err: any = new Error('User not found');
+    const err: any = new Error("User not found");
     err.status = 404;
     throw err;
   }

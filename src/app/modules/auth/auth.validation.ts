@@ -1,45 +1,66 @@
 import { z } from "zod";
 
-// Bangladeshi mobile number: 01[3-9] + 8 digits, optionally with +880 / 880.
-// Accepts "01712345678", "+8801712345678", "8801712345678".
+// Bangladeshi mobile number validation regex
 const BD_PHONE = /^(?:\+?880|0)1[3-9]\d{8}$/;
 
-// A stricter email shape than the default: exactly one @, a dotted domain, no
-// consecutive dots, no leading/trailing dot in the local part. Catches typos
-// that z.string().email() lets through (e.g. "a@b", "a@@b.com", "a@b..com").
+// Strict Email Regex
 const STRICT_EMAIL = /^[^\s@.][^\s@]*@[^\s@.]+(?:\.[^\s@.]+)+$/;
 
-// রেজিস্টার — role ইচ্ছাকৃতভাবে গ্রহণ করা হয় না (সার্ভারই role ঠিক করে)
+// 🎯 ইমেইল অপশনাল ও ফাঁকা স্ট্রিং "" হলেও যেন Zod এরর না দেয়
+const optionalEmailSchema = z
+  .string()
+  .trim()
+  .optional()
+  .or(z.literal(""))
+  .refine(
+    (val) => !val || val === "" || (STRICT_EMAIL.test(val) && z.string().email().safeParse(val).success),
+    { message: "Please enter a valid email address" }
+  );
+
+// 🎯 ফোন নম্বর অপশনাল ও ফাঁকা স্ট্রিং "" হ্যান্ডলিং
+const optionalPhoneSchema = z
+  .string()
+  .trim()
+  .optional()
+  .or(z.literal(""))
+  .refine(
+    (val) => !val || val === "" || BD_PHONE.test(val),
+    { message: "Enter a valid Bangladeshi mobile number (e.g. 01712345678)" }
+  );
+
+// 🎯 ১. সাইনআপ ভ্যালিডেশন
 export const registerValidationSchema = z.object({
   body: z.object({
     name: z.string().min(1, "Name is required"),
-    email: z
-      .string()
-      .email("Valid email is required")
-      .regex(STRICT_EMAIL, "Please enter a valid email address")
-      .optional(), // 👈 এখানে .optional() যুক্ত করা হয়েছে
+    email: optionalEmailSchema,
     password: z
       .string()
       .min(8, "Password must be at least 8 characters")
       .regex(/[a-z]/, "Password must contain a lowercase letter")
       .regex(/[A-Z]/, "Password must contain an uppercase letter")
       .regex(/[0-9]/, "Password must contain a number"),
-    phone: z
-      .string()
-      .trim()
-      .regex(
-        BD_PHONE,
-        "Enter a valid Bangladeshi mobile number (e.g. 01712345678)",
-      ),
-    role: z.string().optional(), // 👈 ফ্রন্টএন্ড থেকে role পাঠালে যেন Zod ফিল্টার না করে
+    phone: optionalPhoneSchema,
+    mobile: optionalPhoneSchema, // ফ্রন্টএন্ড mobile পাঠালেও সাপোর্ট করবে
+    role: z.string().optional(),
     pickArea: z.string().optional(),
     address: z.string().optional(),
   }),
 });
 
+// 🎯 ২. লগইন ভ্যালিডেশন (Phone অথবা Email যেকোনো একটি বাধ্যতামূলক)
 export const loginValidationSchema = z.object({
-  body: z.object({
-    email: z.string().email("Valid email is required"),
-    password: z.string().min(1, "Password is required"),
-  }),
+  body: z
+    .object({
+      email: optionalEmailSchema,
+      phone: optionalPhoneSchema,
+      mobile: optionalPhoneSchema,
+      password: z.string().min(1, "Password is required"),
+    })
+    .refine(
+      (data) => !!(data.phone || data.mobile || (data.email && data.email !== "")),
+      {
+        message: "Please provide a valid mobile number or email address",
+        path: ["phone"], // এরর মেসেজ দেখানোর জন্য
+      }
+    ),
 });
