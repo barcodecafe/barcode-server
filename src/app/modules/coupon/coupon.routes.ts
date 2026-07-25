@@ -6,10 +6,13 @@ const router = express.Router();
 
 const adminOnly = [authMiddleware, authorize('admin')];
 
-// চেকআউটে যাচাই (লগইন লাগবে) — /:id এর আগে নয়, কিন্তু POST তাই সংঘর্ষ নেই
+// চেকআউটে কুপন যাচাই (লগইন করা ইউজার বা কাস্টমারের জন্য)
 router.post('/validate', authMiddleware, CouponController.validateCouponController);
 
-// Admin
+// 💡 POS বা কাস্টমারের অর্ডারের সময় কুপন রিডিম/ব্যবহার সম্পন্ন করার রাউট
+router.post('/redeem', authMiddleware, CouponController.redeemCouponController);
+
+// Admin Routes
 router.get('/', ...adminOnly, CouponController.getAllCouponsController);
 router.post('/', ...adminOnly, CouponController.createCouponController);
 router.delete('/:id', ...adminOnly, CouponController.deleteCouponController);
