@@ -6,22 +6,33 @@ import { IUser } from './user.interface';
 const userSchema = new Schema<IUser>(
   {
     name: { type: String, required: true, trim: true },
-    // 🎯 ইমেইল আপডেট: required বাদ দেওয়া হয়েছে এবং sparse: true যুক্ত করা হয়েছে
+    
+    // 🎯 ইমেইল: sparse: true দেওয়া আছে যাতে কাস্টমারদের ইমেইল না থাকলেও ইউনিক এরর না মারে
     email: {
       type: String,
       unique: true,
-      sparse: true, // 👈 এটি না দিলে ইমেইল ছাড়া একাধিক ইউজার রেজিস্টার করলে Duplicate Key Error আসবে
+      sparse: true,
       lowercase: true,
       trim: true,
     },
+
+    // 🎯 ফোন: unique ও sparse করা হয়েছে এবং default: '' সরিয়ে নেওয়া হয়েছে
+    phone: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+    },
+
     password: { type: String, required: true, select: false }, // never returned by default
+    
     role: {
       type: String,
       enum: ['user', 'rider', 'admin'],
       default: 'user',
       required: true,
     },
-    phone: { type: String, default: '' },
+
     pickArea: { type: String, default: '' },
     address: { type: String, default: '' },
     vehicle: { type: String, default: '' },

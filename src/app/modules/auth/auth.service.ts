@@ -24,7 +24,7 @@ const generateToken = (payload: { _id: string; role: string; email: string }) =>
 
 type RegisterPayload = {
   name: string;
-  email?: string; // 👈 email এখন Optional
+  email?: string; // 👈 Optional
   password: string;
   phone?: string;
   pickArea?: string;
@@ -32,24 +32,44 @@ type RegisterPayload = {
   // NOTE: client পাঠালেও `role` ইচ্ছাকৃতভাবে এখানে নেওয়া হয় না — security fix #5
 };
 
+type LoginPayload = {
+  email?: string; // 👈 Dynamic (Admin/Rider-এর জন্য Email)
+  phone?: string; // 👈 Dynamic (User/Customer-এর জন্য Phone)
+  password: string;
+};
+
 // রেজিস্টার + অটো-লগইন → { user, token }
 const registerUser = async (payload: RegisterPayload) => {
-  const email = payload.email?.trim().toLowerCase(); // ✅ Safe access
+  const email = payload.email?.trim().toLowerCase();
+  const normalizedPhone = payload.phone ? normalizeBdPhone(payload.phone) : undefined;
 
-  const exists = await User.findOne({ email });
-  if (exists) {
-    const err: any = new Error('An account with this email already exists.');
-    err.status = 409;
-    throw err;
+  // 🎯 ১. ফোন নম্বর ডুপ্লিকেট চেক (যদি ফোন নম্বর থাকে)
+  if (normalizedPhone) {
+    const phoneExists = await User.findOne({ phone: normalizedPhone, isDeleted: false });
+    if (phoneExists) {
+      const err: any = new Error('An account with this phone number already exists.');
+      err.status = 409;
+      throw err;
+    }
+  }
+
+  // 🎯 ২. ইমেইল ডুপ্লিকেট চেক (যদি ইমেইল থাকে)
+  if (email) {
+    const emailExists = await User.findOne({ email, isDeleted: false });
+    if (emailExists) {
+      const err: any = new Error('An account with this email already exists.');
+      err.status = 409;
+      throw err;
+    }
   }
 
   // 🔒 role সবসময় সার্ভারে 'user' — client কখনো admin/rider হতে পারবে না
   const newUser = await User.create({
     name: payload.name.trim(),
-    email,
+    email: email || undefined,
     password: payload.password,
     role: 'user',
-    phone: normalizeBdPhone(payload.phone),
+    phone: normalizedPhone || '',
     pickArea: payload.pickArea?.trim() || '',
     address: payload.address?.trim() || '',
   });
@@ -66,22 +86,35 @@ const registerUser = async (payload: RegisterPayload) => {
   return { user: newUser, token };
 };
 
-// লগইন → { user, token }
-const loginUser = async (payload: { email: string; password: string }) => {
-  const email = payload.email.trim().toLowerCase();
+// লগইন → { user, token } (Handles both Email and Phone Login)
+const loginUser = async (payload: LoginPayload) => {
+  const { email, phone, password } = payload;
+
+  const query: Record<string, any> = { isDeleted: false };
+
+  // 🎯 ৩. Phone অথবা Email দিয়ে ডায়নামিক কোয়েরি তৈরি
+  if (phone) {
+    query.phone = normalizeBdPhone(phone);
+  } else if (email) {
+    query.email = email.trim().toLowerCase();
+  } else {
+    const err: any = new Error('Please provide a mobile number or email address.');
+    err.status = 400;
+    throw err;
+  }
 
   // password field select:false → এখানে স্পষ্টভাবে আনতে হবে
-  const user = await User.findOne({ email, isDeleted: false }).select('+password');
+  const user = await User.findOne(query).select('+password');
 
   if (!user) {
-    const err: any = new Error('Invalid email or password.');
+    const err: any = new Error('Invalid mobile number/email or password.');
     err.status = 401;
     throw err;
   }
 
-  const isMatch = await bcrypt.compare(payload.password, user.password || '');
+  const isMatch = await bcrypt.compare(password, user.password || '');
   if (!isMatch) {
-    const err: any = new Error('Invalid email or password.');
+    const err: any = new Error('Invalid mobile number/email or password.');
     err.status = 401;
     throw err;
   }
@@ -92,7 +125,7 @@ const loginUser = async (payload: { email: string; password: string }) => {
     email: user.email || '', // 👈 TS Error সামলাতে fallback দেওয়া হয়েছে
   });
 
-  // password যেন response-এ না যায় (toJSON ও strip করে, তবু নিরাপত্তার জন্য)
+  // password যেন response-এ না যায়
   user.password = undefined as any;
   return { user, token };
 };
