@@ -25,10 +25,12 @@ export const chargeFromBranch = (branch: any, area?: string): number => {
   const zones = branch?.deliveryZones;
   if (key && Array.isArray(zones)) {
     const z = zones.find((x: any) => String(x.name).trim() === key);
-    if (z) return Number(z.charge) || 0;
+    if (z && z.charge !== undefined && z.charge !== null) {
+      return Number(z.charge);
+    }
   }
   if (branch && branch.defaultDeliveryCharge !== undefined && branch.defaultDeliveryCharge !== null) {
-    return Number(branch.defaultDeliveryCharge) || 0;
+    return Number(branch.defaultDeliveryCharge);
   }
   return getDeliveryCharge(area);
 };
@@ -41,10 +43,13 @@ export const chargeFromRegion = (region: any, area?: string): number => {
   const zones = region?.deliveryZones;
   if (key && Array.isArray(zones)) {
     const z = zones.find((x: any) => String(x.name).trim() === key);
-    if (z) return Number(z.charge) || 0;
+    if (z && z.charge !== undefined && z.charge !== null) {
+      return Number(z.charge);
+    }
   }
-  if (region && region.defaultDeliveryCharge) {
-    return Number(region.defaultDeliveryCharge) || 0;
+  // 🎯 FIX: defaultDeliveryCharge 0 (Free delivery) হলেও যেন Fallback এ না যায়
+  if (region && region.defaultDeliveryCharge !== undefined && region.defaultDeliveryCharge !== null) {
+    return Number(region.defaultDeliveryCharge);
   }
   return getDeliveryCharge(area);
 };
