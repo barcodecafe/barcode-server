@@ -16,6 +16,15 @@ const createOrderController = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?._id;
     const order = await OrderService.createOrderService(userId, req.body);
+
+    // ⚡ Socket Notification (Real-time Broadcast)
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('order_created', order);
+      io.emit('admin_new_order', order);
+      io.emit('rider_new_delivery', order);
+    }
+
     res.status(201).json({ success: true, message: 'Order placed', data: order });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -66,6 +75,14 @@ const getOrderByIdController = async (req: Request, res: Response) => {
 const updateStatusController = async (req: Request, res: Response) => {
   try {
     const order = await OrderService.updateOrderStatusService(req.params.id, req.body.status);
+
+    // ⚡ Socket Notification: Status Changed
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('order_status_updated', { orderId: req.params.id, status: req.body.status, order });
+      io.emit('order_updated', order);
+    }
+
     res.status(200).json({ success: true, message: 'Status updated', data: order });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -92,6 +109,17 @@ const addMessageController = async (req: Request, res: Response) => {
       senderName,
       text: req.body.text,
     });
+
+    // ⚡ Socket Notification: Live Chat Message
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('new_chat_message', {
+        orderId: req.params.id,
+        message: { sender, senderName, text: req.body.text },
+      });
+      io.emit('order_updated', updated);
+    }
+
     res.status(201).json({ success: true, message: 'Message sent', data: updated });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -102,6 +130,22 @@ const addMessageController = async (req: Request, res: Response) => {
 const assignRiderController = async (req: Request, res: Response) => {
   try {
     const order = await OrderService.assignRiderToOrderService(req.params.id, req.body.riderId);
+
+    // 🚴 ⚡ Socket Notification: Instant Rider Alert & Sound Trigger
+    const io = req.app.get('io');
+    if (io) {
+      const payload = {
+        id: order?._id || req.params.id,
+        orderId: order?._id || req.params.id,
+        riderId: req.body.riderId,
+        riderName: order?.riderName,
+        order,
+      };
+      io.emit('rider_order_assigned', payload);
+      io.emit('order_assigned', payload);
+      io.emit('order_updated', order);
+    }
+
     res.status(200).json({ success: true, message: 'Rider assigned', data: order });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -112,6 +156,13 @@ const assignRiderController = async (req: Request, res: Response) => {
 const acceptRiderController = async (req: Request, res: Response) => {
   try {
     const order = await OrderService.acceptRiderOrderService(req.params.id, (req as any).user?._id);
+
+    // ⚡ Socket Notification: Rider Accepted
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('order_updated', order);
+    }
+
     res.status(200).json({ success: true, message: 'Delivery accepted', data: order });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -122,6 +173,13 @@ const acceptRiderController = async (req: Request, res: Response) => {
 const rejectRiderController = async (req: Request, res: Response) => {
   try {
     const order = await OrderService.rejectRiderOrderService(req.params.id, (req as any).user?._id);
+
+    // ⚡ Socket Notification: Rider Rejected
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('order_updated', order);
+    }
+
     res.status(200).json({ success: true, message: 'Delivery rejected', data: order });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -131,8 +189,6 @@ const rejectRiderController = async (req: Request, res: Response) => {
 // POST /api/orders/submit-daily-cash (rider) — hand the day's cash to the admin
 const submitDailyCashController = async (req: Request, res: Response) => {
   try {
-    // A rider can only ever submit their OWN cash — never trust a riderId from
-    // the body, or one rider could settle another's takings.
     const riderId = String((req as any).user?._id);
     const data = await OrderService.submitRiderDailyCashService(riderId, req.body?.date);
     res.status(200).json({ success: true, message: 'Cash submitted to admin for confirmation', data });

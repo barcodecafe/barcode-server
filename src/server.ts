@@ -23,7 +23,7 @@ async function connectDB() {
       .connect(config.database_url as string, opts)
       .then((m) => {
         // eslint-disable-next-line no-console
-        console.log('🗄️  Database connected successfully');
+        console.log('🗄️ Database connected successfully');
         return m;
       });
   }
@@ -43,25 +43,52 @@ const server = http.createServer(app);
 // ─── Socket.io Initialization ───
 export const io = new SocketIOServer(server, {
   cors: {
-    origin: '*', // Production-এ আপনার ফ্রন্টএন্ড ডোমেন নাম দিন (e.g. 'https://myrestaurant.com')
+    origin: '*', // Production-এ আপনার ফ্রন্টএন্ড ডোমেন নাম দিন (e.g. 'https://barcoderestaurantgroup.com')
     methods: ['GET', 'POST'],
   },
 });
 
-// Express app instance-এ 'io' সেট করে রাখা যেন Controller/Service থেকে access করা যায়
+// Express app instance-এ 'io' সেট করে রাখা যেন Controller/Service থেকে access করা যায়
 app.set('io', io);
 
-// ⚡ Socket Connections & Events Listener
+// ⚡ Socket Connections & Real-time Events Listener
 io.on('connection', (socket) => {
   // console.log('⚡ Socket connected:', socket.id);
 
-  // কাস্টমার Checkout.jsx থেকে 'create_order' emit করলে তা হ্যান্ডেল করা
+  // 🛒 1. কাস্টমার থেকে নতুন অর্ডার প্লেস হলে
   socket.on('create_order', (newOrder) => {
-    // ১. অ্যাডমিন প্যানেলে রিয়েল-টাইম সংকেত পাঠানো
+    io.emit('order_created', newOrder);
     io.emit('admin_new_order', newOrder);
-    
-    // ২. রাইডার ড্যাশবোর্ডে নতুন ডেলিভারি সংকেত পাঠানো
     io.emit('rider_new_delivery', newOrder);
+  });
+
+  // 🚴 2. অ্যাডমিন রাইডার অ্যাসাইন করলে (Rider Notification + Sound Alert Trigger)
+  socket.on('rider_order_assigned', (data) => {
+    io.emit('rider_order_assigned', data);
+    io.emit('order_assigned', data);
+    io.emit('order_updated', data);
+  });
+
+  socket.on('order_assigned', (data) => {
+    io.emit('order_assigned', data);
+    io.emit('rider_order_assigned', data);
+    io.emit('order_updated', data);
+  });
+
+  // 🔄 3. অর্ডারের স্ট্যাটাস চেঞ্জ হলে (Pending, Preparing, Out for Delivery, Delivered)
+  socket.on('order_status_updated', (data) => {
+    io.emit('order_status_updated', data);
+    io.emit('order_updated', data);
+  });
+
+  // 📝 4. যেকোনো অর্ডার ডাটা আপডেট হলে
+  socket.on('order_updated', (data) => {
+    io.emit('order_updated', data);
+  });
+
+  // 💬 5. কাস্টমার-অ্যাডমিন-রাইডার রিয়েল-টাইম চ্যাট মেসেজ
+  socket.on('send_message', (data) => {
+    io.emit('new_chat_message', data);
   });
 
   socket.on('disconnect', () => {
