@@ -16,16 +16,16 @@ const toRiderShape = (u: any, activeOrders = 0) => ({
   activeOrders, // in-flight deliveries assigned to this rider (0 = free to take one)
 });
 
-// Active fleet (for order assignment) — excludes pending/rejected rider signups.
-// Legacy riders (field absent) are treated as active via $nin. Each rider carries
-// a live count of in-flight orders so the admin can see who is actually busy.
-// rider.service.ts এর ভেতর:
+// ⚡ Active fleet — excludes pending/rejected rider signups with optimized DB Query
 const getAllRidersService = async () => {
-  return User.find({ role: 'rider', isDeleted: { $ne: true } })
-    .select('-password -__v') // ⚡ পাসওয়ার্ড এবং অপ্রয়োজনীয় মঙ্গুস ভার্সন ফিল্ড বাদ দেওয়া হলো
+  const riders = await User.find({
+    role: 'rider',
+    isDeleted: { $ne: true },
+    riderApprovalStatus: { $nin: ['pending', 'rejected'] },
+  })
+    .select('-password -__v') // ⚡ পাসওয়ার্ড এবং অপ্রয়োজনীয় মঙ্গুস ভার্সন ফিল্ড বাদ দেয়া হলো
     .sort({ createdAt: -1 })
-    .lean(); // ⚡ Mongoose এর মেমোরি প্রসেসিং বাদ দিয়ে প্লেন JS অবজেক্ট ফেচ করবে
-};
+    .lean(); // ⚡ Mongoose এর মেমোরি প্রসেসিং বাদ দিয়ে প্লেন JS অবজেক্ট ফেচ করবে
 
   // count each rider's in-flight (assigned, not-yet-finished) orders in one pass
   const counts = await Order.aggregate([
@@ -34,12 +34,10 @@ const getAllRidersService = async () => {
   ]);
   const activeByRider = new Map<string, number>(counts.map((c: any) => [String(c._id), c.n]));
 
-  return riders.map((r) => toRiderShape(r, activeByRider.get(String(r._id)) || 0));
+  return riders.map((r: any) => toRiderShape(r, activeByRider.get(String(r._id)) || 0));
 };
 
-// Dedicated rider signup: creates a rider account (pending approval) + an
-// application record with the uploaded documents, and returns a token so the
-// new rider is logged in immediately (can see the dashboard in pending state).
+// Dedicated rider signup: creates a rider account (pending approval) + an application record
 const registerRiderService = async (
   payload: any,
   photoFilename: string,
@@ -57,7 +55,7 @@ const registerRiderService = async (
     name: String(payload.name || '').trim(),
     email,
     password: payload.password, // hashed by the User pre-save hook
-    role: 'user', // 👈 🟢 সংশোধন: শুরুতে রোল অবশ্যই 'user' হবে!
+    role: 'user', // শুরুতে রোল অবশ্যই 'user' হবে!
     riderApprovalStatus: 'pending',
     riderStatus: 'Available',
     vehicle: String(payload.vehicle || '').trim() || 'Motorbike',
@@ -87,9 +85,10 @@ const registerRiderService = async (
 
   return { user, token };
 };
+
 const getRiderByIdService = async (id: string) => {
   if (!isValidObjectId(id)) return null;
-  const rider = await User.findOne({ _id: id, role: 'rider', isDeleted: false });
+  const rider = await User.findOne({ _id: id, role: 'rider', isDeleted: false }).lean();
   return rider ? toRiderShape(rider) : null;
 };
 
