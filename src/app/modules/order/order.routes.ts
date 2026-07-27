@@ -16,6 +16,10 @@ router.post('/', authMiddleware, validateRequest(createOrderValidationSchema), O
 // তালিকা — admin সব / user নিজের
 router.get('/', authMiddleware, OrderController.getOrdersController);
 
+// ⚡ পেন্ডিং অর্ডারের কাউন্ট (এডমিন প্যানেলের ইনস্ট্যান্ট পারফর্ম্যান্সের জন্য)
+// ⚠️ '/:id' এর **আগে** থাকতে হবে, নাহলে Express এটাকে Order ID মনে করবে।
+router.get('/pending-count', authMiddleware, authorize('admin'), OrderController.getPendingCountController);
+
 // ── ক্যাশ সেটেলমেন্ট ──
 // ⚠️ '/:id' এর **আগে** থাকতে হবে, নাহলে Express এগুলোকে order id ভেবে বসবে।
 router.post('/submit-daily-cash', authMiddleware, authorize('rider'), OrderController.submitDailyCashController);

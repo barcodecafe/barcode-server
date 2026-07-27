@@ -11,6 +11,16 @@ const canAccess = (order: any, actor: any): boolean => {
   return false;
 };
 
+// ⚡ GET /api/orders/pending-count — আল্ট্রা ফাস্ট পেন্ডিং কাউন্ট (No delay)
+const getPendingCountController = async (req: Request, res: Response) => {
+  try {
+    const count = await OrderService.getPendingCountService();
+    res.status(200).json({ success: true, count });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
 // POST /api/orders — লগইন লাগবে; সার্ভারে দাম/কুপন/স্টক পুনঃগণনা
 const createOrderController = async (req: Request, res: Response) => {
   try {
@@ -225,6 +235,7 @@ const settlementSummaryController = async (req: Request, res: Response) => {
 };
 
 export const OrderController = {
+  getPendingCountController, // 👈 নতুন যুক্ত করা হয়েছে
   submitDailyCashController,
   confirmCashSettlementController,
   settlementSummaryController,

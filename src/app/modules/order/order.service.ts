@@ -41,6 +41,13 @@ type CreatePayload = {
 // লয়্যালটি — বিলের ৳100 এ 5 পয়েন্ট (subtotal-ভিত্তিক), 1 পয়েন্ট = ৳1 ছাড়
 const pointsForSubtotal = (subtotal: number) => Math.floor((Number(subtotal) || 0) / 100) * 5;
 
+// ⚡ আল্ট্রা-ফাস্ট পেন্ডিং কাউন্ট (ডাটাবেজ থেকে সরাসরি সংখ্যা রিটার্ন করে)
+const getPendingCountService = async () => {
+  return Order.countDocuments({
+    status: { $in: ['Placed', AWAITING_PAYMENT, 'Pending', 'PLACED', 'PENDING'] },
+  });
+};
+
 // ── POST /orders — সার্ভারই দাম/কুপন/পয়েন্ট হিসাব করে; client-এর টাকা উপেক্ষা করা হয় ──
 const createOrderService = async (userId: string, payload: CreatePayload) => {
   const user = await User.findById(userId);
@@ -70,7 +77,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     throw err;
   }
 
-  // 💡 কাস্টমারের ফোন নম্বর ও ঠিকানা আগে বের করে নেওয়া (কুপন ভ্যালিডেশনে পাস করার জন্য)
+  // 💡 কাস্টমারের ফোন নম্বর ও ঠিকানা আগে বের করে নেওয়া (কুপন ভ্যালিডেশনে পাস করার জন্য)
   const deliveryPhone = (payload.deliveryPhone ?? user.phone ?? '').toString().trim();
   const deliveryAddress = (payload.deliveryAddress ?? user.address ?? '').toString().trim();
   const deliveryArea = (payload.deliveryArea ?? user.pickArea ?? '').toString().trim();
@@ -106,7 +113,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
   }
   subtotal = round2(subtotal);
 
-  // 2) 💡 কুপন সার্ভারে re-validate (deliveryPhone সহ পাস করা হচ্ছে যেন ফোন দিয়ে ওয়ান-টাইম চেক হয়)
+  // 2) 💡 কুপন সার্ভারে re-validate (deliveryPhone সহ পাস করা হচ্ছে যেন ফোন দিয়ে ওয়ান-টাইম চেক হয়)
   let discount = 0;
   let couponCode = '';
   if (payload.couponCode && payload.couponCode.trim()) {
@@ -543,6 +550,7 @@ const getRiderSettlementSummaryService = async (riderId: string, date: unknown) 
 };
 
 export const OrderService = {
+  getPendingCountService, // 👈 নতুন মেথডটি এখানে যোগ করা হয়েছে
   submitRiderDailyCashService,
   confirmRiderCashSettlementService,
   getRiderSettlementSummaryService,
