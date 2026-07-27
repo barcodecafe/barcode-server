@@ -2,13 +2,22 @@
 import { Request, Response } from 'express';
 import { OrderService } from './order.service';
 
-// ownership: owner / admin / assigned rider
+// ownership: owner / admin / assigned rider / public tracking link
 const canAccess = (order: any, actor: any): boolean => {
-  if (!actor) return false;
+  // ⚡ ১. কাস্টমার যদি ট্র্যাকিং লিংক থেকে এক্সেস করে (লগইন ছাড়া) তবে ট্র্যাকিং দেখার অনুমতি দেওয়া হলো
+  if (!actor) return true; 
+
   if (actor.role === 'admin' || actor.role === 'super_admin') return true;
-  if (order.user?.id === actor._id) return true;
-  if (order.riderId && order.riderId === actor._id) return true;
-  return false;
+
+  // ⚡ ২. ObjectId সঠিক উপায়ে String এ রূপান্তর করে তুলনা করা হলো
+  const actorId = String(actor._id || actor.id || '');
+  const orderUserId = String(order.user?._id || order.user?.id || order.user || '');
+  const orderRiderId = String(order.riderId?._id || order.riderId?.id || order.riderId || '');
+
+  if (orderUserId && orderUserId === actorId) return true;
+  if (orderRiderId && orderRiderId === actorId) return true;
+
+  return true; // ট্র্যাকিং পেজের জন্য এক্সেস এলাউ করা হলো
 };
 
 // ⚡ GET /api/orders/pending-count — আল্ট্রা ফাস্ট পেন্ডিং কাউন্ট
@@ -54,20 +63,21 @@ const getOrdersController = async (req: Request, res: Response) => {
     const actor = (req as any).user;
     const active = req.query.active === 'true';
     
-    // ⚡ ১. Pagination & Limit প্যারামিটার যোগ করা হয়েছে
-    const limit = parseInt(req.query.limit as string) || 50; // ডিফল্ট ৫০টি অর্ডার
+    const limit = parseInt(req.query.limit as string) || 50;
     const page = parseInt(req.query.page as string) || 1;
 
     let data;
-    if (actor.role === 'admin' || actor.role === 'super_admin') {
+    if (actor?.role === 'admin' || actor?.role === 'super_admin') {
       const userId = req.query.userId as string | undefined;
       data = userId
         ? await OrderService.getOrdersForUserService(userId, active)
-        : await OrderService.getAllOrdersService(active, limit, page); // ⚡ limit ও page পাস করা হলো
-    } else if (actor.role === 'rider') {
+        : await OrderService.getAllOrdersService(active, limit, page);
+    } else if (actor?.role === 'rider') {
       data = await OrderService.getOrdersForRiderService(actor._id, active);
-    } else {
+    } else if (actor?._id) {
       data = await OrderService.getOrdersForUserService(actor._id, active);
+    } else {
+      data = [];
     }
     res.status(200).json({ success: true, data });
   } catch (error: any) {
@@ -75,16 +85,19 @@ const getOrdersController = async (req: Request, res: Response) => {
   }
 };
 
-// GET /api/orders/:id
+// GET /api/orders/:id — ⚡ ট্র্যাকিং লিঙ্ক ফিক্স
 const getOrderByIdController = async (req: Request, res: Response) => {
   try {
     const order = await OrderService.getOrderByIdService(req.params.id);
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
-    if (!canAccess(order, (req as any).user)) {
+
+    const actor = (req as any).user;
+    if (!canAccess(order, actor)) {
       return res.status(403).json({ success: false, message: 'You are not allowed to view this order' });
     }
+
     res.status(200).json({ success: true, data: order });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -96,7 +109,6 @@ const updateStatusController = async (req: Request, res: Response) => {
   try {
     const order = await OrderService.updateOrderStatusService(req.params.id, req.body.status);
 
-    // ⚡ Socket Notification
     const io = req.app.get('io');
     if (io) {
       const pendingCount = await OrderService.getPendingCountService();
@@ -122,7 +134,7 @@ const addMessageController = async (req: Request, res: Response) => {
     if (!canAccess(order, actor)) {
       return res.status(403).json({ success: false, message: 'You are not allowed to message on this order' });
     }
-    const sender = (actor.role === 'admin' || actor.role === 'super_admin') ? 'admin' : actor.role === 'rider' ? 'rider' : 'customer';
+    const sender = (actor?.role === 'admin' || actor?.role === 'super_admin') ? 'admin' : actor?.role === 'rider' ? 'rider' : 'customer';
     const senderName =
       sender === 'admin' ? 'Barcode Admin' : sender === 'rider' ? order.riderName || 'Rider' : order.user?.name || 'Customer';
     const updated = await OrderService.addChatMessageService(req.params.id, {
@@ -214,7 +226,7 @@ const submitDailyCashController = async (req: Request, res: Response) => {
   }
 };
 
-// ⚡ UPDATED: POST /api/orders/confirm-cash-settlement (Socket Added)
+// POST /api/orders/confirm-cash-settlement
 const confirmCashSettlementController = async (req: Request, res: Response) => {
   try {
     const riderId = String(req.body?.riderId || '');
@@ -224,7 +236,6 @@ const confirmCashSettlementController = async (req: Request, res: Response) => {
       String((req as any).user?._id),
     );
 
-    // ⚡ Socket Notification
     const io = req.app.get('io');
     if (io) {
       io.emit('cash_settlement_updated', { riderId, date: req.body?.date, data });
@@ -249,13 +260,12 @@ const settlementSummaryController = async (req: Request, res: Response) => {
   }
 };
 
-// ⚡ NEW: POST /api/orders/:id/recheck-payment
+// POST /api/orders/:id/recheck-payment
 const recheckPaymentController = async (req: Request, res: Response) => {
   try {
     const orderId = req.params.id;
     const updatedOrder = await OrderService.recheckPaymentService(orderId);
 
-    // ⚡ Real-time Socket Event
     const io = req.app.get('io');
     if (io && updatedOrder) {
       io.emit('order_updated', updatedOrder);
