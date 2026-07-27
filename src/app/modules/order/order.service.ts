@@ -46,10 +46,10 @@ type CreatePayload = {
 const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
-// ⚡ আল্ট্রা-ফাস্ট ও নিখুঁত পেন্ডিং কাউন্ট (Awaiting Payment বাদ দিয়ে শুধুমাত্র Placed/Pending)
+// ⚡ নিখুঁত পেন্ডিং কাউন্ট (এডমিন ACCEPT বা REJECT না করা পর্যন্ত সকল নতুন অর্ডার কাউন্ট করবে)
 const getPendingCountService = async () => {
   return Order.countDocuments({
-    status: { $regex: /^placed$|^pending$/i },
+    status: { $regex: /^placed$|^pending$|^awaiting/i },
   });
 };
 
