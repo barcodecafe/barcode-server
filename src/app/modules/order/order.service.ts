@@ -46,24 +46,10 @@ type CreatePayload = {
 const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
-// ⚡ আল্ট্রা-ফাস্ট পেন্ডিং কাউন্ট (এডমিন Accept/Reject না করা পর্যন্ত কাউন্টে থাকবে)
+// ⚡ আল্ট্রা-ফাস্ট ও নিখুঁত পেন্ডিং কাউন্ট (Case-insensitive Regex)
 const getPendingCountService = async () => {
   return Order.countDocuments({
-    status: {
-      $in: [
-        "Placed",
-        "PLACED",
-        "placed",
-        "Pending",
-        "PENDING",
-        "pending",
-        "AWAITING PAYMENT",
-        "AWAITING_PAYMENT",
-        "awaiting payment",
-        "awaiting_payment",
-        AWAITING_PAYMENT,
-      ],
-    },
+    status: { $regex: /placed|pending|awaiting/i },
   });
 };
 
