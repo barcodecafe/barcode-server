@@ -27,12 +27,14 @@ const createOrderController = async (req: Request, res: Response) => {
     const userId = (req as any).user?._id;
     const order = await OrderService.createOrderService(userId, req.body);
 
-    // ⚡ Socket Notification (Real-time Broadcast)
+    // ⚡ Socket Notification (Real-time Broadcast with Updated Pending Count)
     const io = req.app.get('io');
     if (io) {
+      const pendingCount = await OrderService.getPendingCountService();
       io.emit('order_created', order);
       io.emit('admin_new_order', order);
       io.emit('rider_new_delivery', order);
+      io.emit('pending_count_updated', { count: pendingCount });
     }
 
     res.status(201).json({ success: true, message: 'Order placed', data: order });
@@ -86,11 +88,13 @@ const updateStatusController = async (req: Request, res: Response) => {
   try {
     const order = await OrderService.updateOrderStatusService(req.params.id, req.body.status);
 
-    // ⚡ Socket Notification: Status Changed
+    // ⚡ Socket Notification: Status Changed & Live Count Sync
     const io = req.app.get('io');
     if (io) {
-      io.emit('order_status_updated', { orderId: req.params.id, status: req.body.status, order });
+      const pendingCount = await OrderService.getPendingCountService();
+      io.emit('order_status_updated', { orderId: req.params.id, status: req.body.status, order, pendingCount });
       io.emit('order_updated', order);
+      io.emit('pending_count_updated', { count: pendingCount });
     }
 
     res.status(200).json({ success: true, message: 'Status updated', data: order });
@@ -235,7 +239,7 @@ const settlementSummaryController = async (req: Request, res: Response) => {
 };
 
 export const OrderController = {
-  getPendingCountController, // 👈 নতুন যুক্ত করা হয়েছে
+  getPendingCountController,
   submitDailyCashController,
   confirmCashSettlementController,
   settlementSummaryController,
