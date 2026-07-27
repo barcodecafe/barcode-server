@@ -19,12 +19,13 @@ const toRiderShape = (u: any, activeOrders = 0) => ({
 // Active fleet (for order assignment) — excludes pending/rejected rider signups.
 // Legacy riders (field absent) are treated as active via $nin. Each rider carries
 // a live count of in-flight orders so the admin can see who is actually busy.
+// rider.service.ts এর ভেতর:
 const getAllRidersService = async () => {
-  const riders = await User.find({
-    role: 'rider',
-    isDeleted: false,
-    riderApprovalStatus: { $nin: ['pending', 'rejected'] },
-  }).sort({ createdAt: -1 });
+  return User.find({ role: 'rider', isDeleted: { $ne: true } })
+    .select('-password -__v') // ⚡ পাসওয়ার্ড এবং অপ্রয়োজনীয় মঙ্গুস ভার্সন ফিল্ড বাদ দেওয়া হলো
+    .sort({ createdAt: -1 })
+    .lean(); // ⚡ Mongoose এর মেমোরি প্রসেসিং বাদ দিয়ে প্লেন JS অবজেক্ট ফেচ করবে
+};
 
   // count each rider's in-flight (assigned, not-yet-finished) orders in one pass
   const counts = await Order.aggregate([

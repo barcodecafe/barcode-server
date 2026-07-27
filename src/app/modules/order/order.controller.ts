@@ -48,17 +48,22 @@ const createOrderController = async (req: Request, res: Response) => {
   }
 };
 
-// GET /api/orders
+// GET /api/orders — (Optimized Version)
 const getOrdersController = async (req: Request, res: Response) => {
   try {
     const actor = (req as any).user;
     const active = req.query.active === 'true';
+    
+    // ⚡ ১. Pagination & Limit প্যারামিটার যোগ করা হয়েছে
+    const limit = parseInt(req.query.limit as string) || 50; // ডিফল্ট ৫০টি অর্ডার
+    const page = parseInt(req.query.page as string) || 1;
+
     let data;
     if (actor.role === 'admin' || actor.role === 'super_admin') {
       const userId = req.query.userId as string | undefined;
       data = userId
         ? await OrderService.getOrdersForUserService(userId, active)
-        : await OrderService.getAllOrdersService(active);
+        : await OrderService.getAllOrdersService(active, limit, page); // ⚡ limit ও page পাস করা হলো
     } else if (actor.role === 'rider') {
       data = await OrderService.getOrdersForRiderService(actor._id, active);
     } else {

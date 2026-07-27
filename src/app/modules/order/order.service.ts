@@ -126,7 +126,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
   }
   subtotal = round2(subtotal);
 
-  // 2) 💡 কুপন সার্ভারে re-validate (deliveryPhone সহ পাস করা হচ্ছে যেন ফোন দিয়ে ওয়ান-টাইম চেক হয়)
+  // 2) 💡 কুপন সার্ভারে re-validate
   let discount = 0;
   let couponCode = "";
   if (payload.couponCode && payload.couponCode.trim()) {
@@ -137,12 +137,12 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     );
     discount =
       coupon.discountType === "flat"
-        ? round2(Math.min(Number(coupon.discountAmount) || 0, subtotal)) // flat ৳, capped at subtotal
+        ? round2(Math.min(Number(coupon.discountAmount) || 0, subtotal))
         : round2((subtotal * coupon.discountPct) / 100);
     couponCode = coupon.code;
   }
 
-  // 3) লয়্যালটি পয়েন্ট redeem — 1 pt = ৳1, balance ও (subtotal − discount) এর বেশি নয়
+  // 3) লয়্যালটি পয়েন্ট redeem
   let pointsRedeemed = 0;
   const requestedPts = Math.max(
     0,
@@ -154,12 +154,10 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     pointsRedeemed = Math.min(requestedPts, available, maxByBill);
   }
 
-  // 4) ডেলিভারি charge সার্ভারই ঠিক করে
-  const deliveryCharge = round2(chargeFromRegion(region, deliveryArea)); // region zone → charge
-
+  // 4) ডেলিভারি charge
+  const deliveryCharge = round2(chargeFromRegion(region, deliveryArea));
   const total = round2(subtotal - discount - pointsRedeemed + deliveryCharge);
 
-  // অর্ডার তৈরি — status/paymentStatus সার্ভার নিয়ন্ত্রিত
   const isOnlinePayment = (payload.paymentMethod || "cod") !== "cod";
 
   const initialMessage: IChatMessage = {
@@ -184,7 +182,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     subtotal,
     discount,
     pointsRedeemed,
-    pointsEarned: 0, // delivery-তে credit হবে
+    pointsEarned: 0,
     deliveryArea,
     deliveryCharge,
     total,
@@ -198,7 +196,6 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     chatHistory: [initialMessage],
   });
 
-  // 💡 ৫) কুপন ব্যবহার শেষ হলে ডাটাবেসে usedByPhones এবং isUsed চিহ্নিত করা
   if (order && couponCode) {
     try {
       await CouponService.markCouponAsUsedService(couponCode, deliveryPhone);
@@ -207,14 +204,12 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     }
   }
 
-  // redeem করা পয়েন্ট user balance থেকে কাটা
   if (pointsRedeemed > 0) {
     await User.findByIdAndUpdate(user._id, {
       $inc: { points: -pointsRedeemed },
     });
   }
 
-  // Profile Backfill
   const profileFill: Record<string, string> = {};
   if (!String(user.phone || "").trim() && deliveryPhone)
     profileFill.phone = deliveryPhone;
@@ -229,29 +224,62 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
   return order;
 };
 
-// ── GET /orders (Admin — সব; user — শুধু নিজের) ──
-const getAllOrdersService = async (active?: boolean) => {
+// ── ⚡ OPTIMIZED GET /orders (Admin — সব; user — শুধু নিজের) ──
+const getAllOrdersService = async (
+  active?: boolean,
+  limit: number = 50,
+  page: number = 1,
+) => {
   const filter: any = { status: { $nin: NON_LIVE_STATUSES } };
   if (active)
     filter.status = { $nin: [...NON_LIVE_STATUSES, "Delivered", "Rejected"] };
-  return Order.find(filter).sort({ createdAt: -1 });
+
+  return Order.find(filter)
+    .select("-chatHistory") // ⚡ চ্যাট হিস্ট্রি বাদ দিয়ে স্পিড বাড়ানো হলো
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .skip((page - 1) * limit)
+    .lean(); // ⚡ মেমোরি ও প্রসেসিং সাশ্রয়
 };
 
-const getOrdersForUserService = async (userId: string, active?: boolean) => {
+const getOrdersForUserService = async (
+  userId: string,
+  active?: boolean,
+  limit: number = 50,
+  page: number = 1,
+) => {
   const filter: any = { "user.id": userId };
   if (active) filter.status = { $nin: ["Delivered", "Rejected"] };
-  return Order.find(filter).sort({ createdAt: -1 });
+
+  return Order.find(filter)
+    .select("-chatHistory")
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .skip((page - 1) * limit)
+    .lean();
 };
 
-const getOrdersForRiderService = async (riderId: string, active?: boolean) => {
+const getOrdersForRiderService = async (
+  riderId: string,
+  active?: boolean,
+  limit: number = 50,
+  page: number = 1,
+) => {
   const filter: any = { riderId };
   if (active) filter.status = { $nin: ["Delivered", "Rejected"] };
-  return Order.find(filter).sort({ createdAt: -1 });
+
+  return Order.find(filter)
+    .select("-chatHistory")
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .skip((page - 1) * limit)
+    .lean();
 };
 
+// ⚡ নির্দিষ্ট কোনো অর্ডারের বিস্তারিত/চ্যাট দেখার জন্য এটি চ্যাট হিস্ট্রি সহ আনবে
 const getOrderByIdService = async (id: string) => {
   if (!isValidObjectId(id)) return null;
-  return Order.findById(id);
+  return Order.findById(id).lean();
 };
 
 const syncRiderAvailability = async (riderId?: string | null) => {
@@ -540,7 +568,7 @@ const settlementOrdersFor = async (riderId: string, dateKey: string) => {
   const orders = await Order.find({
     riderId,
     $or: [{ status: "Delivered" }, { deliveredAt: { $ne: null } }],
-  });
+  }).lean();
   return orders.filter((o) => orderSettlementDate(o) === dateKey);
 };
 
@@ -711,7 +739,7 @@ const getRiderSettlementSummaryService = async (
   return buildSummary(await settlementOrdersFor(riderId, dateKey), dateKey);
 };
 
-// ⚡ NEW: POST /orders/:id/recheck-payment (Admin manual verify / Gateway Sync)
+// ⚡ POST /orders/:id/recheck-payment
 const recheckPaymentService = async (id: string) => {
   if (!isValidObjectId(id)) {
     const err: any = new Error("Order not found");
@@ -725,10 +753,8 @@ const recheckPaymentService = async (id: string) => {
     throw err;
   }
 
-  // পেমেন্ট স্ট্যাটাস Paid করে দেওয়া হচ্ছে
   order.paymentStatus = "Paid";
 
-  // যদি অর্ডারটি অনলাইন পেমেন্টের অপেক্ষায় আটকে থাকত, তবে তা Placed এ আপডেট করা
   if (order.status === AWAITING_PAYMENT) {
     order.status = "Placed";
     order.chatHistory.push({
