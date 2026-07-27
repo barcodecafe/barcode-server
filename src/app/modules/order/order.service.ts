@@ -46,7 +46,7 @@ type CreatePayload = {
 const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
-// ⚡ শুধুমাত্র যেসব অর্ডারে Admin-এর Accept/Reject করা বাকি রয়েছে সেগুলোর কাউন্ট
+// ⚡ শুধুমাত্র যেসব অর্ডারে Admin-এর Accept/Reject করা বাকি রয়েছে সেগুলোর কাউন্ট
 const getPendingCountService = async () => {
   return Order.countDocuments({
     status: { $regex: /^placed$|^pending$/i },
@@ -711,11 +711,44 @@ const getRiderSettlementSummaryService = async (
   return buildSummary(await settlementOrdersFor(riderId, dateKey), dateKey);
 };
 
+// ⚡ NEW: POST /orders/:id/recheck-payment (Admin manual verify / Gateway Sync)
+const recheckPaymentService = async (id: string) => {
+  if (!isValidObjectId(id)) {
+    const err: any = new Error("Order not found");
+    err.status = 404;
+    throw err;
+  }
+  const order = await Order.findById(id);
+  if (!order) {
+    const err: any = new Error("Order not found");
+    err.status = 404;
+    throw err;
+  }
+
+  // পেমেন্ট স্ট্যাটাস Paid করে দেওয়া হচ্ছে
+  order.paymentStatus = "Paid";
+
+  // যদি অর্ডারটি অনলাইন পেমেন্টের অপেক্ষায় আটকে থাকত, তবে তা Placed এ আপডেট করা
+  if (order.status === AWAITING_PAYMENT) {
+    order.status = "Placed";
+    order.chatHistory.push({
+      sender: "admin",
+      senderName: "Barcode Admin",
+      text: "Payment status re-checked & confirmed! Your order is now placed.",
+      timestamp: new Date(),
+    } as IChatMessage);
+  }
+
+  await order.save();
+  return order;
+};
+
 export const OrderService = {
   getPendingCountService,
   submitRiderDailyCashService,
   confirmRiderCashSettlementService,
   getRiderSettlementSummaryService,
+  recheckPaymentService,
   createOrderService,
   getAllOrdersService,
   getOrdersForUserService,

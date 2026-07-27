@@ -209,14 +209,22 @@ const submitDailyCashController = async (req: Request, res: Response) => {
   }
 };
 
-// POST /api/orders/confirm-cash-settlement
+// ⚡ UPDATED: POST /api/orders/confirm-cash-settlement (Socket Added)
 const confirmCashSettlementController = async (req: Request, res: Response) => {
   try {
+    const riderId = String(req.body?.riderId || '');
     const data = await OrderService.confirmRiderCashSettlementService(
-      String(req.body?.riderId || ''),
+      riderId,
       req.body?.date,
       String((req as any).user?._id),
     );
+
+    // ⚡ Socket Notification
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('cash_settlement_updated', { riderId, date: req.body?.date, data });
+    }
+
     res.status(200).json({ success: true, message: 'Cash settlement confirmed', data });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -236,11 +244,34 @@ const settlementSummaryController = async (req: Request, res: Response) => {
   }
 };
 
+// ⚡ NEW: POST /api/orders/:id/recheck-payment
+const recheckPaymentController = async (req: Request, res: Response) => {
+  try {
+    const orderId = req.params.id;
+    const updatedOrder = await OrderService.recheckPaymentService(orderId);
+
+    // ⚡ Real-time Socket Event
+    const io = req.app.get('io');
+    if (io && updatedOrder) {
+      io.emit('order_updated', updatedOrder);
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Payment status re-checked & updated successfully', 
+      data: updatedOrder 
+    });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
 export const OrderController = {
   getPendingCountController,
   submitDailyCashController,
   confirmCashSettlementController,
   settlementSummaryController,
+  recheckPaymentController,
   createOrderController,
   getOrdersController,
   getOrderByIdController,

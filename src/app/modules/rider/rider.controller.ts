@@ -5,7 +5,6 @@ import { RiderService } from './rider.service';
 import { verifyRiderFileMagic } from '../../config/localUpload';
 
 // POST /api/riders/register (public, multipart: photo image + license PDF)
-// Dedicated rider signup — all info in one form → pending rider + auto-login token.
 const registerController = async (req: Request, res: Response) => {
   const files = (req as any).files || {};
   const photo = files.photo?.[0];
@@ -41,7 +40,7 @@ const registerController = async (req: Request, res: Response) => {
       cleanup();
       return res.status(400).json({ success: false, message: 'Name, email, password and phone are required.' });
     }
-    // password policy — mirrors auth.validation (register)
+    // password policy
     if (String(password).length < 8 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
       cleanup();
       return res.status(400).json({
@@ -80,6 +79,7 @@ const getRiderByIdController = async (req: Request, res: Response) => {
   }
 };
 
+// ⚡ UPDATED: updateRiderStatusController (Socket Added)
 const updateRiderStatusController = async (req: Request, res: Response) => {
   try {
     const status = req.body.status;
@@ -88,6 +88,13 @@ const updateRiderStatusController = async (req: Request, res: Response) => {
     }
     const rider = await RiderService.updateRiderStatusService(req.params.id, status);
     if (!rider) return res.status(404).json({ success: false, message: 'Rider not found' });
+
+    // ⚡ Socket Notification for Real-time Rider Fleet Sync
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('rider_updated', rider);
+    }
+
     res.status(200).json({ success: true, message: 'Status updated', data: rider });
   } catch (e: any) {
     res.status(500).json({ success: false, message: e.message });

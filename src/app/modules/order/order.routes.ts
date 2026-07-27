@@ -11,7 +11,12 @@ import {
 const router = express.Router();
 
 // নতুন অর্ডার — লগইন লাগবে
-router.post('/', authMiddleware, validateRequest(createOrderValidationSchema), OrderController.createOrderController);
+router.post(
+  '/', 
+  authMiddleware, 
+  validateRequest(createOrderValidationSchema), 
+  OrderController.createOrderController
+);
 
 // তালিকা — admin সব / user নিজের
 router.get('/', authMiddleware, OrderController.getOrdersController);
@@ -29,8 +34,16 @@ router.post('/submit-daily-cash', authMiddleware, authorize('rider'), OrderContr
 router.post('/confirm-cash-settlement', authMiddleware, authorize('admin', 'super_admin'), OrderController.confirmCashSettlementController);
 router.get('/settlement-summary', authMiddleware, authorize('admin', 'super_admin', 'rider'), OrderController.settlementSummaryController);
 
-// একটি অর্ডার
+// একটি নির্দিষ্ট অর্ডার ডিটেইলস
 router.get('/:id', authMiddleware, OrderController.getOrderByIdController);
+
+// ⚡ পেমেন্ট রি-চেক (Manual Recheck with Payment Gateway) — Admin/Super Admin
+router.post(
+  '/:id/recheck-payment',
+  authMiddleware,
+  authorize('admin', 'super_admin'),
+  OrderController.recheckPaymentController
+);
 
 // স্ট্যাটাস আপডেট — Admin/Rider
 router.patch(
@@ -42,7 +55,12 @@ router.patch(
 );
 
 // অর্ডার চ্যাট
-router.post('/:id/messages', authMiddleware, validateRequest(addMessageValidationSchema), OrderController.addMessageController);
+router.post(
+  '/:id/messages', 
+  authMiddleware, 
+  validateRequest(addMessageValidationSchema), 
+  OrderController.addMessageController
+);
 
 // রাইডার ফ্লো
 router.post('/:id/assign-rider', authMiddleware, authorize('admin', 'super_admin'), OrderController.assignRiderController);
