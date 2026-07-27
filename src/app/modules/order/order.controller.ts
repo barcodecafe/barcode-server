@@ -4,12 +4,12 @@ import { OrderService } from './order.service';
 
 // ownership: owner / admin / assigned rider / public tracking link
 const canAccess = (order: any, actor: any): boolean => {
-  // ⚡ ১. কাস্টমার যদি ট্র্যাকিং লিংক থেকে এক্সেস করে (লগইন ছাড়া) তবে ট্র্যাকিং দেখার অনুমতি দেওয়া হলো
+  // ⚡ কাস্টমার যদি ট্র্যাকিং লিংক থেকে এক্সেস করে (লগইন ছাড়া) তবে ট্র্যাকিং দেখার অনুমতি দেওয়া হলো
   if (!actor) return true; 
 
   if (actor.role === 'admin' || actor.role === 'super_admin') return true;
 
-  // ⚡ ২. ObjectId সঠিক উপায়ে String এ রূপান্তর করে তুলনা করা হলো
+  // ⚡ ObjectId সঠিক উপায়ে String এ রূপান্তর করে তুলনা করা হলো
   const actorId = String(actor._id || actor.id || '');
   const orderUserId = String(order.user?._id || order.user?.id || order.user || '');
   const orderRiderId = String(order.riderId?._id || order.riderId?.id || order.riderId || '');
@@ -17,7 +17,7 @@ const canAccess = (order: any, actor: any): boolean => {
   if (orderUserId && orderUserId === actorId) return true;
   if (orderRiderId && orderRiderId === actorId) return true;
 
-  return true; // ট্র্যাকিং পেজের জন্য এক্সেস এলাউ করা হলো
+  return true;
 };
 
 // ⚡ GET /api/orders/pending-count — আল্ট্রা ফাস্ট পেন্ডিং কাউন্ট
@@ -66,7 +66,7 @@ const getOrdersController = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 50;
     const page = parseInt(req.query.page as string) || 1;
 
-    let data;
+    let data: any; // 👈 ⚡ TypeScript টাইপ ডিফাইন করে ফিক্স করা হলো (TS7034 & TS7005 Resolved)
     if (actor?.role === 'admin' || actor?.role === 'super_admin') {
       const userId = req.query.userId as string | undefined;
       data = userId
