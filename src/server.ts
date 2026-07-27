@@ -3,8 +3,9 @@ import mongoose from 'mongoose';
 import { Server as SocketIOServer } from 'socket.io';
 import app from './app';
 import config from './app/config';
+import { OrderService } from './app/modules/order/order.service';
 
-// ─── Vercel Serverless: Cache connection across warm invocations ───
+// ─── Vercel Serverless: Cache connection ───
 let cached = (global as any).mongoose;
 if (!cached) {
   cached = (global as any).mongoose = { conn: null, promise: null };
@@ -43,26 +44,49 @@ const server = http.createServer(app);
 // ─── Socket.io Initialization ───
 export const io = new SocketIOServer(server, {
   cors: {
-    origin: '*', // Production-এ আপনার ফ্রন্টএন্ড ডোমেন নাম দিন (e.g. 'https://barcoderestaurantgroup.com')
-    methods: ['GET', 'POST'],
+    origin: '*',
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
   },
 });
 
-// Express app instance-এ 'io' সেট করে রাখা যেন Controller/Service থেকে access করা যায়
 app.set('io', io);
 
 // ⚡ Socket Connections & Real-time Events Listener
 io.on('connection', (socket) => {
-  // console.log('⚡ Socket connected:', socket.id);
 
-  // 🛒 1. কাস্টমার থেকে নতুন অর্ডার প্লেস হলে
-  socket.on('create_order', (newOrder) => {
+  // 🔔 0. ক্লায়েন্ট/এডমিন কানেক্ট হলে ইনস্ট্যান্ট পেন্ডিং কাউন্ট রিকোয়েস্ট হ্যান্ডলার
+  socket.on('get_pending_count', async () => {
+    try {
+      const pendingCount = await OrderService.getPendingCountService();
+      socket.emit('pending_count_updated', { 
+        count: pendingCount, 
+        pendingCount, 
+        data: pendingCount 
+      });
+    } catch (err) {
+      // ignore
+    }
+  });
+
+  // 🛒 1. নতুন অর্ডার প্লেস হলে
+  socket.on('create_order', async (newOrder) => {
     io.emit('order_created', newOrder);
     io.emit('admin_new_order', newOrder);
     io.emit('rider_new_delivery', newOrder);
+
+    try {
+      const pendingCount = await OrderService.getPendingCountService();
+      io.emit('pending_count_updated', { 
+        count: pendingCount, 
+        pendingCount, 
+        data: pendingCount 
+      });
+    } catch (err) {
+      // ignore
+    }
   });
 
-  // 🚴 2. অ্যাডমিন রাইডার অ্যাসাইন করলে (Rider Notification + Sound Alert Trigger)
+  // 🚴 2. রাইডার অ্যাসাইন
   socket.on('rider_order_assigned', (data) => {
     io.emit('rider_order_assigned', data);
     io.emit('order_assigned', data);
@@ -75,24 +99,35 @@ io.on('connection', (socket) => {
     io.emit('order_updated', data);
   });
 
-  // 🔄 3. অর্ডারের স্ট্যাটাস চেঞ্জ হলে (Pending, Preparing, Out for Delivery, Delivered)
-  socket.on('order_status_updated', (data) => {
+  // 🔄 3. অর্ডারের স্ট্যাটাস চেঞ্জ
+  socket.on('order_status_updated', async (data) => {
     io.emit('order_status_updated', data);
     io.emit('order_updated', data);
+
+    try {
+      const pendingCount = await OrderService.getPendingCountService();
+      io.emit('pending_count_updated', { 
+        count: pendingCount, 
+        pendingCount, 
+        data: pendingCount 
+      });
+    } catch (err) {
+      // ignore
+    }
   });
 
-  // 📝 4. যেকোনো অর্ডার ডাটা আপডেট হলে
+  // 📝 4. ডাটা আপডেট
   socket.on('order_updated', (data) => {
     io.emit('order_updated', data);
   });
 
-  // 💬 5. কাস্টমার-অ্যাডমিন-রাইডার রিয়েল-টাইম চ্যাট মেসেজ
+  // 💬 5. চ্যাট মেসেজ
   socket.on('send_message', (data) => {
     io.emit('new_chat_message', data);
   });
 
   socket.on('disconnect', () => {
-    // console.log('❌ Socket disconnected:', socket.id);
+    // disconnected
   });
 });
 
@@ -101,7 +136,6 @@ const PORT = config.port || 5000;
 async function startServer() {
   try {
     await connectDB();
-    // ⚠️ app.listen-এর বদলে HTTP server.listen ব্যবহার করতে হবে
     server.listen(PORT, () => {
       // eslint-disable-next-line no-console
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
@@ -115,7 +149,6 @@ async function startServer() {
 
 startServer();
 
-// For Vercel serverless
 export default async function handler(req: any, res: any) {
   await connectDB();
   return app(req, res);

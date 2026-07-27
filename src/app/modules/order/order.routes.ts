@@ -10,39 +10,42 @@ import {
 
 const router = express.Router();
 
-// নতুন অর্ডার — লগইন লাগবে (সার্ভারে দাম/স্টক/কুপন যাচাই)
+// নতুন অর্ডার — লগইন লাগবে
 router.post('/', authMiddleware, validateRequest(createOrderValidationSchema), OrderController.createOrderController);
 
 // তালিকা — admin সব / user নিজের
 router.get('/', authMiddleware, OrderController.getOrdersController);
 
-// ⚡ পেন্ডিং অর্ডারের কাউন্ট (এডমিন প্যানেলের ইনস্ট্যান্ট পারফর্ম্যান্সের জন্য)
-// ⚠️ '/:id' এর **আগে** থাকতে হবে, নাহলে Express এটাকে Order ID মনে করবে।
-router.get('/pending-count', authMiddleware, authorize('admin'), OrderController.getPendingCountController);
+// ⚡ পেন্ডিং অর্ডারের কাউন্ট
+router.get(
+  '/pending-count', 
+  authMiddleware, 
+  authorize('admin', 'super_admin', 'superadmin'), 
+  OrderController.getPendingCountController
+);
 
 // ── ক্যাশ সেটেলমেন্ট ──
-// ⚠️ '/:id' এর **আগে** থাকতে হবে, নাহলে Express এগুলোকে order id ভেবে বসবে।
 router.post('/submit-daily-cash', authMiddleware, authorize('rider'), OrderController.submitDailyCashController);
-router.post('/confirm-cash-settlement', authMiddleware, authorize('admin'), OrderController.confirmCashSettlementController);
-router.get('/settlement-summary', authMiddleware, authorize('admin', 'rider'), OrderController.settlementSummaryController);
+router.post('/confirm-cash-settlement', authMiddleware, authorize('admin', 'super_admin'), OrderController.confirmCashSettlementController);
+router.get('/settlement-summary', authMiddleware, authorize('admin', 'super_admin', 'rider'), OrderController.settlementSummaryController);
 
-// একটি অর্ডার — ownership যাচাই
+// একটি অর্ডার
 router.get('/:id', authMiddleware, OrderController.getOrderByIdController);
 
 // স্ট্যাটাস আপডেট — Admin/Rider
 router.patch(
   '/:id/status',
   authMiddleware,
-  authorize('admin', 'rider'),
+  authorize('admin', 'super_admin', 'rider'),
   validateRequest(updateStatusValidationSchema),
   OrderController.updateStatusController
 );
 
-// অর্ডার চ্যাট — Auth + ownership
+// অর্ডার চ্যাট
 router.post('/:id/messages', authMiddleware, validateRequest(addMessageValidationSchema), OrderController.addMessageController);
 
 // রাইডার ফ্লো
-router.post('/:id/assign-rider', authMiddleware, authorize('admin'), OrderController.assignRiderController);
+router.post('/:id/assign-rider', authMiddleware, authorize('admin', 'super_admin'), OrderController.assignRiderController);
 router.post('/:id/accept-rider', authMiddleware, authorize('rider'), OrderController.acceptRiderController);
 router.post('/:id/reject-rider', authMiddleware, authorize('rider'), OrderController.rejectRiderController);
 
