@@ -50,17 +50,18 @@ const pointsForSubtotal = (subtotal: number) =>
 const getPendingCountService = async () => {
   return Order.countDocuments({
     status: {
-      $nin: [
-        "Accepted",
-        "ACCEPTED",
-        "accepted",
-        "Rejected",
-        "REJECTED",
-        "rejected",
-        "Preparing",
-        "Out for Delivery",
-        "Delivered",
-        "Cancelled",
+      $in: [
+        "Placed",
+        "PLACED",
+        "placed",
+        "Pending",
+        "PENDING",
+        "pending",
+        "AWAITING PAYMENT",
+        "AWAITING_PAYMENT",
+        "awaiting payment",
+        "awaiting_payment",
+        AWAITING_PAYMENT,
       ],
     },
   });
@@ -725,7 +726,7 @@ const getRiderSettlementSummaryService = async (
 };
 
 export const OrderService = {
-  getPendingCountService, // 👈 নতুন মেথডটি এখানে যোগ করা হয়েছে
+  getPendingCountService,
   submitRiderDailyCashService,
   confirmRiderCashSettlementService,
   getRiderSettlementSummaryService,
