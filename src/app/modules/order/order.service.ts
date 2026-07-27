@@ -46,10 +46,10 @@ type CreatePayload = {
 const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
-// ⚡ নিখুঁত পেন্ডিং কাউন্ট (এডমিন ACCEPT বা REJECT না করা পর্যন্ত সকল নতুন অর্ডার কাউন্ট করবে)
+// ⚡ শুধুমাত্র যেসব অর্ডারে Admin-এর Accept/Reject করা বাকি রয়েছে সেগুলোর কাউন্ট
 const getPendingCountService = async () => {
   return Order.countDocuments({
-    status: { $regex: /^placed$|^pending$|^awaiting/i },
+    status: { $regex: /^placed$|^pending$/i },
   });
 };
 
