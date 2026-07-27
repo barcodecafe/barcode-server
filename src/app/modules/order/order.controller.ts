@@ -2,22 +2,20 @@
 import { Request, Response } from 'express';
 import { OrderService } from './order.service';
 
-// ownership: owner / admin / assigned rider / public tracking link
+// ownership: owner / admin / assigned rider
 const canAccess = (order: any, actor: any): boolean => {
-  // ⚡ কাস্টমার যদি ট্র্যাকিং লিংক থেকে এক্সেস করে (লগইন ছাড়া) তবে ট্র্যাকিং দেখার অনুমতি দেওয়া হলো
-  if (!actor) return true; 
+  if (!actor) return false;
 
-  if (actor.role === 'admin' || actor.role === 'super_admin') return true;
+  // Admin / Super Admin এক্সেস পাবে
+  if (['admin', 'super_admin', 'superadmin'].includes(actor.role)) return true;
 
-  // ⚡ ObjectId সঠিক উপায়ে String এ রূপান্তর করে তুলনা করা হলো
+  // User ID এবং Rider ID স্ট্রিং এ কনভার্ট করে এক্সেস চেক
   const actorId = String(actor._id || actor.id || '');
   const orderUserId = String(order.user?._id || order.user?.id || order.user || '');
   const orderRiderId = String(order.riderId?._id || order.riderId?.id || order.riderId || '');
 
-  if (orderUserId && orderUserId === actorId) return true;
-  if (orderRiderId && orderRiderId === actorId) return true;
-
-  return true;
+  // নিজের অর্ডার হলে অথবা নিজের এসাইন করা ডেলিভারি হলে এক্সেস পাবে
+  return (actorId !== '' && actorId === orderUserId) || (actorId !== '' && actorId === orderRiderId);
 };
 
 // ⚡ GET /api/orders/pending-count — আল্ট্রা ফাস্ট পেন্ডিং কাউন্ট
@@ -41,7 +39,6 @@ const createOrderController = async (req: Request, res: Response) => {
     const userId = (req as any).user?._id;
     const order = await OrderService.createOrderService(userId, req.body);
 
-    // ⚡ Socket Notification
     const io = req.app.get('io');
     if (io) {
       const pendingCount = await OrderService.getPendingCountService();
@@ -57,7 +54,7 @@ const createOrderController = async (req: Request, res: Response) => {
   }
 };
 
-// GET /api/orders — (Optimized Version)
+// GET /api/orders
 const getOrdersController = async (req: Request, res: Response) => {
   try {
     const actor = (req as any).user;
@@ -66,7 +63,7 @@ const getOrdersController = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 50;
     const page = parseInt(req.query.page as string) || 1;
 
-    let data: any; // 👈 ⚡ TypeScript টাইপ ডিফাইন করে ফিক্স করা হলো (TS7034 & TS7005 Resolved)
+    let data: any;
     if (actor?.role === 'admin' || actor?.role === 'super_admin') {
       const userId = req.query.userId as string | undefined;
       data = userId
@@ -85,7 +82,7 @@ const getOrdersController = async (req: Request, res: Response) => {
   }
 };
 
-// GET /api/orders/:id — ⚡ ট্র্যাকিং লিঙ্ক ফিক্স
+// GET /api/orders/:id — ⚡ ট্র্যাকিং সিকিউরড এক্সেস
 const getOrderByIdController = async (req: Request, res: Response) => {
   try {
     const order = await OrderService.getOrderByIdService(req.params.id);

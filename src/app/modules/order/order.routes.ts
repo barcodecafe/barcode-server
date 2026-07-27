@@ -34,8 +34,8 @@ router.post('/submit-daily-cash', authMiddleware, authorize('rider'), OrderContr
 router.post('/confirm-cash-settlement', authMiddleware, authorize('admin', 'super_admin'), OrderController.confirmCashSettlementController);
 router.get('/settlement-summary', authMiddleware, authorize('admin', 'super_admin', 'rider'), OrderController.settlementSummaryController);
 
-// ⚡ ফিক্স: অর্ডার ট্র্যাকিং পাবলিক করার জন্য authMiddleware সরিয়ে দেওয়া হয়েছে
-router.get('/:id', OrderController.getOrderByIdController);
+// ⚡ নির্দিষ্ট অর্ডার ডিটেইলস (লগইন করা ইউজার/কাস্টমারের জন্য সিকিউরড)
+router.get('/:id', authMiddleware, OrderController.getOrderByIdController);
 
 // ⚡ পেমেন্ট রি-চেক (Manual Recheck with Payment Gateway) — Admin/Super Admin
 router.post(
