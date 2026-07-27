@@ -62,12 +62,10 @@ const registerController = async (req: Request, res: Response) => {
 };
 
 // GET /api/riders
-const getAllRidersController = async (req: Request, res: Response) => {
+const getAllRidersController = async (_req: Request, res: Response) => {
   try {
-    // ⚡ ফিল্টারিং অপশন (যদি ফ্রন্টএন্ড থেকে status পাঠানো হয়)
-    const status = req.query.status as string | undefined;
-    
-    const riders = await RiderService.getAllRidersService(status);
+    // ⚡ ফিক্স: সার্ভিস ফাংশন থেকে অতিরিক্ত status আর্গুমেন্ট সরাতে হবে
+    const riders = await RiderService.getAllRidersService();
     res.status(200).json({ success: true, data: riders });
   } catch (e: any) {
     res.status(500).json({ success: false, message: e.message });
