@@ -235,11 +235,11 @@ const getAllOrdersService = async (
     filter.status = { $nin: [...NON_LIVE_STATUSES, "Delivered", "Rejected"] };
 
   return Order.find(filter)
-    .select("-chatHistory") // ⚡ চ্যাট হিস্ট্রি বাদ দিয়ে স্পিড বাড়ানো হলো
+    .select("-chatHistory") // ⚡ চ্যাট হিস্ট্রি বাদ দিয়ে স্পিড বাড়ানো হলো
     .sort({ createdAt: -1 })
     .limit(limit)
     .skip((page - 1) * limit)
-    .lean(); // ⚡ মেমোরি ও প্রসেসিং সাশ্রয়
+    .lean(); // ⚡ মেমোরি ও প্রসেসিং সাশ্রয়
 };
 
 const getOrdersForUserService = async (
@@ -299,7 +299,7 @@ const syncRiderAvailability = async (riderId?: string | null) => {
 const LEGACY_MAP: Record<string, OrderStatus> = {
   "pick order": "Placed",
   "ready to cook": "Preparing",
-  "ready to pick": "Preparing",
+  "ready to pick": "Ready to Pick",
   "on the way": "Out for Delivery",
   "order handover": "Delivered",
 };
@@ -378,6 +378,9 @@ const updateOrderStatusService = async (id: string, rawStatus: string) => {
     senderName = "Barcode Admin";
   } else if (newStatus === "Preparing") {
     text = "Chef is now preparing your delicious food!";
+    senderName = "Barcode Kitchen";
+  } else if (newStatus === "Ready to Pick") {
+    text = "Food is ready and waiting for pickup!";
     senderName = "Barcode Kitchen";
   } else if (newStatus === "Out for Delivery") {
     text = `${riderName} has picked up your food and is on the way!`;
