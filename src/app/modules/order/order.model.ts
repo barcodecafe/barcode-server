@@ -1,5 +1,5 @@
 import { Schema, model } from 'mongoose';
-import { IOrder, ORDER_STATUSES, PAYMENT_STATUSES } from './order.interface';
+import { IOrder, PAYMENT_STATUSES } from './order.interface';
 
 const orderItemSchema = new Schema(
   {
@@ -29,7 +29,7 @@ const orderSchema = new Schema<IOrder>(
     user: {
       id: { type: String, required: true },
       name: { type: String, required: true },
-      email: { type: String, default: '' }, // 🎯 FIX: required: true সরিয়ে default: '' করা হয়েছে
+      email: { type: String, default: '' }, // 🎯 FIX: required: true সরিয়ে default: '' করা হয়েছে
       phone: { type: String, default: '' },
       pickArea: { type: String, default: '' },
       address: { type: String, default: '' },
@@ -43,7 +43,20 @@ const orderSchema = new Schema<IOrder>(
     deliveryCharge: { type: Number, default: 0 }, // region-ভিত্তিক charge
     total: { type: Number, required: true },
     couponCode: { type: String, default: '' },
-    status: { type: String, enum: ORDER_STATUSES, default: 'Placed' },
+    status: { 
+      type: String, 
+      enum: [
+        'Awaiting Payment',
+        'Placed',
+        'Accepted',
+        'Preparing',
+        'Ready to Pick',
+        'Out for Delivery',
+        'Delivered',
+        'Rejected'
+      ], 
+      default: 'Placed' 
+    },
     regionId: { type: Number, default: null }, // ordering region (region-based delivery)
     branchId: { type: Number, default: null }, // optional — legacy / future branch routing
     paymentMethod: { type: String, default: 'cod' },
