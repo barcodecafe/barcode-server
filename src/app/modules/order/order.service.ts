@@ -299,7 +299,7 @@ const syncRiderAvailability = async (riderId?: string | null) => {
 const LEGACY_MAP: Record<string, OrderStatus> = {
   "pick order": "Placed",
   "ready to cook": "Preparing",
-  "ready to pick": "Ready to Pick",
+  "ready to pick": "Ready to Pick", // ✅ এখানে সঠিক স্ট্যাটাস ম্যাপ করা হলো
   "on the way": "Out for Delivery",
   "order handover": "Delivered",
 };
