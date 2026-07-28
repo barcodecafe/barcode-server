@@ -10,11 +10,12 @@ export const PaymentMethodEnum = z.enum([
   'CARD',
 ]);
 
-// 🎯 FIX: 'Rejected', 'Accepted', 'Confirmed', 'Preparing' সহ PascalCase ও UPPERCASE সব ফরম্যাট যোগ করা হলো
+// 🎯 FIX: 'Ready to Pick' সহ সমস্ত প্রয়োজনীয় ফরম্যাট এখানে যুক্ত করা হলো
 export const OrderStatusEnum = z.enum([
-  'PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'ACCEPTED', 'CONFIRMED', 'PREPARING',
-  'pending', 'processing', 'shipped', 'delivered', 'cancelled', 'rejected', 'accepted', 'confirmed', 'preparing',
-  'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Rejected', 'Accepted', 'Confirmed', 'Preparing'
+  'PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'ACCEPTED', 'CONFIRMED', 'PREPARING', 'READY TO PICK',
+  'pending', 'processing', 'shipped', 'delivered', 'cancelled', 'rejected', 'accepted', 'confirmed', 'preparing', 'ready to pick',
+  'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Rejected', 'Accepted', 'Confirmed', 'Preparing', 'Ready to Pick',
+  'Awaiting Payment', 'awaiting payment', 'AWAITING PAYMENT', 'Placed', 'placed', 'PLACED'
 ]);
 
 export const createOrderValidationSchema = z.object({
