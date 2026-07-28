@@ -12,9 +12,9 @@ export const PaymentMethodEnum = z.enum([
 
 // 🎯 FIX: 'Ready to Pick' সহ সমস্ত প্রয়োজনীয় ফরম্যাট এখানে যুক্ত করা হলো
 export const OrderStatusEnum = z.enum([
-  'PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'ACCEPTED', 'CONFIRMED', 'PREPARING', 'READY TO PICK',
-  'pending', 'processing', 'shipped', 'delivered', 'cancelled', 'rejected', 'accepted', 'confirmed', 'preparing', 'ready to pick',
-  'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Rejected', 'Accepted', 'Confirmed', 'Preparing', 'Ready to Pick',
+  'PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'ACCEPTED', 'CONFIRMED', 'PREPARING', 'READY TO PICK', 'OUT FOR DELIVERY',
+  'pending', 'processing', 'shipped', 'delivered', 'cancelled', 'rejected', 'accepted', 'confirmed', 'preparing', 'ready to pick', 'out for delivery',
+  'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Rejected', 'Accepted', 'Confirmed', 'Preparing', 'Ready to Pick', 'Out for Delivery',
   'Awaiting Payment', 'awaiting payment', 'AWAITING PAYMENT', 'Placed', 'placed', 'PLACED'
 ]);
 
