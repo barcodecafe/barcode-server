@@ -3,6 +3,7 @@ export type OrderStatus =
   | 'Placed'
   | 'Accepted'
   | 'Preparing'
+  | 'Ready to Pick'
   | 'Out for Delivery'
   | 'Delivered'
   | 'Rejected';
@@ -12,6 +13,7 @@ export const ORDER_STATUSES: OrderStatus[] = [
   'Placed',
   'Accepted',
   'Preparing',
+  'Ready to Pick',
   'Out for Delivery',
   'Delivered',
   'Rejected',
