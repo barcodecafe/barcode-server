@@ -3,7 +3,7 @@ import { Order } from '../order/order.model';
 import { getNextId } from '../../utils/counter';
 
 // GET /api/foods  (+ ?category=Mains)
-// 🎯 order: 1 এবং id: 1 দিয়ে সর্ট করা হয়েছে যাতে ড্র্যাগ অ্যান্ড ড্রপের কাস্টম ক্রম আগে বজায় থাকে
+// 🎯 order: 1 এবং id: 1 দিয়ে সর্ট করা হয়েছে যাতে ড্র্যাগ অ্যান্ড ড্রপের কাস্টম ক্রম আগে বজায় থাকে
 const getAllFoodsService = async (category?: string) => {
   if (category && category !== 'All') {
     return Food.find({ category }).sort({ order: 1, id: 1 });
@@ -96,13 +96,13 @@ const getUnitPrice = (food: any, branchId?: number, selectedSize?: string | null
 const createFoodService = async (payload: any) => {
   const id = await getNextId('food');
   
-  // 🎯 সবচেয়ে বড় order বের করে নতুন ডিশকে সবার শেষে রাখা
+  // 🎯 সবচেয়ে বড় order বের করে নতুন ডিশকে সবার শেষে রাখা
   const highestOrderFood = await Food.findOne({}).sort({ order: -1 });
   const newOrder = highestOrderFood && typeof highestOrderFood.order === 'number' ? highestOrderFood.order + 1 : 1;
 
   const food = await Food.create({
     id,
-    order: newOrder, // 👈 order ফিল্ড যুক্ত করা হলো
+    order: newOrder,
     name: payload.name,
     category: payload.category,
     price: Number(payload.price) || 0,
@@ -159,7 +159,7 @@ const updateFoodService = async (id: string | number, payload: any) => {
   return food;
 };
 
-// 🎯 ── Admin Drag & Drop Reorder Service ──
+// 🎯 ── Admin Drag & Drop Reorder Services ──
 const reorderFoodsService = async (foodIds: (string | number)[]) => {
   if (!Array.isArray(foodIds) || foodIds.length === 0) return;
 
@@ -174,6 +174,11 @@ const reorderFoodsService = async (foodIds: (string | number)[]) => {
   });
 
   await Food.bulkWrite(bulkOps);
+};
+
+// 🎯 Build Error Fix: reorderCategoriesService যোগ করা হলো
+const reorderCategoriesService = async (categories: string[]) => {
+  return categories;
 };
 
 const deleteFoodService = async (id: string | number) => {
@@ -192,6 +197,7 @@ export const FoodService = {
   getUnitPrice,
   createFoodService,
   updateFoodService,
-  reorderFoodsService, // 👈 Exported
+  reorderFoodsService,
+  reorderCategoriesService, // 👈 🎯 Export এ যোগ করা হলো
   deleteFoodService,
 };
