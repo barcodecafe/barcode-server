@@ -13,9 +13,10 @@ const variationSchema = new Schema(
 const foodSchema = new Schema<IFood>(
   {
     id: { type: Number, required: true, unique: true, index: true }, // numeric frontend id
-    order: { type: Number, default: 0, index: true }, // 🎯 Drag & Drop Sorting-এর জন্য সেভ হওয়া অর্ডার ফিল্ড
+    order: { type: Number, default: 0, index: true }, // 🎯 Drag & Drop Sorting-এর জন্য সেভ হওয়া অর্ডার ফিল্ড (Dishes)
     name: { type: String, required: true, trim: true },
     category: { type: String, required: true, trim: true },
+    categoryOrder: { type: Number, default: 0, index: true }, // 🎯 Drag & Drop Sorting-এর জন্য ফিল্ড (Categories)
     price: { type: Number, required: true, default: 0 },
     image: { type: String, default: '' },
     rating: { type: Number, default: 0 },

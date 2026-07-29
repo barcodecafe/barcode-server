@@ -3,12 +3,12 @@ import { Order } from '../order/order.model';
 import { getNextId } from '../../utils/counter';
 
 // GET /api/foods  (+ ?category=Mains)
-// 🎯 order: 1 এবং id: 1 দিয়ে সর্ট করা হয়েছে যাতে ড্র্যাগ অ্যান্ড ড্রপের কাস্টম ক্রম আগে বজায় থাকে
+// 🎯 categoryOrder: 1, order: 1 এবং id: 1 দিয়ে সর্ট করা হয়েছে যাতে ড্র্যাগ অ্যান্ড ড্রপের ক্যাটাগরি ও ফুড ক্রম সঠিক থাকে
 const getAllFoodsService = async (category?: string) => {
   if (category && category !== 'All') {
     return Food.find({ category }).sort({ order: 1, id: 1 });
   }
-  return Food.find({}).sort({ order: 1, id: 1 });
+  return Food.find({}).sort({ categoryOrder: 1, order: 1, id: 1 });
 };
 
 // GET /api/foods/:id
@@ -58,16 +58,16 @@ const searchFoodsService = async (query: string) => {
     const rx = new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     return { $or: [{ name: rx }, { description: rx }, { category: rx }] };
   });
-  return Food.find({ $and: and }).sort({ order: 1, id: 1 });
+  return Food.find({ $and: and }).sort({ categoryOrder: 1, order: 1, id: 1 });
 };
 
 // GET /api/branches/:branchId/menu
 const getFoodsByBranchService = async (branchId: string | number) => {
   const bid = Number(branchId);
   if (!bid || bid === 0) {
-    return Food.find({}).sort({ order: 1, id: 1 });
+    return Food.find({}).sort({ categoryOrder: 1, order: 1, id: 1 });
   }
-  return Food.find({ $or: [{ branchIds: { $size: 0 } }, { branchIds: bid }] }).sort({ order: 1, id: 1 });
+  return Food.find({ $or: [{ branchIds: { $size: 0 } }, { branchIds: bid }] }).sort({ categoryOrder: 1, order: 1, id: 1 });
 };
 
 // ── সার্ভার-সাইড দাম হিসাব ──
@@ -96,7 +96,6 @@ const getUnitPrice = (food: any, branchId?: number, selectedSize?: string | null
 const createFoodService = async (payload: any) => {
   const id = await getNextId('food');
   
-  // 🎯 সবচেয়ে বড় order বের করে নতুন ডিশকে সবার শেষে রাখা
   const highestOrderFood = await Food.findOne({}).sort({ order: -1 });
   const newOrder = highestOrderFood && typeof highestOrderFood.order === 'number' ? highestOrderFood.order + 1 : 1;
 
@@ -176,8 +175,18 @@ const reorderFoodsService = async (foodIds: (string | number)[]) => {
   await Food.bulkWrite(bulkOps);
 };
 
-// 🎯 Build Error Fix: reorderCategoriesService যোগ করা হলো
+// 🎯 Categories Reorder Service: ডাটাবেজের ফুডগুলোতে categoryOrder আপডেট করা হলো
 const reorderCategoriesService = async (categories: string[]) => {
+  if (!Array.isArray(categories) || categories.length === 0) return;
+
+  const bulkOps = categories.map((catName, index) => ({
+    updateMany: {
+      filter: { category: catName },
+      update: { $set: { categoryOrder: index + 1 } },
+    },
+  }));
+
+  await Food.bulkWrite(bulkOps);
   return categories;
 };
 
@@ -198,6 +207,6 @@ export const FoodService = {
   createFoodService,
   updateFoodService,
   reorderFoodsService,
-  reorderCategoriesService, // 👈 🎯 Export এ যোগ করা হলো
+  reorderCategoriesService, // 👈 Exported & Active
   deleteFoodService,
 };

@@ -7,7 +7,8 @@ export interface IVariation {
 // ফ্রন্ট এন্ড numeric `id` ব্যবহার করে (branchIds, branchPrices, featuredFoodId) → ObjectId নয়
 export interface IFood {
   id: number; // numeric, frontend-facing
-  order?: number; // 🎯 Drag & Drop Sorting এর জন্য নতুন ফিল্ড যুক্ত করা হলো
+  order?: number; // 🎯 Drag & Drop Sorting (Dishes) এর জন্য ফিল্ড
+  categoryOrder?: number; // 🎯 Drag & Drop Sorting (Categories) এর জন্য নতুন ফিল্ড যুক্ত করা হলো
   name: string;
   category: string;
   price: number;
