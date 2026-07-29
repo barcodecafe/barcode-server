@@ -53,8 +53,6 @@ const createBranchController = async (req: Request, res: Response) => {
     const branch = await BranchService.createBranchService(req.body);
     res.status(201).json({ success: true, message: 'Branch created', data: branch });
   } catch (error: any) {
-    // atomic counter id-race দূর করেছে; তবু unique-index dup (E11000) কখনো এলে raw Mongo
-    // message ফাঁস না করে পরিষ্কার 409
     const isDup = error?.code === 11000;
     const status = error.status || (isDup ? 409 : 500);
     const message = isDup ? 'A branch with that id already exists. Please retry.' : error.message;
@@ -67,6 +65,21 @@ const updateBranchController = async (req: Request, res: Response) => {
     const branch = await BranchService.updateBranchService(req.params.id, req.body);
     if (!branch) return res.status(404).json({ success: false, message: 'Branch not found' });
     res.status(200).json({ success: true, message: 'Branch updated', data: branch });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
+// 🎯 PUT /api/branches/reorder — ব্রাঞ্চ অর্ডার আপডেট
+const reorderBranchesController = async (req: Request, res: Response) => {
+  try {
+    const { branchIds } = req.body;
+    await BranchService.reorderBranchesService(branchIds);
+    res.status(200).json({
+      success: true,
+      message: 'Branches reordered successfully',
+      data: null,
+    });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
   }
@@ -89,5 +102,6 @@ export const BranchController = {
   getBranchMenuController,
   createBranchController,
   updateBranchController,
+  reorderBranchesController, // 👈 🎯 Export এ যোগ করা হলো
   deleteBranchController,
 };

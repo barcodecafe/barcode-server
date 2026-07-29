@@ -12,6 +12,7 @@ const deliveryZoneSchema = new Schema(
 const branchSchema = new Schema<IBranch>(
   {
     id: { type: Number, required: true, unique: true, index: true }, // numeric frontend id
+    order: { type: Number, default: 0, index: true }, // 🎯 Drag & Drop Sorting এর জন্য সেভ হওয়া অর্ডার ফিল্ড
     name: { type: String, required: true, trim: true },
     location: { type: String, default: '' },
     contact: { type: String, default: '' },

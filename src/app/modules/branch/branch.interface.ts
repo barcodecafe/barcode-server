@@ -5,6 +5,7 @@ export interface IDeliveryZone {
 
 export interface IBranch {
   id: number; // numeric, frontend-facing
+  order?: number; // 🎯 Drag & Drop Sorting এর জন্য নতুন ফিল্ড যুক্ত করা হলো
   name: string;
   location: string;
   contact: string;

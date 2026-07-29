@@ -1,9 +1,10 @@
 import { Branch } from './branch.model';
 import { getNextId } from '../../utils/counter';
 
-// GET /api/branches  (+ ?limit=6 → featured/preview)
+// GET /api/branches (+ ?limit=6 → featured/preview)
 const getAllBranchesService = async (limit?: number) => {
-  const query = Branch.find({}).sort({ id: 1 });
+  // 🎯 order: 1 এবং id: 1 দিয়ে সর্ট করা হয়েছে যেন Drag & Drop সিকোয়েন্স মেইনটেইন হয়
+  const query = Branch.find({}).sort({ order: 1, id: 1 });
   if (limit && limit > 0) {
     return query.limit(limit);
   }
@@ -27,7 +28,7 @@ const searchBranchesService = async (query: string) => {
     const rx = new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     return { $or: [{ name: rx }, { location: rx }] };
   });
-  return Branch.find({ $and: and }).sort({ id: 1 });
+  return Branch.find({ $and: and }).sort({ order: 1, id: 1 });
 };
 
 // ── Admin CRUD ──
@@ -86,6 +87,23 @@ const updateBranchService = async (id: string | number, payload: any) => {
   return branch;
 };
 
+// 🎯 Reorder Branches Service (Bulk update with position index)
+const reorderBranchesService = async (branchIds: (string | number)[]) => {
+  if (!Array.isArray(branchIds) || branchIds.length === 0) return;
+
+  const bulkOps = branchIds.map((id, index) => {
+    const numId = Number(id);
+    return {
+      updateOne: {
+        filter: { id: Number.isFinite(numId) ? numId : id },
+        update: { $set: { order: index + 1 } },
+      },
+    };
+  });
+
+  await Branch.bulkWrite(bulkOps);
+};
+
 const deleteBranchService = async (id: string | number) => {
   const n = Number(id);
   if (!Number.isFinite(n)) return null;
@@ -98,5 +116,6 @@ export const BranchService = {
   searchBranchesService,
   createBranchService,
   updateBranchService,
+  reorderBranchesService, // 👈 🎯 Export এ যোগ করা হয়েছে
   deleteBranchService,
 };

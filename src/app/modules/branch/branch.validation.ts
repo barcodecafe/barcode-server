@@ -42,3 +42,10 @@ export const updateBranchValidationSchema = z.object({
     defaultDeliveryCharge: z.coerce.number().nonnegative().optional(),
   }),
 });
+
+// 🎯 Reorder Validation Schema (array of string or number for IDs)
+export const reorderBranchesValidationSchema = z.object({
+  body: z.object({
+    branchIds: z.array(z.union([z.string(), z.number()])).min(1, 'branchIds array is required'),
+  }),
+});
