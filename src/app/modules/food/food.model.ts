@@ -5,7 +5,7 @@ const variationSchema = new Schema(
   {
     name: { type: String, required: true },
     price: { type: Number, required: true },
-    image: { type: String, default: '' }, //  Variant specific image support
+    image: { type: String, default: '' }, // Variant specific image support
   },
   { _id: false }
 );
@@ -13,6 +13,7 @@ const variationSchema = new Schema(
 const foodSchema = new Schema<IFood>(
   {
     id: { type: Number, required: true, unique: true, index: true }, // numeric frontend id
+    order: { type: Number, default: 0, index: true }, // 🎯 Drag & Drop Sorting-এর জন্য সেভ হওয়া অর্ডার ফিল্ড
     name: { type: String, required: true, trim: true },
     category: { type: String, required: true, trim: true },
     price: { type: Number, required: true, default: 0 },
@@ -26,8 +27,6 @@ const foodSchema = new Schema<IFood>(
     discountType: { type: String, enum: ['percent', 'flat'], default: 'percent' },
     discountPct: { type: Number, default: 0 },
     discountAmount: { type: Number, default: 0 }, // flat ৳ off per unit when discountType === 'flat'
-    // per-branch maps keyed by branchId → toJSON gives a plain object {"1": 5}
-    // (Map handles default {} reliably on insertMany, unlike Mixed)
     branchPrices: { type: Map, of: Number, default: () => ({}) },
     variantLabel: { type: String, default: 'Size' }, // "Size" | "Weight" | "Portion"
     variations: { type: [variationSchema], default: [] },
@@ -36,7 +35,6 @@ const foodSchema = new Schema<IFood>(
     timestamps: true,
     toJSON: {
       transform(_doc, ret: any) {
-        // numeric `id` অপরিবর্তিত রাখি — শুধু Mongo-র internal fields লুকাই
         delete ret._id;
         delete ret.__v;
         return ret;

@@ -1,12 +1,17 @@
 import { z } from 'zod';
 
-const variation = z.object({ name: z.string(), price: z.coerce.number(), image: z.string().optional().nullable(), });
+const variation = z.object({ 
+  name: z.string(), 
+  price: z.coerce.number(), 
+  image: z.string().optional().nullable(), 
+});
 
 export const createFoodValidationSchema = z.object({
   body: z.object({
     name: z.string().min(1, 'Name is required'),
     category: z.string().min(1, 'Category is required'),
     price: z.coerce.number().nonnegative(),
+    order: z.coerce.number().optional(), // 👈 Added
     image: z.string().optional(),
     rating: z.coerce.number().min(0).max(5).optional(),
     description: z.string().optional(),
@@ -29,6 +34,7 @@ export const updateFoodValidationSchema = z.object({
     name: z.string().min(1).optional(),
     category: z.string().min(1).optional(),
     price: z.coerce.number().nonnegative().optional(),
+    order: z.coerce.number().optional(), // 👈 Added
     image: z.string().optional(),
     rating: z.coerce.number().min(0).max(5).optional(),
     description: z.string().optional(),
@@ -43,5 +49,18 @@ export const updateFoodValidationSchema = z.object({
     branchPrices: z.record(z.coerce.number()).optional(),
     variantLabel: z.string().optional(),
     variations: z.array(variation).optional(),
+  }),
+});
+
+// 🎯 Drag & Drop Reorder Validation Schemas
+export const reorderFoodsValidationSchema = z.object({
+  body: z.object({
+    foodIds: z.array(z.union([z.number(), z.string()])).min(1, 'foodIds must be an array with at least one item'),
+  }),
+});
+
+export const reorderCategoriesValidationSchema = z.object({
+  body: z.object({
+    categories: z.array(z.string()).min(1, 'categories must be an array with at least one item'),
   }),
 });

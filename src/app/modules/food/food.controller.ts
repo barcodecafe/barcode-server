@@ -64,8 +64,6 @@ const createFoodController = async (req: Request, res: Response) => {
     const food = await FoodService.createFoodService(req.body);
     res.status(201).json({ success: true, message: 'Food created', data: food });
   } catch (error: any) {
-    // atomic counter id-race দূর করেছে; তবু unique-index dup (E11000) কখনো এলে raw Mongo
-    // message (collection/index নাম) ফাঁস না করে পরিষ্কার 409 — auth register-এর মতোই
     const isDup = error?.code === 11000;
     const status = error.status || (isDup ? 409 : 500);
     const message = isDup ? 'A food with that id already exists. Please retry.' : error.message;
@@ -93,6 +91,27 @@ const deleteFoodController = async (req: Request, res: Response) => {
   }
 };
 
+// 🎯 ── Admin Reorder (Drag & Drop) Controllers ──
+const reorderFoodsController = async (req: Request, res: Response) => {
+  try {
+    const { foodIds } = req.body;
+    await FoodService.reorderFoodsService(foodIds);
+    res.status(200).json({ success: true, message: 'Food order updated successfully' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const reorderCategoriesController = async (req: Request, res: Response) => {
+  try {
+    const { categories } = req.body;
+    await FoodService.reorderCategoriesService(categories);
+    res.status(200).json({ success: true, message: 'Category order updated successfully' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const FoodController = {
   getAllFoodsController,
   getPopularFoodsController,
@@ -102,4 +121,6 @@ export const FoodController = {
   createFoodController,
   updateFoodController,
   deleteFoodController,
+  reorderFoodsController,      // 👈 Added
+  reorderCategoriesController, // 👈 Added
 };

@@ -3,29 +3,27 @@ import { Order } from '../order/order.model';
 import { getNextId } from '../../utils/counter';
 
 // GET /api/foods  (+ ?category=Mains)
+// 🎯 order: 1 এবং id: 1 দিয়ে সর্ট করা হয়েছে যাতে ড্র্যাগ অ্যান্ড ড্রপের কাস্টম ক্রম আগে বজায় থাকে
 const getAllFoodsService = async (category?: string) => {
   if (category && category !== 'All') {
-    return Food.find({ category }).sort({ id: 1 });
+    return Food.find({ category }).sort({ order: 1, id: 1 });
   }
-  return Food.find({}).sort({ id: 1 });
+  return Food.find({}).sort({ order: 1, id: 1 });
 };
 
 // GET /api/foods/:id
 const getFoodByIdService = async (id: string | number) => {
   const n = Number(id);
-  if (!Number.isFinite(n)) return null; // /foods/abc → clean 404, not a CastError 500
+  if (!Number.isFinite(n)) return null;
   return Food.findOne({ id: n });
 };
 
 // GET /api/foods/popular?limit=6
-// ক্লায়েন্টের সংজ্ঞা: popular = admin-এর "Mark as Popular" টিক + কাস্টমাররা যেগুলো
-// সবচেয়ে বেশি কিনেছে। Admin-এর বাছাই আগে, তারপর বিক্রি অনুযায়ী বাকিগুলো।
 const getPopularFoodsService = async (limit = 6) => {
   const [foods, sales] = await Promise.all([
     Food.find({}),
-    // Rejected বাদ দিয়ে প্রতি dish-এর মোট বিক্রি (analytics-এর top-dishes এর মতোই)
     Order.aggregate([
-      { $match: { status: { $nin: ['Rejected', 'Awaiting Payment'] } } }, // unpaid online orders are not sales yet
+      { $match: { status: { $nin: ['Rejected', 'Awaiting Payment'] } } },
       { $unwind: '$items' },
       { $group: { _id: '$items.id', sold: { $sum: '$items.quantity' } } },
     ]),
@@ -33,11 +31,9 @@ const getPopularFoodsService = async (limit = 6) => {
   const soldById = new Map<number, number>(sales.map((r: any) => [r._id, r.sold]));
   const soldOf = (f: any) => soldById.get(f.id) ?? 0;
 
-  // ১. admin যেগুলোতে টিক দিয়েছে — নিজেদের মধ্যে বিক্রি অনুযায়ী
   const adminPicked = foods.filter((f) => f.popular).sort((a, b) => soldOf(b) - soldOf(a));
   const pickedIds = new Set(adminPicked.map((f) => f.id));
 
-  // ২. বাকিদের মধ্যে যারা আসলেই বিক্রি হয়েছে — বেশি বিক্রি আগে (rating টাই-ব্রেকার)
   const bestSelling = foods
     .filter((f) => !pickedIds.has(f.id) && soldOf(f) > 0)
     .sort((a, b) => soldOf(b) - soldOf(a) || b.rating - a.rating);
@@ -46,7 +42,6 @@ const getPopularFoodsService = async (limit = 6) => {
 };
 
 // GET /api/foods/featured?limit=6
-// শুধু admin যেগুলো "Featured Menu" হিসেবে বেছেছে — তার সাজানো ক্রমে।
 const getFeaturedFoodsService = async (limit = 6) => {
   const foods = await Food.find({ isAdminFeatured: true });
   return foods
@@ -58,29 +53,24 @@ const getFeaturedFoodsService = async (limit = 6) => {
 const searchFoodsService = async (query: string) => {
   const q = (query || '').trim();
   if (!q) return [];
-  // Token-based: split into words, each word must match at least one field
-  // (AND across words, OR across fields). So "wood pizza" / "chocolate cake"
-  // match even when the words aren't adjacent in the name.
   const tokens = q.split(/\s+/).filter(Boolean);
   const and = tokens.map((t) => {
-    const rx = new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); // escape regex
+    const rx = new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     return { $or: [{ name: rx }, { description: rx }, { category: rx }] };
   });
-  return Food.find({ $and: and }).sort({ id: 1 });
+  return Food.find({ $and: and }).sort({ order: 1, id: 1 });
 };
 
 // GET /api/branches/:branchId/menu
-// খালি branchIds = সব ব্রাঞ্চে available; নাহলে ওই branchId থাকা foods
 const getFoodsByBranchService = async (branchId: string | number) => {
   const bid = Number(branchId);
   if (!bid || bid === 0) {
-    return Food.find({}).sort({ id: 1 });
+    return Food.find({}).sort({ order: 1, id: 1 });
   }
-  return Food.find({ $or: [{ branchIds: { $size: 0 } }, { branchIds: bid }] }).sort({ id: 1 });
+  return Food.find({ $or: [{ branchIds: { $size: 0 } }, { branchIds: bid }] }).sort({ order: 1, id: 1 });
 };
 
-// ── সার্ভার-সাইড দাম হিসাব (foodsService.getActivePrice + getDiscountedPrice এর মিরর) ──
-// client-এর পাঠানো দাম কখনো বিশ্বাস করা হয় না — এটাই সত্য।
+// ── সার্ভার-সাইড দাম হিসাব ──
 const getUnitPrice = (food: any, branchId?: number, selectedSize?: string | null): number => {
   if (!food) return 0;
   let basePrice = Number(food.price) || 0;
@@ -94,7 +84,6 @@ const getUnitPrice = (food: any, branchId?: number, selectedSize?: string | null
     adjustment = Number(raw) || 0;
   }
   const active = basePrice + adjustment;
-  // Discount: flat ৳ off per unit, or a percentage. Never below 0.
   if (food.discountType === 'flat') {
     const amt = Number(food.discountAmount) || 0;
     return amt > 0 ? Math.max(0, active - amt) : active;
@@ -105,9 +94,15 @@ const getUnitPrice = (food: any, branchId?: number, selectedSize?: string | null
 
 // ── Admin CRUD ──────────────────────────────────────────────
 const createFoodService = async (payload: any) => {
-  const id = await getNextId('food'); // atomic — race-free (Phase 4 QA fix)
+  const id = await getNextId('food');
+  
+  // 🎯 সবচেয়ে বড় order বের করে নতুন ডিশকে সবার শেষে রাখা
+  const highestOrderFood = await Food.findOne({}).sort({ order: -1 });
+  const newOrder = highestOrderFood && typeof highestOrderFood.order === 'number' ? highestOrderFood.order + 1 : 1;
+
   const food = await Food.create({
     id,
+    order: newOrder, // 👈 order ফিল্ড যুক্ত করা হলো
     name: payload.name,
     category: payload.category,
     price: Number(payload.price) || 0,
@@ -140,7 +135,7 @@ const updateFoodService = async (id: string | number, payload: any) => {
   for (const k of scalar) if (payload[k] !== undefined) (food as any)[k] = payload[k];
   if (payload.price !== undefined) food.price = Number(payload.price) || 0;
   if (payload.rating !== undefined) food.rating = Number(payload.rating) || 0;
-  // Discount: keep percent vs flat mutually exclusive based on the chosen type.
+  
   const discountTouched =
     payload.discountType !== undefined || payload.discountPct !== undefined || payload.discountAmount !== undefined;
   if (payload.discountType !== undefined) food.discountType = payload.discountType === 'flat' ? 'flat' : 'percent';
@@ -150,11 +145,7 @@ const updateFoodService = async (id: string | number, payload: any) => {
     if (food.discountType === 'flat') food.discountPct = 0;
     else food.discountAmount = 0;
   }
-  // `branchIds` is authoritative — [] is a real value here, meaning "all branches".
-  // The legacy `branches` alias only applies when it is non-empty: older admin
-  // bundles sent `branches: []` whenever they had failed to load the existing
-  // ticks, which silently wiped a dish's branch assignments. Ignoring the empty
-  // case makes a stale client fail to save rather than destroy data.
+  
   if (payload.branchIds !== undefined) {
     food.branchIds = payload.branchIds;
   } else if (Array.isArray(payload.branches) && payload.branches.length > 0) {
@@ -166,6 +157,23 @@ const updateFoodService = async (id: string | number, payload: any) => {
 
   await food.save();
   return food;
+};
+
+// 🎯 ── Admin Drag & Drop Reorder Service ──
+const reorderFoodsService = async (foodIds: (string | number)[]) => {
+  if (!Array.isArray(foodIds) || foodIds.length === 0) return;
+
+  const bulkOps = foodIds.map((id, index) => {
+    const numId = Number(id);
+    return {
+      updateOne: {
+        filter: { id: Number.isFinite(numId) ? numId : id },
+        update: { $set: { order: index + 1 } },
+      },
+    };
+  });
+
+  await Food.bulkWrite(bulkOps);
 };
 
 const deleteFoodService = async (id: string | number) => {
@@ -184,5 +192,6 @@ export const FoodService = {
   getUnitPrice,
   createFoodService,
   updateFoodService,
+  reorderFoodsService, // 👈 Exported
   deleteFoodService,
 };
