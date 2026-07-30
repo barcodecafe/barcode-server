@@ -22,7 +22,10 @@ export const createFoodValidationSchema = z.object({
     discountPct: z.coerce.number().min(0).max(100).optional(),
     discountAmount: z.coerce.number().min(0).optional(),
     
-    // 🎯 ডিসকাউন্ট টাইমার ভ্যালিডেশন যুক্ত করা হলো:
+    // 🎯 Buy 1 Get 1 / Buy 1 Get 2 / Combo support:
+    offerType: z.enum(['none', 'bogo_1g1', 'bogo_1g2', 'combo']).optional(),
+
+    // 🎯 ডিসকাউন্ট টাইমার ভ্যালিডেশন:
     discountStartDate: z.string().nullable().optional(),
     discountEndDate: z.string().nullable().optional(),
 
@@ -50,7 +53,10 @@ export const updateFoodValidationSchema = z.object({
     discountPct: z.coerce.number().min(0).max(100).optional(),
     discountAmount: z.coerce.number().min(0).optional(),
 
-    // 🎯 ডিসকাউন্ট টাইমার ভ্যালিডেশন যুক্ত করা হলো:
+    // 🎯 Buy 1 Get 1 / Buy 1 Get 2 / Combo support:
+    offerType: z.enum(['none', 'bogo_1g1', 'bogo_1g2', 'combo']).optional(),
+
+    // 🎯 ডিসকাউন্ট টাইমার ভ্যালিডেশন:
     discountStartDate: z.string().nullable().optional(),
     discountEndDate: z.string().nullable().optional(),
 

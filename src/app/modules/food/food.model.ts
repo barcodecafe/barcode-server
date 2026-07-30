@@ -29,6 +29,13 @@ const foodSchema = new Schema<IFood>(
     discountPct: { type: Number, default: 0 },
     discountAmount: { type: Number, default: 0 }, // flat ৳ off per unit when discountType === 'flat'
     
+    // 🎯 Buy 1 Get 1 / Buy 1 Get 2 / Combo support:
+    offerType: { 
+      type: String, 
+      enum: ['none', 'bogo_1g1', 'bogo_1g2', 'combo'], 
+      default: 'none' 
+    },
+
     // 🎯 ডিসকাউন্ট টাইমার ফিল্ডসমূহ (Date Range):
     discountStartDate: { type: Date, default: null },
     discountEndDate: { type: Date, default: null },

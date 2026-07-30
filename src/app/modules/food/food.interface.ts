@@ -23,6 +23,9 @@ export interface IFood {
   discountPct: number; // default 0
   discountAmount?: number; // flat ৳ off per unit when discountType === 'flat'
   
+  // 🎯 Buy 1 Get 1 / Buy 1 Get 2 / Combo support:
+  offerType?: 'none' | 'bogo_1g1' | 'bogo_1g2' | 'combo';
+
   // 🎯 ডিসকাউন্ট টাইমার ফিল্ডসমূহ (Date Range):
   discountStartDate?: Date | string | null;
   discountEndDate?: Date | string | null;

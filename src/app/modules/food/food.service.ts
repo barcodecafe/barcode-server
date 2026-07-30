@@ -70,7 +70,7 @@ const getFoodsByBranchService = async (branchId: string | number) => {
   return Food.find({ $or: [{ branchIds: { $size: 0 } }, { branchIds: bid }] }).sort({ categoryOrder: 1, order: 1, id: 1 });
 };
 
-// ── সার্ভার-সাইড দাম হিসাব (টাইমার ভ্যালিডেশন সহ) ──
+// ── সার্ভার-সাইড দাম হিসাব (টাইমার ও BOGO ভ্যালিডেশন সহ) ──
 const getUnitPrice = (food: any, branchId?: number, selectedSize?: string | null): number => {
   if (!food) return 0;
   let basePrice = Number(food.price) || 0;
@@ -85,7 +85,12 @@ const getUnitPrice = (food: any, branchId?: number, selectedSize?: string | null
   }
   const active = basePrice + adjustment;
 
-  // 🕒 🎯 Check Timer/Date Validity for Discount
+  // 🎯 BOGO / Special Offer চালু থাকলে সাধারণ পার্সেন্টেজ বা ফ্ল্যাট ডিসকাউন্ট প্রযোজ্য হবে না
+  if (food.offerType && food.offerType !== 'none') {
+    return active;
+  }
+
+  // 🕒 Check Timer/Date Validity for Discount
   const now = new Date();
   if (food.discountStartDate && new Date(food.discountStartDate) > now) {
     return active; // Discount hasn't started yet
@@ -126,6 +131,9 @@ const createFoodService = async (payload: any) => {
     discountPct: payload.discountType === 'flat' ? 0 : (Number(payload.discountPct) || 0),
     discountAmount: payload.discountType === 'flat' ? (Number(payload.discountAmount) || 0) : 0,
     
+    // 🎯 BOGO Offer Type সেভ করা হলো
+    offerType: payload.offerType || 'none',
+
     // 🎯 ডিসকাউন্ট টাইমার ফিল্ডসমূহ সেভ করা হলো
     discountStartDate: payload.discountStartDate ? new Date(payload.discountStartDate) : null,
     discountEndDate: payload.discountEndDate ? new Date(payload.discountEndDate) : null,
@@ -144,7 +152,7 @@ const updateFoodService = async (id: string | number, payload: any) => {
   if (!food) return null;
 
   const scalar = [
-    'name', 'category', 'image', 'description', 'popular', 'isAdminFeatured', 'featuredOrder',
+    'name', 'category', 'image', 'description', 'popular', 'isAdminFeatured', 'featuredOrder', 'offerType'
   ];
   for (const k of scalar) if (payload[k] !== undefined) (food as any)[k] = payload[k];
   if (payload.price !== undefined) food.price = Number(payload.price) || 0;
@@ -230,6 +238,6 @@ export const FoodService = {
   createFoodService,
   updateFoodService,
   reorderFoodsService,
-  reorderCategoriesService, // 👈 Exported & Active
+  reorderCategoriesService,
   deleteFoodService,
 };
