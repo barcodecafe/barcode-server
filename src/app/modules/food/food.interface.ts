@@ -22,6 +22,11 @@ export interface IFood {
   discountType?: 'percent' | 'flat';
   discountPct: number; // default 0
   discountAmount?: number; // flat ৳ off per unit when discountType === 'flat'
+  
+  // 🎯 ডিসকাউন্ট টাইমার ফিল্ডসমূহ (Date Range):
+  discountStartDate?: Date | string | null;
+  discountEndDate?: Date | string | null;
+
   branchPrices: Record<string, number>; // per-branch দাম সমন্বয়
   variantLabel: string; // variant-এর ধরন লেবেল — "Size" | "Weight" | "Portion"
   variations: IVariation[]; // size/weight অপশন (প্রতিটার আলাদা দাম)

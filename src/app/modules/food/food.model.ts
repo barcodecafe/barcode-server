@@ -28,6 +28,11 @@ const foodSchema = new Schema<IFood>(
     discountType: { type: String, enum: ['percent', 'flat'], default: 'percent' },
     discountPct: { type: Number, default: 0 },
     discountAmount: { type: Number, default: 0 }, // flat ৳ off per unit when discountType === 'flat'
+    
+    // 🎯 ডিসকাউন্ট টাইমার ফিল্ডসমূহ (Date Range):
+    discountStartDate: { type: Date, default: null },
+    discountEndDate: { type: Date, default: null },
+
     branchPrices: { type: Map, of: Number, default: () => ({}) },
     variantLabel: { type: String, default: 'Size' }, // "Size" | "Weight" | "Portion"
     variations: { type: [variationSchema], default: [] },
