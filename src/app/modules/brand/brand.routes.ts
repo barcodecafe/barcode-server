@@ -2,7 +2,11 @@ import express from 'express';
 import { BrandController } from './brand.controller';
 import { authMiddleware, authorize, optionalAuth } from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
-import { createBrandValidationSchema, updateBrandValidationSchema } from './brand.validation';
+import { 
+  createBrandValidationSchema, 
+  updateBrandValidationSchema, 
+  reorderBrandsValidationSchema 
+} from './brand.validation';
 
 const router = express.Router();
 const adminOnly = [authMiddleware, authorize('admin')];
@@ -12,6 +16,15 @@ router.get('/', optionalAuth, BrandController.getAllBrandsController); // public
 router.get('/slug/:slug', BrandController.getBrandBySlugController); // public — brand microsite lookup
 router.get('/slug/:slug/branches', BrandController.getBrandBranchesController); // public — brand's branches
 router.get('/slug/:slug/menu', BrandController.getBrandMenuController); // public — brand's menu
+
+// 🎯 Reorder Route (অবশ্যই /:id এর পূর্বে রাখতে হবে)
+router.put(
+  '/reorder', 
+  ...adminOnly, 
+  validateRequest(reorderBrandsValidationSchema), 
+  BrandController.reorderBrandsController
+);
+
 router.get('/:id', BrandController.getBrandByIdController); // public
 
 // Admin CRUD

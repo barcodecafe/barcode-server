@@ -51,7 +51,7 @@ const getBrandBySlugService = async (slug: string) => {
 const getBrandBranchesService = async (slug: string) => {
   const brand = await getBrandBySlugService(slug);
   if (!brand) return null;
-  const branches = await Branch.find({ brandId: brand.id }).sort({ id: 1 });
+  const branches = await Branch.find({ brandId: brand.id }).sort({ order: 1, id: 1 });
   return { brand, branches };
 };
 
@@ -64,7 +64,7 @@ const getBrandMenuService = async (slug: string) => {
   const branchIds = branches.map((b) => b.id);
   const foods = await Food.find({
     $or: [{ branchIds: { $size: 0 } }, { branchIds: { $in: branchIds } }],
-  }).sort({ id: 1 });
+  }).sort({ categoryOrder: 1, order: 1, id: 1 });
   return { brand, foods };
 };
 
@@ -114,6 +114,20 @@ const updateBrandService = async (id: string | number, payload: any) => {
   return brand;
 };
 
+// 🎯 Live Bulk BulkWrite Order Reordering Service
+const reorderBrandsService = async (brandIds: (string | number)[]) => {
+  if (!Array.isArray(brandIds) || brandIds.length === 0) return null;
+
+  const operations = brandIds.map((id, index) => ({
+    updateOne: {
+      filter: { id: Number(id) },
+      update: { $set: { order: index + 1 } },
+    },
+  }));
+
+  return await Brand.bulkWrite(operations);
+};
+
 const deleteBrandService = async (id: string | number) => {
   const n = Number(id);
   if (!Number.isFinite(n)) return null;
@@ -133,5 +147,6 @@ export const BrandService = {
   getBrandMenuService,
   createBrandService,
   updateBrandService,
+  reorderBrandsService, // 👈 🎯 Exported
   deleteBrandService,
 };

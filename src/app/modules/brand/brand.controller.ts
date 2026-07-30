@@ -73,6 +73,17 @@ const updateBrandController = async (req: Request, res: Response) => {
   }
 };
 
+// 🎯 Reorder Brands Controller (Live Server Sync)
+const reorderBrandsController = async (req: Request, res: Response) => {
+  try {
+    const { brandIds } = req.body;
+    await BrandService.reorderBrandsService(brandIds);
+    res.status(200).json({ success: true, message: 'Brand order updated successfully' });
+  } catch (e: any) {
+    res.status(e.status || 500).json({ success: false, message: e.message });
+  }
+};
+
 const deleteBrandController = async (req: Request, res: Response) => {
   try {
     const brand = await BrandService.deleteBrandService(req.params.id);
@@ -91,5 +102,6 @@ export const BrandController = {
   getBrandByIdController,
   createBrandController,
   updateBrandController,
+  reorderBrandsController, // 👈 🎯 Export এ যোগ করা হয়েছে
   deleteBrandController,
 };

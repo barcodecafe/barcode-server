@@ -46,3 +46,12 @@ export const updateBrandValidationSchema = z.object({
     isActive: z.boolean().optional(),
   }),
 });
+
+// 🎯 Reorder Brands Validation Schema
+export const reorderBrandsValidationSchema = z.object({
+  body: z.object({
+    brandIds: z
+      .array(z.union([z.string(), z.number()]))
+      .min(1, 'brandIds array with at least one element is required'),
+  }),
+});
