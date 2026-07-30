@@ -70,7 +70,7 @@ const getFoodsByBranchService = async (branchId: string | number) => {
   return Food.find({ $or: [{ branchIds: { $size: 0 } }, { branchIds: bid }] }).sort({ categoryOrder: 1, order: 1, id: 1 });
 };
 
-// ── সার্ভার-সাইড দাম হিসাব ──
+// ── সার্ভার-সাইড দাম হিসাব (টাইমার ভ্যালিডেশন সহ) ──
 const getUnitPrice = (food: any, branchId?: number, selectedSize?: string | null): number => {
   if (!food) return 0;
   let basePrice = Number(food.price) || 0;
@@ -84,6 +84,16 @@ const getUnitPrice = (food: any, branchId?: number, selectedSize?: string | null
     adjustment = Number(raw) || 0;
   }
   const active = basePrice + adjustment;
+
+  // 🕒 🎯 Check Timer/Date Validity for Discount
+  const now = new Date();
+  if (food.discountStartDate && new Date(food.discountStartDate) > now) {
+    return active; // Discount hasn't started yet
+  }
+  if (food.discountEndDate && new Date(food.discountEndDate) < now) {
+    return active; // Discount expired
+  }
+
   if (food.discountType === 'flat') {
     const amt = Number(food.discountAmount) || 0;
     return amt > 0 ? Math.max(0, active - amt) : active;
@@ -115,6 +125,11 @@ const createFoodService = async (payload: any) => {
     discountType: payload.discountType === 'flat' ? 'flat' : 'percent',
     discountPct: payload.discountType === 'flat' ? 0 : (Number(payload.discountPct) || 0),
     discountAmount: payload.discountType === 'flat' ? (Number(payload.discountAmount) || 0) : 0,
+    
+    // 🎯 ডিসকাউন্ট টাইমার ফিল্ডসমূহ সেভ করা হলো
+    discountStartDate: payload.discountStartDate ? new Date(payload.discountStartDate) : null,
+    discountEndDate: payload.discountEndDate ? new Date(payload.discountEndDate) : null,
+
     branchPrices: payload.branchPrices || {},
     variantLabel: payload.variantLabel || 'Size',
     variations: payload.variations || [],
@@ -143,6 +158,14 @@ const updateFoodService = async (id: string | number, payload: any) => {
   if (discountTouched) {
     if (food.discountType === 'flat') food.discountPct = 0;
     else food.discountAmount = 0;
+  }
+
+  // 🎯 ডিসকাউন্ট টাইমার ফিল্ডসমূহ আপডেট করা হলো
+  if (payload.discountStartDate !== undefined) {
+    food.discountStartDate = payload.discountStartDate ? new Date(payload.discountStartDate) : null;
+  }
+  if (payload.discountEndDate !== undefined) {
+    food.discountEndDate = payload.discountEndDate ? new Date(payload.discountEndDate) : null;
   }
   
   if (payload.branchIds !== undefined) {
