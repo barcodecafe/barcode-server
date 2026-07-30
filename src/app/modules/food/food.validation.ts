@@ -25,6 +25,9 @@ export const createFoodValidationSchema = z.object({
     // 🎯 Buy 1 Get 1 / Buy 1 Get 2 / Combo support:
     offerType: z.enum(['none', 'bogo_1g1', 'bogo_1g2', 'combo']).optional(),
 
+    // 🎯 প্রমোশনাল কুপন কোড ভ্যালিডেশন
+    promoCode: z.string().optional().nullable(),
+
     // 🎯 ডিসকাউন্ট টাইমার ভ্যালিডেশন:
     discountStartDate: z.string().nullable().optional(),
     discountEndDate: z.string().nullable().optional(),
@@ -55,6 +58,9 @@ export const updateFoodValidationSchema = z.object({
 
     // 🎯 Buy 1 Get 1 / Buy 1 Get 2 / Combo support:
     offerType: z.enum(['none', 'bogo_1g1', 'bogo_1g2', 'combo']).optional(),
+
+    // 🎯 প্রমোশনাল কুপন কোড ভ্যালিডেশন
+    promoCode: z.string().optional().nullable(),
 
     // 🎯 ডিসকাউন্ট টাইমার ভ্যালিডেশন:
     discountStartDate: z.string().nullable().optional(),

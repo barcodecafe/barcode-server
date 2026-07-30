@@ -36,6 +36,9 @@ const foodSchema = new Schema<IFood>(
       default: 'none' 
     },
 
+    // 🎯 প্রমোশনাল কুপন কোড ফিল্ড (Admin Coupons থেকে অ্যাসাইন করার জন্য)
+    promoCode: { type: String, default: '', trim: true, uppercase: true },
+
     // 🎯 ডিসকাউন্ট টাইমার ফিল্ডসমূহ (Date Range):
     discountStartDate: { type: Date, default: null },
     discountEndDate: { type: Date, default: null },

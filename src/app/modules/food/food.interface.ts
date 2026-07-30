@@ -26,6 +26,9 @@ export interface IFood {
   // 🎯 Buy 1 Get 1 / Buy 1 Get 2 / Combo support:
   offerType?: 'none' | 'bogo_1g1' | 'bogo_1g2' | 'combo';
 
+  // 🎯 প্রমোশনাল কুপন কোড ফিল্ড (Admin Coupons থেকে ফেচ করা কোড অ্যাসাইন করার জন্য)
+  promoCode?: string;
+
   // 🎯 ডিসকাউন্ট টাইমার ফিল্ডসমূহ (Date Range):
   discountStartDate?: Date | string | null;
   discountEndDate?: Date | string | null;

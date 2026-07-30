@@ -134,6 +134,9 @@ const createFoodService = async (payload: any) => {
     // 🎯 BOGO Offer Type সেভ করা হলো
     offerType: payload.offerType || 'none',
 
+    // 🎯 প্রমোশনাল কুপন কোড সেভ করা হলো
+    promoCode: payload.promoCode ? payload.promoCode.trim().toUpperCase() : '',
+
     // 🎯 ডিসকাউন্ট টাইমার ফিল্ডসমূহ সেভ করা হলো
     discountStartDate: payload.discountStartDate ? new Date(payload.discountStartDate) : null,
     discountEndDate: payload.discountEndDate ? new Date(payload.discountEndDate) : null,
@@ -157,6 +160,11 @@ const updateFoodService = async (id: string | number, payload: any) => {
   for (const k of scalar) if (payload[k] !== undefined) (food as any)[k] = payload[k];
   if (payload.price !== undefined) food.price = Number(payload.price) || 0;
   if (payload.rating !== undefined) food.rating = Number(payload.rating) || 0;
+  
+  // 🎯 প্রমোশনাল কুপন কোড আপডেট করা হলো
+  if (payload.promoCode !== undefined) {
+    food.promoCode = payload.promoCode ? payload.promoCode.trim().toUpperCase() : '';
+  }
   
   const discountTouched =
     payload.discountType !== undefined || payload.discountPct !== undefined || payload.discountAmount !== undefined;
