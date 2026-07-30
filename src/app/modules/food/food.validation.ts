@@ -11,7 +11,7 @@ export const createFoodValidationSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     category: z.string().min(1, 'Category is required'),
     price: z.coerce.number().nonnegative(),
-    order: z.coerce.number().optional(), // 👈 Added
+    order: z.coerce.number().optional(),
     image: z.string().optional(),
     rating: z.coerce.number().min(0).max(5).optional(),
     description: z.string().optional(),
@@ -21,6 +21,11 @@ export const createFoodValidationSchema = z.object({
     discountType: z.enum(['percent', 'flat']).optional(),
     discountPct: z.coerce.number().min(0).max(100).optional(),
     discountAmount: z.coerce.number().min(0).optional(),
+    
+    // 🎯 ডিসকাউন্ট টাইমার ভ্যালিডেশন যুক্ত করা হলো:
+    discountStartDate: z.string().nullable().optional(),
+    discountEndDate: z.string().nullable().optional(),
+
     branchIds: z.array(z.coerce.number()).optional(),
     branches: z.array(z.coerce.number()).optional(), // frontend alias
     branchPrices: z.record(z.coerce.number()).optional(),
@@ -34,7 +39,7 @@ export const updateFoodValidationSchema = z.object({
     name: z.string().min(1).optional(),
     category: z.string().min(1).optional(),
     price: z.coerce.number().nonnegative().optional(),
-    order: z.coerce.number().optional(), // 👈 Added
+    order: z.coerce.number().optional(),
     image: z.string().optional(),
     rating: z.coerce.number().min(0).max(5).optional(),
     description: z.string().optional(),
@@ -44,6 +49,11 @@ export const updateFoodValidationSchema = z.object({
     discountType: z.enum(['percent', 'flat']).optional(),
     discountPct: z.coerce.number().min(0).max(100).optional(),
     discountAmount: z.coerce.number().min(0).optional(),
+
+    // 🎯 ডিসকাউন্ট টাইমার ভ্যালিডেশন যুক্ত করা হলো:
+    discountStartDate: z.string().nullable().optional(),
+    discountEndDate: z.string().nullable().optional(),
+
     branchIds: z.array(z.coerce.number()).optional(),
     branches: z.array(z.coerce.number()).optional(),
     branchPrices: z.record(z.coerce.number()).optional(),
