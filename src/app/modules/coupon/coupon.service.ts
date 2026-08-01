@@ -30,15 +30,33 @@ const generateUniqueCode = async (): Promise<string> => {
   return `BRC${randToken(6)}${Date.now().toString(36).toUpperCase()}`;
 };
 
+// 💡 ডাইরেক্ট চেকআউট পেজ URL সহ QR Payload তৈরি করা হলো
 const buildQrPayload = (code: string, customerName?: string, customerPhone?: string, category?: string) => {
+  const domain = 'https://barcoderestaurantgroup.com'; // আপনার লাইভ ডোমেন
+  
   if (category === 'printable' && (customerName || customerPhone)) {
-    return `Code: ${code}\nName: ${customerName || 'N/A'}\nPhone: ${customerPhone || 'N/A'}`;
+    return `${domain}/checkout?promo=${code}&name=${encodeURIComponent(customerName || '')}&phone=${encodeURIComponent(customerPhone || '')}`;
   }
-  return code;
+  return `${domain}/checkout?promo=${code}`;
 };
 
+// 💡 URL বা টেক্সট থেকে কুপন কোড এক্সট্রাক্ট করার লজিক আপডেট
 const extractCodeFromInput = (input: string) => {
   const raw = (input || '').trim();
+  
+  // যদি ইউআরএল বা কুয়েরি স্ট্রিং থেকে স্ক্যান করা হয় (যেমন: ?promo=SUMMER10)
+  try {
+    if (raw.includes('http://') || raw.includes('https://')) {
+      const url = new URL(raw);
+      const promoParam = url.searchParams.get('promo');
+      if (promoParam) {
+        return promoParam.toUpperCase().trim();
+      }
+    }
+  } catch {
+    // URL parsing fail করলে সাধারণ টেক্সট হিসেবে হ্যান্ডেল হবে
+  }
+
   const codeMatch = raw.match(/Code:\s*([^\s\n]+)/i);
   if (codeMatch && codeMatch[1]) {
     return codeMatch[1].toUpperCase().trim();
@@ -145,7 +163,6 @@ const validateCouponService = async (code: string, subtotal: number, customerPho
 
   if (customerPhone) {
     const cleanInputPhone = customerPhone.replace(/[^\d]/g, '');
-    // 🎯 (phone: string) দিয়ে TS7006 ফিক্স করা হয়েছে
     const alreadyUsed = match.usedByPhones?.some(
       (phone: string) => phone.replace(/[^\d]/g, '') === cleanInputPhone
     );
