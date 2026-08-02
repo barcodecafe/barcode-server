@@ -183,15 +183,15 @@ const requestEmailOtp = async (phone: string) => {
   // 6-digit OTP জেনারেট
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   
-  // 💡 15 Minutes Validity (Using Timestamp Milliseconds)
-  const expiresAt = Date.now() + 15 * 60 * 1000;
+  // 💡 20 Minutes Validity (Timestamp safe calculation)
+  const expiresAt = new Date(Date.now() + 20 * 60 * 1000);
 
-  // MongoDB User ডকুমেন্টে OTP ও মেয়াদের টাইমস্ট্যাম্প সেভ করা
-  (user as any).resetOtp = otp;
-  (user as any).resetOtpExpires = new Date(expiresAt);
+  // MongoDB User ডকুমেন্টে OTP ও মেয়াদের টাইমস্ট্যাম্প সেভ করা
+  (user as any).resetOtp = String(otp);
+  (user as any).resetOtpExpires = expiresAt;
   await user.save();
 
-  // 💡 Spam এড়ানো: FROM এড্রেস জিমেইলের সাথে মিল রাখা হয়েছে
+  // 💡 Spam এড়ানো: FROM এড্রেস জিমেইলের সাথে মিল রাখা হয়েছে
   const senderEmail = process.env.SMTP_USER || "barcode.bd@gmail.com";
 
   await transporter.sendMail({
@@ -209,9 +209,9 @@ const requestEmailOtp = async (phone: string) => {
               ${otp}
             </span>
           </div>
-          <p style="font-size: 14px; color: #6b7280;">This OTP code will expire in <strong>15 minutes</strong>.</p>
+          <p style="font-size: 14px; color: #6b7280;">This OTP code will expire in <strong>20 minutes</strong>.</p>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
-          <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">If you did not request a password reset, please ignore this email or contact support if you have concerns.</p>
+          <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">If you did not request a password reset, please ignore this email.</p>
         </div>
       </div>
     `,
@@ -237,10 +237,12 @@ const resetPasswordWithOtp = async (payload: { phone: string; otp: string; newPa
   }
 
   const normalizedPhone = normalizeBdPhone(phone);
+  
+  // 💡 .select('+password') যুক্ত করা হয়েছে যাতে pre('save') হুকে Mongoose হ্যাশিং সঠিকভাবে করতে পারে
   const user = await User.findOne({
     isDeleted: false,
     $or: [{ phone: normalizedPhone }, { phone: phone.trim() }],
-  });
+  }).select("+password");
 
   if (!user) {
     const err: any = new Error("Invalid request.");
@@ -248,14 +250,14 @@ const resetPasswordWithOtp = async (payload: { phone: string; otp: string; newPa
     throw err;
   }
 
-  const storedOtp = (user as any).resetOtp;
+  const storedOtp = (user as any).resetOtp ? String((user as any).resetOtp).trim() : null;
   const otpExpires = (user as any).resetOtpExpires;
 
-  // 💡 Timestamps মিলিয়ে ভ্যালিডেশন (Timezone Mismatch সমস্যার স্থায়ী ফিক্স)
+  const inputOtp = String(otp).trim();
   const currentTime = Date.now();
   const expiryTime = otpExpires ? new Date(otpExpires).getTime() : 0;
 
-  if (!storedOtp || storedOtp !== otp.trim()) {
+  if (!storedOtp || storedOtp !== inputOtp) {
     const err: any = new Error("Invalid OTP code.");
     err.status = 400;
     throw err;
@@ -267,10 +269,11 @@ const resetPasswordWithOtp = async (payload: { phone: string; otp: string; newPa
     throw err;
   }
 
-  // পাসওয়ার্ড আপডেট ও OTP ক্লিয়ার করা
+  // 💡 পাসওয়ার্ড আপডেট ও OTP ফিল্ড সম্পূর্ণ ক্লিয়ার করা
   user.password = newPassword;
-  (user as any).resetOtp = undefined;
-  (user as any).resetOtpExpires = undefined;
+  (user as any).resetOtp = null;
+  (user as any).resetOtpExpires = null;
+  
   await user.save();
 
   return { message: "Password updated successfully." };

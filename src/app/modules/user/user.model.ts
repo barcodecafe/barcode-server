@@ -7,26 +7,26 @@ const userSchema = new Schema<IUser>(
   {
     name: { type: String, required: true, trim: true },
     
-    // 🎯 ইমেইল: sparse: true + set (খালি স্ট্রিং "" আসলে undefined করে দেবে যাতে Duplicate Key Error না মারে)
+    // 🎯 ইমেইল: sparse: true + set
     email: {
       type: String,
       unique: true,
       sparse: true,
       lowercase: true,
       trim: true,
-      set: (v: string) => (v === '' ? undefined : v), // 🛠️ খালি স্ট্রিং আসলে undefined করে দেবে
+      set: (v: string) => (v === '' ? undefined : v),
     },
 
-    // 🎯 ফোন: sparse: true + set (খালি স্ট্রিং "" আসলে undefined করে দেবে)
+    // 🎯 ফোন: sparse: true + set
     phone: {
       type: String,
       unique: true,
       sparse: true,
       trim: true,
-      set: (v: string) => (v === '' ? undefined : v), // 🛠️ খালি স্ট্রিং আসলে undefined করে দেবে
+      set: (v: string) => (v === '' ? undefined : v),
     },
 
-    password: { type: String, required: true, select: false }, // never returned by default
+    password: { type: String, required: true, select: false },
     
     role: {
       type: String,
@@ -45,7 +45,7 @@ const userSchema = new Schema<IUser>(
       default: 'none',
     },
     favorites: { type: [Number], default: [] },
-    points: { type: Number, default: 0, min: 0 }, // loyalty balance — visible to every user
+    points: { type: Number, default: 0, min: 0 },
     
     // 🎯 মেম্বারশিপ আইডি: sparse: true + set
     membershipId: { 
@@ -53,10 +53,15 @@ const userSchema = new Schema<IUser>(
       unique: true, 
       sparse: true, 
       trim: true,
-      set: (v: string) => (v === '' ? undefined : v), // 🛠️ খালি স্ট্রিং আসলে undefined করে দেবে
+      set: (v: string) => (v === '' ? undefined : v),
     },
     
     membershipQr: { type: String, default: '' },
+
+    // 🔑 🔑 🔑 Password Reset / OTP Field (এটি যুক্ত করা ছিল না) 🔑 🔑 🔑
+    resetOtp: { type: String, default: null },
+    resetOtpExpires: { type: Date, default: null },
+
     isDeleted: { type: Boolean, default: false },
   },
   {
@@ -69,6 +74,8 @@ const userSchema = new Schema<IUser>(
         delete ret.__v;
         delete ret.password;
         delete ret.isDeleted;
+        delete ret.resetOtp;        // Security: API রেসপন্সে যেন OTP না দেখায়
+        delete ret.resetOtpExpires; // Security: API রেসপন্সে যেন Expire time না দেখায়
         if (ret.role !== 'rider' && ret.riderApprovalStatus === 'none') {
           delete ret.vehicle;
           delete ret.riderStatus;
@@ -80,8 +87,7 @@ const userSchema = new Schema<IUser>(
   }
 );
 
-// 🎯 পাসওয়ার্ড হ্যাশিং — সেভের আগে (bcrypt, real hashing)
-// ⚠️ দ্রষ্টব্য: Controller-এ আলাদা করে পাসওয়ার্ড হ্যাশ করার দরকার নেই, Mongoose স্বয়ংক্রিয়ভাবে এখান থেকেই হ্যাশ করে নেবে।
+// 🎯 পাসওয়ার্ড হ্যাশিং — সেভের আগে (bcrypt)
 userSchema.pre('save', async function (next) {
   if (this.isModified('password') && this.password) {
     const rounds = Number(config.bcrypt_salt_rounds) || 12;

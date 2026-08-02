@@ -21,6 +21,11 @@ export interface IUser {
   // the customer. Present for customers; generated at signup / lazily on list.
   membershipId?: string;
   membershipQr?: string;
+
+  // 🔑 Password Reset & OTP Fields
+  resetOtp?: string | null;
+  resetOtpExpires?: Date | null;
+
   isDeleted?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
