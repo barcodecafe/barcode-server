@@ -8,12 +8,11 @@ import { User } from "../user/user.model";
 import { ensureMembership } from "../../utils/membership";
 
 // 📧 Nodemailer Transporter Config
-// Ensure process.env.SMTP_USER and process.env.SMTP_PASS are configured in your .env file
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.SMTP_USER, // e.g. yourrestaurant@gmail.com
-    pass: process.env.SMTP_PASS, // App Password generated from Google Account
+    user: process.env.SMTP_USER, // e.g. barcode.bd@gmail.com
+    pass: process.env.SMTP_PASS, // App Password
   },
 });
 
@@ -183,25 +182,37 @@ const requestEmailOtp = async (phone: string) => {
 
   // 6-digit OTP জেনারেট
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes validity
+  
+  // 💡 15 Minutes Validity (Using Timestamp Milliseconds)
+  const expiresAt = Date.now() + 15 * 60 * 1000;
 
-  // MongoDB User ডকুমেন্টে OTP ও মেয়াদ সেভ করা
+  // MongoDB User ডকুমেন্টে OTP ও মেয়াদের টাইমস্ট্যাম্প সেভ করা
   (user as any).resetOtp = otp;
-  (user as any).resetOtpExpires = otpExpires;
+  (user as any).resetOtpExpires = new Date(expiresAt);
   await user.save();
 
-  // ইমেইল সেন্ড করা
+  // 💡 Spam এড়ানো: FROM এড্রেস জিমেইলের সাথে মিল রাখা হয়েছে
+  const senderEmail = process.env.SMTP_USER || "barcode.bd@gmail.com";
+
   await transporter.sendMail({
-    from: '"Barcode Restaurant" <no-reply@barcoderestaurant.com>',
+    from: `"Barcode Restaurant" <${senderEmail}>`,
     to: user.email,
     subject: "Your Password Reset OTP Code",
     html: `
-      <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-        <h2 style="color: #f97316;">Barcode Password Reset</h2>
-        <p>Your 6-digit OTP code to reset your password is:</p>
-        <h1 style="background: #f3f4f6; padding: 10px 20px; display: inline-block; border-radius: 8px; color: #111; letter-spacing: 4px;">${otp}</h1>
-        <p>This OTP will expire in <strong>10 minutes</strong>.</p>
-        <p style="font-size: 12px; color: #777;">If you did not request this password reset, please ignore this email.</p>
+      <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f9fafb; color: #333;">
+        <div style="max-width: 500px; margin: 0 auto; background: #ffffff; padding: 24px; border-radius: 8px; border: 1px solid #e5e7eb;">
+          <h2 style="color: #f97316; margin-top: 0;">Barcode Restaurant</h2>
+          <p style="font-size: 15px; color: #4b5563;">Hello,</p>
+          <p style="font-size: 15px; color: #4b5563;">Your 6-digit OTP code to reset your password is:</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <span style="font-size: 32px; font-weight: bold; background: #f3f4f6; padding: 12px 24px; border-radius: 8px; color: #111827; letter-spacing: 6px; display: inline-block;">
+              ${otp}
+            </span>
+          </div>
+          <p style="font-size: 14px; color: #6b7280;">This OTP code will expire in <strong>15 minutes</strong>.</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">If you did not request a password reset, please ignore this email or contact support if you have concerns.</p>
+        </div>
       </div>
     `,
   });
@@ -240,13 +251,23 @@ const resetPasswordWithOtp = async (payload: { phone: string; otp: string; newPa
   const storedOtp = (user as any).resetOtp;
   const otpExpires = (user as any).resetOtpExpires;
 
-  if (!storedOtp || storedOtp !== otp.trim() || new Date() > new Date(otpExpires)) {
-    const err: any = new Error("Invalid or expired OTP code.");
+  // 💡 Timestamps মিলিয়ে ভ্যালিডেশন (Timezone Mismatch সমস্যার স্থায়ী ফিক্স)
+  const currentTime = Date.now();
+  const expiryTime = otpExpires ? new Date(otpExpires).getTime() : 0;
+
+  if (!storedOtp || storedOtp !== otp.trim()) {
+    const err: any = new Error("Invalid OTP code.");
     err.status = 400;
     throw err;
   }
 
-  // পাসওয়ার্ড আপডেট ও OTP ক্লিয়ার করা
+  if (currentTime > expiryTime) {
+    const err: any = new Error("OTP code has expired. Please request a new one.");
+    err.status = 400;
+    throw err;
+  }
+
+  // পাসওয়ার্ড আপডেট ও OTP ক্লিয়ার করা
   user.password = newPassword;
   (user as any).resetOtp = undefined;
   (user as any).resetOtpExpires = undefined;
