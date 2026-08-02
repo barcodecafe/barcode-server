@@ -2,25 +2,49 @@ import { Food } from './food.model';
 import { Order } from '../order/order.model';
 import { getNextId } from '../../utils/counter';
 
-// GET /api/foods  (+ ?category=Mains)
-// 🎯 categoryOrder: 1, order: 1 এবং id: 1 দিয়ে সর্ট করা হয়েছে যাতে ড্র্যাগ অ্যান্ড ড্রপের ক্যাটাগরি ও ফুড ক্রম সঠিক থাকে
-const getAllFoodsService = async (category?: string) => {
-  if (category && category !== 'All') {
-    return Food.find({ category }).sort({ order: 1, id: 1 });
+// 💡 ── টাইমার এক্সপায়ার চেক করার হেলপার ফাংশন ──
+const applyExpirationCheck = (doc: any) => {
+  if (!doc) return doc;
+  const food = doc.toObject ? doc.toObject() : doc;
+  
+  const now = new Date();
+  
+  // যদি ডিসকাউন্ট বা অফারের শেষ সময় নির্ধারণ করা থাকে এবং সময় পার হয়ে যায়
+  if (food.discountEndDate && new Date(food.discountEndDate) < now) {
+    food.offerType = 'none';
+    food.promoCode = '';
+    food.discountPct = 0;
+    food.discountAmount = 0;
+    food.discountStartDate = null;
+    food.discountEndDate = null;
   }
-  return Food.find({}).sort({ categoryOrder: 1, order: 1, id: 1 });
+  
+  return food;
+};
+
+// GET /api/foods  (+ ?category=Mains)
+// 🎯 categoryOrder: 1, order: 1 এবং id: 1 দিয়ে সর্ট করা হয়েছে
+const getAllFoodsService = async (category?: string) => {
+  let foods;
+  if (category && category !== 'All') {
+    foods = await Food.find({ category }).sort({ order: 1, id: 1 });
+  } else {
+    foods = await Food.find({}).sort({ categoryOrder: 1, order: 1, id: 1 });
+  }
+  return foods.map(applyExpirationCheck);
 };
 
 // GET /api/foods/:id
 const getFoodByIdService = async (id: string | number) => {
   const n = Number(id);
   if (!Number.isFinite(n)) return null;
-  return Food.findOne({ id: n });
+  const food = await Food.findOne({ id: n });
+  return food ? applyExpirationCheck(food) : null;
 };
 
 // GET /api/foods/popular?limit=6
 const getPopularFoodsService = async (limit = 6) => {
-  const [foods, sales] = await Promise.all([
+  const [rawFoods, sales] = await Promise.all([
     Food.find({}),
     Order.aggregate([
       { $match: { status: { $nin: ['Rejected', 'Awaiting Payment'] } } },
@@ -28,6 +52,8 @@ const getPopularFoodsService = async (limit = 6) => {
       { $group: { _id: '$items.id', sold: { $sum: '$items.quantity' } } },
     ]),
   ]);
+
+  const foods = rawFoods.map(applyExpirationCheck);
   const soldById = new Map<number, number>(sales.map((r: any) => [r._id, r.sold]));
   const soldOf = (f: any) => soldById.get(f.id) ?? 0;
 
@@ -45,6 +71,7 @@ const getPopularFoodsService = async (limit = 6) => {
 const getFeaturedFoodsService = async (limit = 6) => {
   const foods = await Food.find({ isAdminFeatured: true });
   return foods
+    .map(applyExpirationCheck)
     .sort((a, b) => (a.featuredOrder ?? Number.MAX_SAFE_INTEGER) - (b.featuredOrder ?? Number.MAX_SAFE_INTEGER))
     .slice(0, limit);
 };
@@ -58,16 +85,20 @@ const searchFoodsService = async (query: string) => {
     const rx = new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     return { $or: [{ name: rx }, { description: rx }, { category: rx }] };
   });
-  return Food.find({ $and: and }).sort({ categoryOrder: 1, order: 1, id: 1 });
+  const foods = await Food.find({ $and: and }).sort({ categoryOrder: 1, order: 1, id: 1 });
+  return foods.map(applyExpirationCheck);
 };
 
 // GET /api/branches/:branchId/menu
 const getFoodsByBranchService = async (branchId: string | number) => {
   const bid = Number(branchId);
+  let foods;
   if (!bid || bid === 0) {
-    return Food.find({}).sort({ categoryOrder: 1, order: 1, id: 1 });
+    foods = await Food.find({}).sort({ categoryOrder: 1, order: 1, id: 1 });
+  } else {
+    foods = await Food.find({ $or: [{ branchIds: { $size: 0 } }, { branchIds: bid }] }).sort({ categoryOrder: 1, order: 1, id: 1 });
   }
-  return Food.find({ $or: [{ branchIds: { $size: 0 } }, { branchIds: bid }] }).sort({ categoryOrder: 1, order: 1, id: 1 });
+  return foods.map(applyExpirationCheck);
 };
 
 // ── সার্ভার-সাইড দাম হিসাব (টাইমার ও BOGO ভ্যালিডেশন সহ) ──
@@ -85,18 +116,19 @@ const getUnitPrice = (food: any, branchId?: number, selectedSize?: string | null
   }
   const active = basePrice + adjustment;
 
-  // 🎯 BOGO / Special Offer চালু থাকলে সাধারণ পার্সেন্টেজ বা ফ্ল্যাট ডিসকাউন্ট প্রযোজ্য হবে না
-  if (food.offerType && food.offerType !== 'none') {
+  // 🕒 Check Timer/Date Validity for Discount & Offers
+  const now = new Date();
+  const isExpired = food.discountEndDate && new Date(food.discountEndDate) < now;
+  const isNotStarted = food.discountStartDate && new Date(food.discountStartDate) > now;
+
+  // যদি অফারের সময় শেষ বা শুরু না হয়ে থাকে, তবে অরিজিনাল প্রাইসই প্রাইস হিসেবে গণ্য হবে
+  if (isExpired || isNotStarted) {
     return active;
   }
 
-  // 🕒 Check Timer/Date Validity for Discount
-  const now = new Date();
-  if (food.discountStartDate && new Date(food.discountStartDate) > now) {
-    return active; // Discount hasn't started yet
-  }
-  if (food.discountEndDate && new Date(food.discountEndDate) < now) {
-    return active; // Discount expired
+  // 🎯 BOGO / Special Offer চালু থাকলে সাধারণ পার্সেন্টেজ বা ফ্ল্যাট ডিসকাউন্ট প্রযোজ্য হবে না
+  if (food.offerType && food.offerType !== 'none') {
+    return active;
   }
 
   if (food.discountType === 'flat') {
@@ -145,7 +177,7 @@ const createFoodService = async (payload: any) => {
     variantLabel: payload.variantLabel || 'Size',
     variations: payload.variations || [],
   });
-  return food;
+  return applyExpirationCheck(food);
 };
 
 const updateFoodService = async (id: string | number, payload: any) => {
@@ -194,7 +226,7 @@ const updateFoodService = async (id: string | number, payload: any) => {
   if (payload.variations !== undefined) food.variations = payload.variations;
 
   await food.save();
-  return food;
+  return applyExpirationCheck(food);
 };
 
 // 🎯 ── Admin Drag & Drop Reorder Services ──
