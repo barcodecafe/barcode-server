@@ -39,7 +39,7 @@ const buildQrPayload = (code: string, customerName?: string, customerPhone?: str
     return `${domain}/checkout?promo=${code}&phone=${encodeURIComponent(customerPhone || '')}`;
   }
 
-  // 2. Standard Code: জেনারেল প্রমো কোড স্ক্যান করলে আগে মেনু/অর্ডারিং পেজে নিয়ে যাবে
+  // 2. Standard Code: সাধারণ প্রমো কোড স্ক্যান করলে আগে মেনু/অর্ডারিং পেজে নিয়ে যাবে
   return `${domain}/menu?promo=${code}`;
 };
 
@@ -116,6 +116,13 @@ const createCouponService = async (payload: Partial<ICoupon>) => {
   const discountPct = discountType === 'percent' ? Math.min(100, Math.max(0, Number(payload.discountPct) || 0)) : 0;
   const discountAmount = discountType === 'flat' ? Math.max(0, Number(payload.discountAmount) || 0) : 0;
 
+  // 💡 [UPDATE LOGIC HERE]: 
+  // Printable কুপন হলে বাই-ডিফল্ট true (মাত্র ১ বার ইউজ হলেই বন্ধ হয়ে যাবে)
+  // Standard কুপন হলে বাই-ডিফল্ট false (সবাই ১ বার করে ইউজ করতে পারবে)
+  const isOneTime = payload.isOneTime !== undefined 
+    ? payload.isOneTime 
+    : (category === 'printable' ? true : false);
+
   return Coupon.create({
     code,
     couponId,
@@ -127,7 +134,7 @@ const createCouponService = async (payload: Partial<ICoupon>) => {
     discountPct,
     discountAmount,
     minSpend: Math.max(0, Number(payload.minSpend) || 0),
-    isOneTime: payload.isOneTime !== undefined ? payload.isOneTime : true,
+    isOneTime,
     isUsed: false,
     usedByPhones: [],
     isActive: payload.isActive !== undefined ? payload.isActive : true,
@@ -158,12 +165,14 @@ const validateCouponService = async (code: string, subtotal: number, customerPho
     throw err;
   }
 
+  // ১-টাইম কুপন (Printable Card) হলে ১ বার ইউজের পর বন্ধ হয়ে যাবে
   if (match.isOneTime && match.isUsed) {
     const err: any = new Error('This coupon has already been used and is no longer valid.');
     err.status = 400;
     throw err;
   }
 
+  // প্রতিটি কাস্টমার নিজ ফোন নম্বর দিয়ে ১ বারই নিতে পারবে (usedByPhones Check)
   if (customerPhone) {
     const cleanInputPhone = customerPhone.replace(/[^\d]/g, '');
     const alreadyUsed = match.usedByPhones?.some(
