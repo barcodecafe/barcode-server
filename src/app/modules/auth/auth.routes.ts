@@ -2,20 +2,44 @@ import express from 'express';
 import { AuthController } from './auth.controller';
 import validateRequest from '../../middlewares/validateRequest';
 import { authMiddleware } from '../../middlewares/auth';
-import { registerValidationSchema, loginValidationSchema } from './auth.validation';
+import {
+  registerValidationSchema,
+  loginValidationSchema,
+  requestOtpValidationSchema,
+  resetPasswordOtpValidationSchema,
+} from './auth.validation';
 
 const router = express.Router();
 
 // POST /api/auth/register
-router.post('/register', validateRequest(registerValidationSchema), AuthController.registerController);
+router.post(
+  '/register',
+  validateRequest(registerValidationSchema),
+  AuthController.registerController
+);
 
 // POST /api/auth/login
-router.post('/login', validateRequest(loginValidationSchema), AuthController.loginController);
+router.post(
+  '/login',
+  validateRequest(loginValidationSchema),
+  AuthController.loginController
+);
 
-// 🔑 POST /api/auth/reset-password (All User/Rider/Admin Roles)
-router.post('/reset-password', AuthController.resetPasswordController);
+// 📧 1. POST /api/auth/forgot-password/request-otp (Send Email OTP)
+router.post(
+  '/forgot-password/request-otp',
+  validateRequest(requestOtpValidationSchema),
+  AuthController.requestOtpController
+);
 
-// GET /api/auth/me  (session check on app load)
+// 🔑 2. POST /api/auth/forgot-password/reset (Verify OTP & Reset Password)
+router.post(
+  '/forgot-password/reset',
+  validateRequest(resetPasswordOtpValidationSchema),
+  AuthController.resetPasswordOtpController
+);
+
+// GET /api/auth/me (session check on app load)
 router.get('/me', authMiddleware, AuthController.getMeController);
 
 // POST /api/auth/logout

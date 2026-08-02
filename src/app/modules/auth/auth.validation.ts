@@ -6,7 +6,7 @@ const BD_PHONE = /^(?:\+?880|0)1[3-9]\d{8}$/;
 // Strict Email Regex
 const STRICT_EMAIL = /^[^\s@.][^\s@]*@[^\s@.]+(?:\.[^\s@.]+)+$/;
 
-// 🎯 ইমেইল অপশনাল ও ফাঁকা স্ট্রিং "" হলেও যেন Zod এরর না দেয়
+// 🎯 ইমেইল অপশনাল ও ফাঁকা স্ট্রিং "" হলেও যেন Zod এরর না দেয়
 const optionalEmailSchema = z
   .string()
   .trim()
@@ -27,6 +27,15 @@ const optionalPhoneSchema = z
     (val) => !val || val === "" || BD_PHONE.test(val),
     { message: "Enter a valid Bangladeshi mobile number (e.g. 01712345678)" }
   );
+
+// 🎯 বাধ্যতামূলক ফোন নম্বর স্কিমা
+const requiredPhoneSchema = z
+  .string()
+  .trim()
+  .min(1, "Mobile number is required")
+  .refine((val) => BD_PHONE.test(val), {
+    message: "Enter a valid Bangladeshi mobile number (e.g. 01712345678)",
+  });
 
 // 🎯 ১. সাইনআপ ভ্যালিডেশন
 export const registerValidationSchema = z.object({
@@ -63,4 +72,29 @@ export const loginValidationSchema = z.object({
         path: ["phone"], // এরর মেসেজ দেখানোর জন্য
       }
     ),
+});
+
+// 📧 ৩. Email OTP রিকোয়েস্ট ভ্যালিডেশন
+export const requestOtpValidationSchema = z.object({
+  body: z.object({
+    phone: requiredPhoneSchema,
+  }),
+});
+
+// 🔑 ৪. OTP দিয়ে পাসওয়ার্ড রিসেট ভ্যালিডেশন
+export const resetPasswordOtpValidationSchema = z.object({
+  body: z.object({
+    phone: requiredPhoneSchema,
+    otp: z
+      .string()
+      .trim()
+      .length(6, "OTP must be exactly 6 digits")
+      .regex(/^\d+$/, "OTP must contain numbers only"),
+    newPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[a-z]/, "Password must contain a lowercase letter")
+      .regex(/[A-Z]/, "Password must contain an uppercase letter")
+      .regex(/[0-9]/, "Password must contain a number"),
+  }),
 });

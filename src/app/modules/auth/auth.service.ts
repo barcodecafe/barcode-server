@@ -2,12 +2,30 @@
 // src/app/modules/auth/auth.service.ts
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
 import config from "../../config";
 import { User } from "../user/user.model";
 import { ensureMembership } from "../../utils/membership";
 
-// Store BD numbers in one canonical shape (+8801XXXXXXXXX) regardless of how the
-// customer typed them, so lookups (POS, SSLCommerz cus_phone) stay consistent.
+// 📧 Nodemailer Transporter Config
+// Ensure process.env.SMTP_USER and process.env.SMTP_PASS are configured in your .env file
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.SMTP_USER, // e.g. yourrestaurant@gmail.com
+    pass: process.env.SMTP_PASS, // App Password generated from Google Account
+  },
+});
+
+// Helper: Mask email for privacy (e.g., j***n@gmail.com)
+const maskEmail = (email: string): string => {
+  if (!email || !email.includes("@")) return "";
+  const [name, domain] = email.split("@");
+  if (name.length <= 2) return `${name[0]}*@${domain}`;
+  return `${name[0]}***${name[name.length - 1]}@${domain}`;
+};
+
+// Store BD numbers in one canonical shape (+8801XXXXXXXXX)
 const normalizeBdPhone = (raw?: string): string => {
   const digits = String(raw || "").replace(/\D/g, "");
   if (/^01[3-9]\d{8}$/.test(digits)) return `+88${digits}`;
@@ -15,7 +33,7 @@ const normalizeBdPhone = (raw?: string): string => {
   return String(raw || "").trim();
 };
 
-// Helper: access token তৈরি
+// Helper: access token জেনারেট
 const generateToken = (payload: {
   _id: string;
   role: string;
@@ -41,34 +59,25 @@ type LoginPayload = {
   password: string;
 };
 
-type ResetPasswordPayload = {
-  email?: string;
-  phone?: string;
-  newPassword: string;
-};
-
 // রেজিস্টার + অটো-লগইন → { user, token }
 const registerUser = async (payload: RegisterPayload) => {
-  // 🛠️ ফাঁকা স্ট্রিং ("") আসলে undefined নিশ্চিত করা হচ্ছে যাতে Sparse Index এরর না দেয়
   const cleanEmail = payload.email?.trim() ? payload.email.trim().toLowerCase() : undefined;
   const cleanPhone = payload.phone?.trim() ? normalizeBdPhone(payload.phone) : undefined;
 
-  // 🎯 ১. ফোন নম্বর ডুপ্লিকেট চেক (যদি ফোন নম্বর থাকে)
+  // 🎯 ১. ফোন নম্বর ডুপ্লিকেট চেক
   if (cleanPhone) {
     const phoneExists = await User.findOne({
       phone: cleanPhone,
       isDeleted: false,
     });
     if (phoneExists) {
-      const err: any = new Error(
-        "An account with this phone number already exists.",
-      );
+      const err: any = new Error("An account with this phone number already exists.");
       err.status = 409;
       throw err;
     }
   }
 
-  // 🎯 ২. ইমেইল ডুপ্লিকেট চেক (যদি ইমেইল থাকে)
+  // 🎯 ২. ইমেইল ডুপ্লিকেট চেক
   if (cleanEmail) {
     const emailExists = await User.findOne({ email: cleanEmail, isDeleted: false });
     if (emailExists) {
@@ -78,18 +87,17 @@ const registerUser = async (payload: RegisterPayload) => {
     }
   }
 
-  // 🎯 ৩. নতুন ইউজার তৈরি (খালি ফিল্ডের ক্ষেত্রে undefined পাঠানো হচ্ছে)
+  // 🎯 ৩. নতুন ইউজার তৈরি
   const newUser = await User.create({
     name: payload.name.trim(),
-    email: cleanEmail, // 👈 undefined পাঠালে MongoDB-তে email ফিল্ড সেভ হবে না
+    email: cleanEmail,
     password: payload.password,
     role: "user",
-    phone: cleanPhone, // 👈 undefined পাঠালে MongoDB-তে phone ফিল্ড সেভ হবে না
+    phone: cleanPhone,
     pickArea: payload.pickArea?.trim() || "",
     address: payload.address?.trim() || "",
   });
 
-  // Loyalty Membership QR ও ID জেনারেট
   await ensureMembership(newUser);
 
   const token = generateToken({
@@ -101,26 +109,20 @@ const registerUser = async (payload: RegisterPayload) => {
   return { user: newUser, token };
 };
 
-// লগইন → { user, token } (Handles both Email and Phone Login Dynamically)
+// লগইন → { user, token }
 const loginUser = async (payload: LoginPayload) => {
   const { email, phone, password } = payload;
-
-  // 🎯 ফ্রন্টএন্ড email বা phone যে নামেই ভ্যালু পাঠাক না কেন, তা রিসিভ করা
   const rawIdentifier = (phone || email || "").trim();
 
   if (!rawIdentifier || !password) {
-    const err: any = new Error(
-      "Please provide a mobile number/email and password.",
-    );
+    const err: any = new Error("Please provide a mobile number/email and password.");
     err.status = 400;
     throw err;
   }
 
-  // 🎯 ইনপুটটিকে ফোন নম্বর (+8801...) এবং ইমেইল দুটো রূপেই প্রসেস করা
   const normalizedPhone = normalizeBdPhone(rawIdentifier);
   const normalizedEmail = rawIdentifier.toLowerCase();
 
-  // 🎯 Smart Query: ডাটাবেজে ফোন (নরমাল বা +88 সহ) কিংবা ইমেইল—যেটির সাথেই মিলুক না কেন ইউজার পেয়ে যাবে
   const user = await User.findOne({
     isDeleted: false,
     $or: [
@@ -128,7 +130,7 @@ const loginUser = async (payload: LoginPayload) => {
       { phone: rawIdentifier },
       { email: normalizedEmail },
     ],
-  }).select("+password"); // 👈 password ফিল্ডটি স্পষ্টভাবে নিয়ে আসা হচ্ছে
+  }).select("+password");
 
   if (!user) {
     const err: any = new Error("Invalid mobile number/email or password.");
@@ -136,7 +138,6 @@ const loginUser = async (payload: LoginPayload) => {
     throw err;
   }
 
-  // 🎯 পাসওয়ার্ড ভ্যালিডেশন
   const isMatch = await bcrypt.compare(password, user.password || "");
   if (!isMatch) {
     const err: any = new Error("Invalid mobile number/email or password.");
@@ -150,18 +151,70 @@ const loginUser = async (payload: LoginPayload) => {
     email: user.email || "",
   });
 
-  // password যেন response-এ না যায়
   user.password = undefined as any;
   return { user, token };
 };
 
-// 🔑 রিসেট পাসওয়ার্ড সার্ভিস (Handles User/Rider/Admin Password Resets)
-const resetPassword = async (payload: ResetPasswordPayload) => {
-  const { email, phone, newPassword } = payload;
-  const rawIdentifier = (phone || email || "").trim();
+// 📧 1. Request OTP to Linked Email
+const requestEmailOtp = async (phone: string) => {
+  if (!phone) {
+    const err: any = new Error("Please provide a mobile number.");
+    err.status = 400;
+    throw err;
+  }
 
-  if (!rawIdentifier || !newPassword) {
-    const err: any = new Error("Please provide a phone number/email and a new password.");
+  const normalizedPhone = normalizeBdPhone(phone);
+  const user = await User.findOne({
+    isDeleted: false,
+    $or: [{ phone: normalizedPhone }, { phone: phone.trim() }],
+  });
+
+  if (!user) {
+    const err: any = new Error("No account found with this phone number.");
+    err.status = 404;
+    throw err;
+  }
+
+  if (!user.email) {
+    const err: any = new Error("No email linked with this account. Please contact Customer Support.");
+    err.status = 400;
+    throw err;
+  }
+
+  // 6-digit OTP জেনারেট
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes validity
+
+  // MongoDB User ডকুমেন্টে OTP ও মেয়াদ সেভ করা
+  (user as any).resetOtp = otp;
+  (user as any).resetOtpExpires = otpExpires;
+  await user.save();
+
+  // ইমেইল সেন্ড করা
+  await transporter.sendMail({
+    from: '"Barcode Restaurant" <no-reply@barcoderestaurant.com>',
+    to: user.email,
+    subject: "Your Password Reset OTP Code",
+    html: `
+      <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+        <h2 style="color: #f97316;">Barcode Password Reset</h2>
+        <p>Your 6-digit OTP code to reset your password is:</p>
+        <h1 style="background: #f3f4f6; padding: 10px 20px; display: inline-block; border-radius: 8px; color: #111; letter-spacing: 4px;">${otp}</h1>
+        <p>This OTP will expire in <strong>10 minutes</strong>.</p>
+        <p style="font-size: 12px; color: #777;">If you did not request this password reset, please ignore this email.</p>
+      </div>
+    `,
+  });
+
+  return { maskedEmail: maskEmail(user.email) };
+};
+
+// 🔑 2. Verify OTP & Reset Password
+const resetPasswordWithOtp = async (payload: { phone: string; otp: string; newPassword: string }) => {
+  const { phone, otp, newPassword } = payload;
+
+  if (!phone || !otp || !newPassword) {
+    const err: any = new Error("Phone number, OTP, and new password are required.");
     err.status = 400;
     throw err;
   }
@@ -172,27 +225,31 @@ const resetPassword = async (payload: ResetPasswordPayload) => {
     throw err;
   }
 
-  const normalizedPhone = normalizeBdPhone(rawIdentifier);
-  const normalizedEmail = rawIdentifier.toLowerCase();
-
-  // ডাটাবেজে ইউজার/রাইডার/এডমিন একাউন্ট খোঁজা
+  const normalizedPhone = normalizeBdPhone(phone);
   const user = await User.findOne({
     isDeleted: false,
-    $or: [
-      { phone: normalizedPhone },
-      { phone: rawIdentifier },
-      { email: normalizedEmail },
-    ],
+    $or: [{ phone: normalizedPhone }, { phone: phone.trim() }],
   });
 
   if (!user) {
-    const err: any = new Error("No account found with this phone number or email.");
-    err.status = 404;
+    const err: any = new Error("Invalid request.");
+    err.status = 400;
     throw err;
   }
 
-  // 🎯 নতুন পাসওয়ার্ড আপডেট (User Model pre-save হুক পাসওয়ার্ড হ্যাশ করে নেবে, অথবা ম্যানুয়ালি Assign)
+  const storedOtp = (user as any).resetOtp;
+  const otpExpires = (user as any).resetOtpExpires;
+
+  if (!storedOtp || storedOtp !== otp.trim() || new Date() > new Date(otpExpires)) {
+    const err: any = new Error("Invalid or expired OTP code.");
+    err.status = 400;
+    throw err;
+  }
+
+  // পাসওয়ার্ড আপডেট ও OTP ক্লিয়ার করা
   user.password = newPassword;
+  (user as any).resetOtp = undefined;
+  (user as any).resetOtpExpires = undefined;
   await user.save();
 
   return { message: "Password updated successfully." };
@@ -212,6 +269,7 @@ const getMe = async (userId: string) => {
 export const AuthService = {
   registerUser,
   loginUser,
-  resetPassword,
+  requestEmailOtp,
+  resetPasswordWithOtp,
   getMe,
 };

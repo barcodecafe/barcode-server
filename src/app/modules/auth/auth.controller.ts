@@ -12,9 +12,6 @@ const registerController = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    // duplicate-email race: unique-index E11000 আসতে পারে pre-check এড়িয়ে → clean 409
-    
-    // 🔄 NEW CHANGE: ইমেইল এর পাশাপাশি ফোন নম্বর ডুপ্লিকেট চেক এবং ডায়নামিক মেসেজ হ্যান্ডলিং যোগ করা হয়েছে
     const isDup = error?.code === 11000;
     const status = error.status || (isDup ? 409 : 500);
 
@@ -44,10 +41,24 @@ const loginController = async (req: Request, res: Response) => {
   }
 };
 
-// 🔑 POST /api/auth/reset-password → { message }
-const resetPasswordController = async (req: Request, res: Response) => {
+// 📧 1. POST /api/auth/forgot-password/request-otp → Send OTP to linked email
+const requestOtpController = async (req: Request, res: Response) => {
   try {
-    const result = await AuthService.resetPassword(req.body);
+    const result = await AuthService.requestEmailOtp(req.body.phone);
+    res.status(200).json({
+      success: true,
+      message: 'OTP sent to your registered email address.',
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
+// 🔑 2. POST /api/auth/forgot-password/reset → Verify OTP & Reset Password
+const resetPasswordOtpController = async (req: Request, res: Response) => {
+  try {
+    const result = await AuthService.resetPasswordWithOtp(req.body);
     res.status(200).json({
       success: true,
       message: result.message || 'Password reset successful',
@@ -68,7 +79,7 @@ const getMeController = async (req: Request, res: Response) => {
   }
 };
 
-// POST /api/auth/logout — JWT stateless, client just drops the token
+// POST /api/auth/logout — JWT stateless
 const logoutController = async (_req: Request, res: Response) => {
   res.status(200).json({ success: true, message: 'Logged out successfully' });
 };
@@ -76,7 +87,8 @@ const logoutController = async (_req: Request, res: Response) => {
 export const AuthController = {
   registerController,
   loginController,
-  resetPasswordController,
+  requestOtpController,
+  resetPasswordOtpController,
   getMeController,
   logoutController,
 };
