@@ -14,7 +14,7 @@ const registerController = async (req: Request, res: Response) => {
   } catch (error: any) {
     // duplicate-email race: unique-index E11000 আসতে পারে pre-check এড়িয়ে → clean 409
     
-    // 🔄 NEW CHANGE: ইমেইল এর পাশাপাশি ফোন নম্বর ডুপ্লিকেট চেক এবং ডায়নামিক মেসেজ হ্যান্ডলিং যোগ করা হয়েছে
+    // 🔄 NEW CHANGE: ইমেইল এর পাশাপাশি ফোন নম্বর ডুপ্লিকেট চেক এবং ডায়নামিক মেসেজ হ্যান্ডলিং যোগ করা হয়েছে
     const isDup = error?.code === 11000;
     const status = error.status || (isDup ? 409 : 500);
 
@@ -44,6 +44,19 @@ const loginController = async (req: Request, res: Response) => {
   }
 };
 
+// 🔑 POST /api/auth/reset-password → { message }
+const resetPasswordController = async (req: Request, res: Response) => {
+  try {
+    const result = await AuthService.resetPassword(req.body);
+    res.status(200).json({
+      success: true,
+      message: result.message || 'Password reset successful',
+    });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
 // GET /api/auth/me → current user (session hydration)
 const getMeController = async (req: Request, res: Response) => {
   try {
@@ -63,6 +76,7 @@ const logoutController = async (_req: Request, res: Response) => {
 export const AuthController = {
   registerController,
   loginController,
+  resetPasswordController,
   getMeController,
   logoutController,
 };

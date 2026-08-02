@@ -12,6 +12,9 @@ router.post('/register', validateRequest(registerValidationSchema), AuthControll
 // POST /api/auth/login
 router.post('/login', validateRequest(loginValidationSchema), AuthController.loginController);
 
+// 🔑 POST /api/auth/reset-password (All User/Rider/Admin Roles)
+router.post('/reset-password', AuthController.resetPasswordController);
+
 // GET /api/auth/me  (session check on app load)
 router.get('/me', authMiddleware, AuthController.getMeController);
 

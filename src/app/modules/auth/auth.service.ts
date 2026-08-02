@@ -41,6 +41,12 @@ type LoginPayload = {
   password: string;
 };
 
+type ResetPasswordPayload = {
+  email?: string;
+  phone?: string;
+  newPassword: string;
+};
+
 // রেজিস্টার + অটো-লগইন → { user, token }
 const registerUser = async (payload: RegisterPayload) => {
   // 🛠️ ফাঁকা স্ট্রিং ("") আসলে undefined নিশ্চিত করা হচ্ছে যাতে Sparse Index এরর না দেয়
@@ -149,6 +155,49 @@ const loginUser = async (payload: LoginPayload) => {
   return { user, token };
 };
 
+// 🔑 রিসেট পাসওয়ার্ড সার্ভিস (Handles User/Rider/Admin Password Resets)
+const resetPassword = async (payload: ResetPasswordPayload) => {
+  const { email, phone, newPassword } = payload;
+  const rawIdentifier = (phone || email || "").trim();
+
+  if (!rawIdentifier || !newPassword) {
+    const err: any = new Error("Please provide a phone number/email and a new password.");
+    err.status = 400;
+    throw err;
+  }
+
+  if (newPassword.length < 8) {
+    const err: any = new Error("Password must be at least 8 characters long.");
+    err.status = 400;
+    throw err;
+  }
+
+  const normalizedPhone = normalizeBdPhone(rawIdentifier);
+  const normalizedEmail = rawIdentifier.toLowerCase();
+
+  // ডাটাবেজে ইউজার/রাইডার/এডমিন একাউন্ট খোঁজা
+  const user = await User.findOne({
+    isDeleted: false,
+    $or: [
+      { phone: normalizedPhone },
+      { phone: rawIdentifier },
+      { email: normalizedEmail },
+    ],
+  });
+
+  if (!user) {
+    const err: any = new Error("No account found with this phone number or email.");
+    err.status = 404;
+    throw err;
+  }
+
+  // 🎯 নতুন পাসওয়ার্ড আপডেট (User Model pre-save হুক পাসওয়ার্ড হ্যাশ করে নেবে, অথবা ম্যানুয়ালি Assign)
+  user.password = newPassword;
+  await user.save();
+
+  return { message: "Password updated successfully." };
+};
+
 // সেশন হাইড্রেশন → GET /api/auth/me
 const getMe = async (userId: string) => {
   const user = await User.findOne({ _id: userId, isDeleted: false });
@@ -163,5 +212,6 @@ const getMe = async (userId: string) => {
 export const AuthService = {
   registerUser,
   loginUser,
+  resetPassword,
   getMe,
 };
