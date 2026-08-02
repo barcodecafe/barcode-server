@@ -30,20 +30,23 @@ const generateUniqueCode = async (): Promise<string> => {
   return `BRC${randToken(6)}${Date.now().toString(36).toUpperCase()}`;
 };
 
-// 💡 ডাইরেক্ট চেকআউট পেজ URL সহ QR Payload তৈরি করা হলো
+// 💡 ক্যাটাগরি অনুযায়ী QR Payload তৈরির লজিক (Standard -> Menu | Printable -> Checkout)
 const buildQrPayload = (code: string, customerName?: string, customerPhone?: string, category?: string) => {
   const domain = 'https://barcoderestaurantgroup.com'; // আপনার লাইভ ডোমেন
-  
-  if (category === 'printable' && (customerName || customerPhone)) {
-    return `${domain}/checkout?promo=${code}&name=${encodeURIComponent(customerName || '')}&phone=${encodeURIComponent(customerPhone || '')}`;
+
+  // 1. Printable Card: নির্দিষ্ট কাস্টমার সরাসরি চেকআউট পেজে যাবে
+  if (category === 'printable') {
+    return `${domain}/checkout?promo=${code}&phone=${encodeURIComponent(customerPhone || '')}`;
   }
-  return `${domain}/checkout?promo=${code}`;
+
+  // 2. Standard Code: জেনারেল প্রমো কোড স্ক্যান করলে আগে মেনু/অর্ডারিং পেজে নিয়ে যাবে
+  return `${domain}/menu?promo=${code}`;
 };
 
-// 💡 URL বা টেক্সট থেকে কুপন কোড এক্সট্রাক্ট করার লজিক আপডেট
+// 💡 URL বা টেক্সট থেকে কুপন কোড এক্সট্রাক্ট করার লজিক
 const extractCodeFromInput = (input: string) => {
   const raw = (input || '').trim();
-  
+
   // যদি ইউআরএল বা কুয়েরি স্ট্রিং থেকে স্ক্যান করা হয় (যেমন: ?promo=SUMMER10)
   try {
     if (raw.includes('http://') || raw.includes('https://')) {
@@ -136,7 +139,7 @@ const deleteCouponService = async (id: string) => {
   return Coupon.findByIdAndDelete(id);
 };
 
-// 💡 চেকআউটে ভ্যালিডেশন
+// 💡 কুপন ভ্যালিডেশন
 const validateCouponService = async (code: string, subtotal: number, customerPhone?: string) => {
   const cleaned = extractCodeFromInput(code);
   const match = await Coupon.findOne({
