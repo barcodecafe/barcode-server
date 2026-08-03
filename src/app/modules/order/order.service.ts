@@ -29,6 +29,8 @@ type CreateItem = {
   id: number;
   quantity: number;
   selectedSize?: string | null;
+  offerType?: string | null;
+  originalPrice?: number;
 };
 type CreatePayload = {
   items: CreateItem[];
@@ -49,7 +51,7 @@ const pointsForSubtotal = (subtotal: number) =>
 // ⚡ শুধুমাত্র যেসব অর্ডারে Admin-এর Accept/Reject করা বাকি রয়েছে সেগুলোর কাউন্ট
 const getPendingCountService = async () => {
   return Order.countDocuments({
-    status: { $regex: /^placed$|^pending$/i },
+    status: { $regex: /^placed$\vert{}^pending$/i },
   });
 };
 
@@ -122,6 +124,9 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       quantity: qty,
       image: food.image,
       selectedSize: raw.selectedSize || null,
+      // 🎯 অফার এবং অরিজিনাল প্রাইস সার্ভারে সেভ করার জন্য এখানে যুক্ত করা হলো
+      offerType: raw.offerType || (food as any).offerType || null,
+      originalPrice: raw.originalPrice || unitPrice,
     });
   }
   subtotal = round2(subtotal);
@@ -707,7 +712,7 @@ const confirmRiderCashSettlementService = async (
   );
 
   const result = await Order.updateMany(
-    { _id: { $in: ids }, isCashSettledByAdmin: { $ne: true } },
+    { _id: { $in: ids }, isCashSettledByAdmin: {$ne: true } },
     {
       $set: {
         isSubmittedToAdmin: true,
