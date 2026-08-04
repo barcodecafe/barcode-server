@@ -48,14 +48,19 @@ type CreatePayload = {
 const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
-// 🎯 আপডেটেড পেন্ডিং কাউন্ট সার্ভিস (Awaiting Payment সহ)
+// 🎯 আপডেটেড পেন্ডিং কাউন্ট সার্ভিস (সব ধরনের পেন্ডিং/প্লেসড স্ট্যাটাস কভার করার জন্য)
 const getPendingCountService = async () => {
   return Order.countDocuments({ 
     status: { 
-      $in: ["Placed", "Pending", "Awaiting Payment", "AWAITING PAYMENT", "awaiting payment"] 
+      $in: [
+        "Placed", "placed", "PLACED",
+        "Pending", "pending", "PENDING",
+        "Awaiting Payment", "awaiting payment", "AWAITING PAYMENT"
+      ] 
     } 
   });
 };
+
 // ── POST /orders — সার্ভারই দাম/কুপন/পয়েন্ট হিসাব করে; client-এর টাকা উপেক্ষা করা হয় ──
 const createOrderService = async (userId: string, payload: CreatePayload) => {
   const user = await User.findById(userId);
@@ -241,11 +246,11 @@ const getAllOrdersService = async (
     filter.status = { $nin: [...NON_LIVE_STATUSES, "Delivered", "Rejected"] };
 
   return Order.find(filter)
-    .select("-chatHistory") // ⚡ চ্যাট হিস্ট্রি বাদ দিয়ে স্পিড বাড়ানো হলো
+    .select("-chatHistory")
     .sort({ createdAt: -1 })
     .limit(limit)
     .skip((page - 1) * limit)
-    .lean(); // ⚡ মেমোরি ও প্রসেসিং সাশ্রয়
+    .lean();
 };
 
 const getOrdersForUserService = async (
@@ -282,7 +287,6 @@ const getOrdersForRiderService = async (
     .lean();
 };
 
-// ⚡ নির্দিষ্ট কোনো অর্ডারের বিস্তারিত/চ্যাট দেখার জন্য এটি চ্যাট হিস্ট্রি সহ আনবে
 const getOrderByIdService = async (id: string) => {
   if (!isValidObjectId(id)) return null;
   return Order.findById(id).lean();
@@ -301,11 +305,10 @@ const syncRiderAvailability = async (riderId?: string | null) => {
   );
 };
 
-// ── PATCH /orders/:id/status ──
 const LEGACY_MAP: Record<string, OrderStatus> = {
   "pick order": "Placed",
   "ready to cook": "Preparing",
-  "ready to pick": "Ready to Pick", // ✅ এখানে সঠিক স্ট্যাটাস ম্যাপ করা হলো
+  "ready to pick": "Ready to Pick",
   "on the way": "Out for Delivery",
   "order handover": "Delivered",
 };
@@ -376,8 +379,7 @@ const updateOrderStatusService = async (id: string, rawStatus: string) => {
   let sender = "admin";
   let senderName = "System";
   if (newStatus === "Accepted") {
-    text =
-      "Your order has been accepted! Kitchen preparation will begin shortly.";
+    text = "Your order has been accepted! Kitchen preparation will begin shortly.";
     senderName = "Barcode Admin";
   } else if (newStatus === "Rejected") {
     text = "We regret to inform you that your order has been rejected.";
@@ -412,7 +414,6 @@ const updateOrderStatusService = async (id: string, rawStatus: string) => {
   return order;
 };
 
-// ── POST /orders/:id/messages ──
 const addChatMessageService = async (
   id: string,
   message: { sender: string; senderName: string; text: string },
@@ -438,7 +439,6 @@ const addChatMessageService = async (
   return order;
 };
 
-// ── Rider assignment flow ──
 const sysMsg = (
   order: any,
   text: string,
@@ -572,7 +572,6 @@ const rejectRiderOrderService = async (orderId: string, actorId: string) => {
   return order;
 };
 
-// ─── Rider cash settlement ───────────────────────────────────────────────────
 const settlementOrdersFor = async (riderId: string, dateKey: string) => {
   const orders = await Order.find({
     riderId,
@@ -624,7 +623,6 @@ const buildSummary = (orders: any[], dateKey: string) => {
   };
 };
 
-/** POST /orders/submit-daily-cash (rider) */
 const submitRiderDailyCashService = async (riderId: string, date: unknown) => {
   const dateKey = normaliseDateKey(date);
   if (!dateKey) {
@@ -670,7 +668,6 @@ const submitRiderDailyCashService = async (riderId: string, date: unknown) => {
   return buildSummary(await settlementOrdersFor(riderId, dateKey), dateKey);
 };
 
-/** POST /orders/confirm-cash-settlement (admin) */
 const confirmRiderCashSettlementService = async (
   riderId: string,
   date: unknown,
@@ -734,7 +731,6 @@ const confirmRiderCashSettlementService = async (
   return buildSummary(await settlementOrdersFor(riderId, dateKey), dateKey);
 };
 
-/** GET /orders/settlement-summary?riderId=&date= */
 const getRiderSettlementSummaryService = async (
   riderId: string,
   date: unknown,
@@ -748,7 +744,6 @@ const getRiderSettlementSummaryService = async (
   return buildSummary(await settlementOrdersFor(riderId, dateKey), dateKey);
 };
 
-// ⚡ POST /orders/:id/recheck-payment
 const recheckPaymentService = async (id: string) => {
   if (!isValidObjectId(id)) {
     const err: any = new Error("Order not found");
