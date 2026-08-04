@@ -54,8 +54,7 @@ const createOrderController = async (req: Request, res: Response) => {
   }
 };
 
-// GET /api/orders/pending-count — 🎯 Added: Admin Notification Count
-// GET /api/orders/pending-count — Admin Notification Count
+// GET /api/orders/pending-count — 🎯 Added: Admin Notification Count & No-Cache Headers
 const getPendingOrderCountController = async (req: Request, res: Response) => {
   try {
     const actor = (req as any).user;
@@ -68,9 +67,14 @@ const getPendingOrderCountController = async (req: Request, res: Response) => {
        return res.status(403).json({ success: false, message: 'Forbidden. Admin access required.' });
     }
 
-    // 🎯 সঠিক ফাংশন নাম দিয়ে কল করা হলো (getPendingCountService)
+    // 🎯 সঠিক ফাংশন নাম দিয়ে কল করা হলো (getPendingCountService)
     const count = await OrderService.getPendingCountService();
     
+    // 🛑 FIX: ব্রাউজার ক্যাশিং ও 304 Not Modified এড়াতে নো-ক্যাশ হেডার যুক্ত করা হলো
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     res.status(200).json({ success: true, pendingCount: count });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -312,5 +316,5 @@ export const OrderController = {
   assignRiderController,
   acceptRiderController,
   rejectRiderController,
-  getPendingOrderCountController, // 🎯 যুক্ত করা হয়েছে
+  getPendingOrderCountController, // 🎯 যুক্ত করা হয়েছে
 };
