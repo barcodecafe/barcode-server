@@ -49,21 +49,15 @@ const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
 // 🎯 আপডেটেড পেন্ডিং কাউন্ট সার্ভিস (সব ধরনের পেন্ডিং/প্লেসড স্ট্যাটাস কভার করার জন্য)
-// const getPendingCountService = async () => {
-//   return Order.countDocuments({ 
-//     status: { 
-//       $in: [
-//         "Placed", "placed", "PLACED",
-//         "Pending", "pending", "PENDING",
-//         "Awaiting Payment", "awaiting payment", "AWAITING PAYMENT"
-//       ] 
-//     } 
-//   });
-// };
-
+// 🎯 অ্যাডমিন Accept বা Reject না করা পর্যন্ত ডেলিভারড/রিজেক্টেড বাদে বাকি সব নতুন অর্ডার কাউন্ট করবে
 const getPendingCountService = async () => {
-  return Order.countDocuments({}); // সাময়িকভাবে সব অর্ডার কাউন্ট করার জন্য
+  return Order.countDocuments({ 
+    status: { 
+      $nin: ["Delivered", "Rejected", "Cancelled", "delivered", "rejected", "cancelled"] 
+    } 
+  });
 };
+
 
 // ── POST /orders — সার্ভারই দাম/কুপন/পয়েন্ট হিসাব করে; client-এর টাকা উপেক্ষা করা হয় ──
 const createOrderService = async (userId: string, payload: CreatePayload) => {
