@@ -48,16 +48,9 @@ type CreatePayload = {
 const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
-// 🎯 আপডেট করা হলো: AWAITING PAYMENT এবং অন্যান্য Pending স্ট্যাটাস কাউন্ট করার জন্য
+// 🎯 সঠিক এবং নিখুঁত পেন্ডিং কাউন্ট সার্ভিস (শুধুমাত্র 'Placed' স্ট্যাটাসগুলো গণনা করবে)
 const getPendingCountService = async () => {
-  return Order.countDocuments({
-    $or: [
-      { status: { $regex: /^(pending|placed|awaiting payment|awaiting_payment)$/i } },
-      { status: { $exists: false } },
-      { status: null },
-      { status: "" }
-    ]
-  });
+  return Order.countDocuments({ status: "Placed" });
 };
 
 // ── POST /orders — সার্ভারই দাম/কুপন/পয়েন্ট হিসাব করে; client-এর টাকা উপেক্ষা করা হয় ──
