@@ -48,12 +48,12 @@ type CreatePayload = {
 const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
-// 🎯 সঠিক এবং নিখুঁত পেন্ডিং কাউন্ট সার্ভিস (শুধুমাত্র 'Placed' স্ট্যাটাসগুলো গণনা করবে)[cite: 1]
+// 🎯 সঠিক এবং নিখুঁত পেন্ডিং কাউন্ট সার্ভিস (শুধুমাত্র 'Placed' স্ট্যাটাসগুলো গণনা করবে)
 const getPendingCountService = async () => {
   return Order.countDocuments({ status: "Placed" });
 };
 
-// ── POST /orders — সার্ভারই দাম/কুপন/পয়েন্ট হিসাব করে; client-এর টাকা উপেক্ষা করা হয় ──[cite: 1]
+// ── POST /orders — সার্ভারই দাম/কুপন/পয়েন্ট হিসাব করে; client-এর টাকা উপেক্ষা করা হয় ──
 const createOrderService = async (userId: string, payload: CreatePayload) => {
   const user = await User.findById(userId);
   if (!user) {
@@ -62,7 +62,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     throw err;
   }
 
-  // Ordering is region-based now — validate the region (not a branch).[cite: 1]
+  // Ordering is region-based now — validate the region (not a branch).
   const regionId = Number(payload.regionId);
   if (!regionId || regionId <= 0) {
     const err: any = new Error("Please select your delivery region.");
@@ -82,7 +82,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     throw err;
   }
 
-  // 💡 কাস্টমারের ফোন নম্বর ও ঠিকানা আগে বের করে নেওয়া (কুপন ভ্যালিডেশনে পাস করার জন্য)[cite: 1]
+  // 💡 কাস্টমারের ফোন নম্বর ও ঠিকানা আগে বের করে নেওয়া (কুপন ভ্যালিডেশনে পাস করার জন্য)
   const deliveryPhone = (payload.deliveryPhone ?? user.phone ?? "")
     .toString()
     .trim();
@@ -93,7 +93,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     .toString()
     .trim();
 
-  // 1) প্রতিটা আইটেম সার্ভারে যাচাই — দাম ও স্টক (client যা পাঠায় তা বিশ্বাস নয়)[cite: 1]
+  // 1) প্রতিটা আইটেম সার্ভারে যাচাই — দাম ও স্টক (client যা পাঠায় তা বিশ্বাস নয়)
   const lineItems: any[] = [];
   let subtotal = 0;
   for (const raw of payload.items) {
@@ -109,7 +109,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       err.status = 400;
       throw err;
     }
-    // region-based ordering → no per-branch price adjustment; use the base price.[cite: 1]
+    // region-based ordering → no per-branch price adjustment; use the base price.
     const unitPrice = round2(
       FoodService.getUnitPrice(food, undefined, raw.selectedSize),
     );
@@ -117,19 +117,19 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     lineItems.push({
       id: food.id,
       name: food.name,
-      category: food.category, // snapshot — analytics food-delete এ স্থিতিশীল[cite: 1]
+      category: food.category, // snapshot — analytics food-delete এ স্থিতিশীল
       price: unitPrice,
       quantity: qty,
       image: food.image,
       selectedSize: raw.selectedSize || null,
-      // 🎯 অফার এবং অরিজিনাল প্রাইস সার্ভারে সেভ করার জন্য এখানে যুক্ত করা হলো[cite: 1]
+      // 🎯 অফার এবং অরিজিনাল প্রাইস সার্ভারে সেভ করার জন্য এখানে যুক্ত করা হলো
       offerType: raw.offerType || (food as any).offerType || null,
       originalPrice: raw.originalPrice || unitPrice,
     });
   }
   subtotal = round2(subtotal);
 
-  // 2) 💡 কুপন সার্ভারে re-validate[cite: 1]
+  // 2) 💡 কুপন সার্ভারে re-validate
   let discount = 0;
   let couponCode = "";
   if (payload.couponCode && payload.couponCode.trim()) {
@@ -145,7 +145,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     couponCode = coupon.code;
   }
 
-  // 3) লয়্যালটি পয়েন্ট redeem[cite: 1]
+  // 3) লয়্যালটি পয়েন্ট redeem
   let pointsRedeemed = 0;
   const requestedPts = Math.max(
     0,
@@ -157,7 +157,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     pointsRedeemed = Math.min(requestedPts, available, maxByBill);
   }
 
-  // 4) ডেলিভারি charge[cite: 1]
+  // 4) ডেলিভারি charge
   const deliveryCharge = round2(chargeFromRegion(region, deliveryArea));
   const total = round2(subtotal - discount - pointsRedeemed + deliveryCharge);
 
@@ -172,7 +172,6 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     timestamp: new Date(),
   };
 
-  // 🎯 অনলাইন বা ক্যাশ যাই হোক না কেন, অর্ডার প্লেস হওয়ার সাথে সাথেই স্ট্যাটাস "Placed" থাকবে[cite: 1]
   const order = await Order.create({
     user: {
       id: String(user._id),
@@ -191,7 +190,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     deliveryCharge,
     total,
     couponCode,
-    status: "Placed", // ✅ সরাসরি Placed স্ট্যাটাস সেট করা হলো[cite: 1]
+    status: "Placed",
     regionId,
     branchId: Number(payload.branchId) > 0 ? Number(payload.branchId) : null,
     paymentMethod: payload.paymentMethod || "cod",
@@ -228,7 +227,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
   return order;
 };
 
-// ── ⚡ OPTIMIZED GET /orders (Admin — সব; user — শুধু নিজের) ──[cite: 1]
+// ── ⚡ OPTIMIZED GET /orders (Admin — সব; user — শুধু নিজের) ──
 const getAllOrdersService = async (
   active?: boolean,
   limit: number = 50,
@@ -239,11 +238,11 @@ const getAllOrdersService = async (
     filter.status = { $nin: [...NON_LIVE_STATUSES, "Delivered", "Rejected"] };
 
   return Order.find(filter)
-    .select("-chatHistory") // ⚡ চ্যাট হিস্ট্রি বাদ দিয়ে স্পিড বাড়ানো হলো[cite: 1]
+    .select("-chatHistory") // ⚡ চ্যাট হিস্ট্রি বাদ দিয়ে স্পিড বাড়ানো হলো
     .sort({ createdAt: -1 })
     .limit(limit)
     .skip((page - 1) * limit)
-    .lean(); // ⚡ মেমোরি ও প্রসেসিং সাশ্রয়[cite: 1]
+    .lean(); // ⚡ মেমোরি ও প্রসেসিং সাশ্রয়
 };
 
 const getOrdersForUserService = async (
@@ -280,7 +279,7 @@ const getOrdersForRiderService = async (
     .lean();
 };
 
-// ⚡ নির্দিষ্ট কোনো অর্ডারের বিস্তারিত/চ্যাট দেখার জন্য এটি চ্যাট হিস্ট্রি সহ আনবে[cite: 1]
+// ⚡ নির্দিষ্ট কোনো অর্ডারের বিস্তারিত/চ্যাট দেখার জন্য এটি চ্যাট হিস্ট্রি সহ আনবে
 const getOrderByIdService = async (id: string) => {
   if (!isValidObjectId(id)) return null;
   return Order.findById(id).lean();
@@ -299,11 +298,11 @@ const syncRiderAvailability = async (riderId?: string | null) => {
   );
 };
 
-// ── PATCH /orders/:id/status ──[cite: 1]
+// ── PATCH /orders/:id/status ──
 const LEGACY_MAP: Record<string, OrderStatus> = {
   "pick order": "Placed",
   "ready to cook": "Preparing",
-  "ready to pick": "Ready to Pick", // ✅ এখানে সঠিক স্ট্যাটাস ম্যাপ করা হলো[cite: 1]
+  "ready to pick": "Ready to Pick", // ✅ এখানে সঠিক স্ট্যাটাস ম্যাপ করা হলো
   "on the way": "Out for Delivery",
   "order handover": "Delivered",
 };
@@ -410,7 +409,7 @@ const updateOrderStatusService = async (id: string, rawStatus: string) => {
   return order;
 };
 
-// ── POST /orders/:id/messages ──[cite: 1]
+// ── POST /orders/:id/messages ──
 const addChatMessageService = async (
   id: string,
   message: { sender: string; senderName: string; text: string },
@@ -436,7 +435,7 @@ const addChatMessageService = async (
   return order;
 };
 
-// ── Rider assignment flow ──[cite: 1]
+// ── Rider assignment flow ──
 const sysMsg = (
   order: any,
   text: string,
@@ -570,7 +569,7 @@ const rejectRiderOrderService = async (orderId: string, actorId: string) => {
   return order;
 };
 
-// ─── Rider cash settlement ───────────────────────────────────────────────────[cite: 1]
+// ─── Rider cash settlement ───────────────────────────────────────────────────
 const settlementOrdersFor = async (riderId: string, dateKey: string) => {
   const orders = await Order.find({
     riderId,
@@ -622,7 +621,7 @@ const buildSummary = (orders: any[], dateKey: string) => {
   };
 };
 
-/** POST /orders/submit-daily-cash (rider) */[cite: 1]
+/** POST /orders/submit-daily-cash (rider) */
 const submitRiderDailyCashService = async (riderId: string, date: unknown) => {
   const dateKey = normaliseDateKey(date);
   if (!dateKey) {
@@ -668,7 +667,7 @@ const submitRiderDailyCashService = async (riderId: string, date: unknown) => {
   return buildSummary(await settlementOrdersFor(riderId, dateKey), dateKey);
 };
 
-/** POST /orders/confirm-cash-settlement (admin) */[cite: 1]
+/** POST /orders/confirm-cash-settlement (admin) */
 const confirmRiderCashSettlementService = async (
   riderId: string,
   date: unknown,
@@ -711,7 +710,7 @@ const confirmRiderCashSettlementService = async (
   );
 
   const result = await Order.updateMany(
-    { _id: { $in: ids }, isCashSettledByAdmin: {$ne: true } },
+    { _id: { $in: ids }, isCashSettledByAdmin: { $ne: true } },
     {
       $set: {
         isSubmittedToAdmin: true,
@@ -732,7 +731,7 @@ const confirmRiderCashSettlementService = async (
   return buildSummary(await settlementOrdersFor(riderId, dateKey), dateKey);
 };
 
-/** GET /orders/settlement-summary?riderId=&date= */[cite: 1]
+/** GET /orders/settlement-summary?riderId=&date= */
 const getRiderSettlementSummaryService = async (
   riderId: string,
   date: unknown,
@@ -746,7 +745,7 @@ const getRiderSettlementSummaryService = async (
   return buildSummary(await settlementOrdersFor(riderId, dateKey), dateKey);
 };
 
-// ⚡ POST /orders/:id/recheck-payment[cite: 1]
+// ⚡ POST /orders/:id/recheck-payment
 const recheckPaymentService = async (id: string) => {
   if (!isValidObjectId(id)) {
     const err: any = new Error("Order not found");
