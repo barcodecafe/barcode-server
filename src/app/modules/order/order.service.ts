@@ -48,11 +48,14 @@ type CreatePayload = {
 const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
-// 🎯 সঠিক এবং নিখুঁত পেন্ডিং কাউন্ট সার্ভিস (শুধুমাত্র 'Placed' স্ট্যাটাসগুলো গণনা করবে)
+// 🎯 আপডেটেড পেন্ডিং কাউন্ট সার্ভিস (Awaiting Payment সহ)
 const getPendingCountService = async () => {
-  return Order.countDocuments({ status: "Placed" });
+  return Order.countDocuments({ 
+    status: { 
+      $in: ["Placed", "Pending", "AWAITING_PAYMENT", "AWAITING PAYMENT"] 
+    } 
+  });
 };
-
 // ── POST /orders — সার্ভারই দাম/কুপন/পয়েন্ট হিসাব করে; client-এর টাকা উপেক্ষা করা হয় ──
 const createOrderService = async (userId: string, payload: CreatePayload) => {
   const user = await User.findById(userId);
