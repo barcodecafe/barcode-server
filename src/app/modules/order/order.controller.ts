@@ -7,7 +7,7 @@ const canAccess = (order: any, actor: any): boolean => {
   if (!actor) return false;
 
   const role = String(actor.role || '').toLowerCase();
-  // ১. Admin/Super Admin সবসময় এক্সেস পাবে
+  // ১. Admin/Super Admin সবসময় এক্সেস পাবে
   if (['admin', 'super_admin', 'superadmin'].includes(role)) return true;
 
   const actorId = String(actor._id || actor.id || '').trim();
@@ -49,6 +49,27 @@ const createOrderController = async (req: Request, res: Response) => {
     }
 
     res.status(201).json({ success: true, message: 'Order placed', data: order });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
+// GET /api/orders/pending-count — 🎯 Added: Admin Notification Count
+const getPendingOrderCountController = async (req: Request, res: Response) => {
+  try {
+    const actor = (req as any).user;
+    if (!actor) {
+      return res.status(401).json({ success: false, message: 'Unauthorized. Please login first.' });
+    }
+
+    const role = String(actor?.role || '').toLowerCase();
+    if (!['admin', 'super_admin', 'superadmin'].includes(role)) {
+       return res.status(403).json({ success: false, message: 'Forbidden. Admin access required.' });
+    }
+
+    const count = await OrderService.getPendingOrderCountService();
+    
+    res.status(200).json({ success: true, pendingCount: count });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
   }
@@ -289,6 +310,5 @@ export const OrderController = {
   assignRiderController,
   acceptRiderController,
   rejectRiderController,
+  getPendingOrderCountController, // 🎯 যুক্ত করা হয়েছে
 };
-
-// back to previous mode 

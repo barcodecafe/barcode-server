@@ -48,10 +48,15 @@ type CreatePayload = {
 const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
-// ⚡ শুধুমাত্র যেসব অর্ডারে Admin-এর Accept/Reject করা বাকি রয়েছে সেগুলোর কাউন্ট
+// 🎯 আপডেট করা হলো: AWAITING PAYMENT এবং অন্যান্য Pending স্ট্যাটাস কাউন্ট করার জন্য
 const getPendingCountService = async () => {
   return Order.countDocuments({
-    status: { $regex: /^placed$\vert{}^pending$/i },
+    $or: [
+      { status: { $regex: /^(pending|placed|awaiting payment|awaiting_payment)$/i } },
+      { status: { $exists: false } },
+      { status: null },
+      { status: "" }
+    ]
   });
 };
 

@@ -26,6 +26,9 @@ router.post('/submit-daily-cash', authMiddleware, authorize('rider'), OrderContr
 router.post('/confirm-cash-settlement', authMiddleware, authorize('admin', 'super_admin'), OrderController.confirmCashSettlementController);
 router.get('/settlement-summary', authMiddleware, authorize('admin', 'super_admin', 'rider'), OrderController.settlementSummaryController);
 
+// 🎯 যুক্ত করা হয়েছে: পেন্ডিং কাউন্ট এপিআই (অবশ্যই /:id এর ওপরে রাখতে হবে)
+router.get('/pending-count', authMiddleware, authorize('admin', 'super_admin'), OrderController.getPendingOrderCountController);
+
 // ৪. নির্দিষ্ট অর্ডার ট্র্যাকিং/ডিটেইলস (Strict Login & Ownership Validation)
 router.get('/:id', authMiddleware, OrderController.getOrderByIdController);
 
