@@ -55,6 +55,7 @@ const createOrderController = async (req: Request, res: Response) => {
 };
 
 // GET /api/orders/pending-count — 🎯 Added: Admin Notification Count
+// GET /api/orders/pending-count — Admin Notification Count
 const getPendingOrderCountController = async (req: Request, res: Response) => {
   try {
     const actor = (req as any).user;
@@ -67,7 +68,8 @@ const getPendingOrderCountController = async (req: Request, res: Response) => {
        return res.status(403).json({ success: false, message: 'Forbidden. Admin access required.' });
     }
 
-    const count = await OrderService.getPendingOrderCountService();
+    // 🎯 সঠিক ফাংশন নাম দিয়ে কল করা হলো (getPendingCountService)
+    const count = await OrderService.getPendingCountService();
     
     res.status(200).json({ success: true, pendingCount: count });
   } catch (error: any) {
