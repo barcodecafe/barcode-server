@@ -52,7 +52,7 @@ const pointsForSubtotal = (subtotal: number) =>
 const getPendingCountService = async () => {
   return Order.countDocuments({ 
     status: { 
-      $in: ["Placed", "Pending", "AWAITING_PAYMENT", "AWAITING PAYMENT"] 
+      $in: ["Placed", "Pending", "Awaiting Payment", "AWAITING PAYMENT", "awaiting payment"] 
     } 
   });
 };
