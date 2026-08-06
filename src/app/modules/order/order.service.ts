@@ -49,6 +49,7 @@ const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
 // 🎯 আপডেটেড পেন্ডিং কাউন্ট সার্ভিস (শুধুমাত্র নতুন অর্ডার কাউন্ট করার জন্য)
+// 🎯 শুধুমাত্র নতুন Placed এবং Pending অর্ডারগুলো কাউন্ট করার জন্য
 const getPendingCountService = async () => {
   return Order.countDocuments({
     status: {
@@ -57,8 +58,6 @@ const getPendingCountService = async () => {
         "Pending",
         "PLACED",
         "PENDING",
-        "Awaiting Payment",
-        "AWAITING_PAYMENT",
       ],
     },
   });
