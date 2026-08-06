@@ -320,7 +320,14 @@ const getOrdersForRiderService = async (
   limit: number = 50,
   page: number = 1,
 ) => {
-  const filter: any = { riderId };
+  // 🎯 FIX: স্ট্রিং বা ObjectId উভয় ফরম্যাটেই যেন কুয়েরি কাজ করে
+  const filter: any = {
+    $or: [
+      { riderId: riderId },
+      { riderId: isValidObjectId(riderId) ? riderId : null }
+    ]
+  };
+  
   if (active) filter.status = { $nin: ["Delivered", "Rejected"] };
 
   return Order.find(filter)
