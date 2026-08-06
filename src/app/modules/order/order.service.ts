@@ -48,16 +48,21 @@ type CreatePayload = {
 const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
-// 🎯 আপডেটেড পেন্ডিং কাউন্ট সার্ভিস (সব ধরনের পেন্ডিং/প্লেসড স্ট্যাটাস কভার করার জন্য)
-// 🎯 অ্যাডমিন Accept বা Reject না করা পর্যন্ত ডেলিভারড/রিজেক্টেড বাদে বাকি সব নতুন অর্ডার কাউন্ট করবে
+// 🎯 আপডেটেড পেন্ডিং কাউন্ট সার্ভিস (শুধুমাত্র নতুন অর্ডার কাউন্ট করার জন্য)
 const getPendingCountService = async () => {
-  return Order.countDocuments({ 
-    status: { 
-      $nin: ["Delivered", "Rejected", "Cancelled", "delivered", "rejected", "cancelled"] 
-    } 
+  return Order.countDocuments({
+    status: {
+      $in: [
+        "Placed",
+        "Pending",
+        "PLACED",
+        "PENDING",
+        "Awaiting Payment",
+        "AWAITING_PAYMENT",
+      ],
+    },
   });
 };
-
 
 // ── POST /orders — সার্ভারই দাম/কুপন/পয়েন্ট হিসাব করে; client-এর টাকা উপেক্ষা করা হয় ──
 const createOrderService = async (userId: string, payload: CreatePayload) => {
@@ -377,7 +382,8 @@ const updateOrderStatusService = async (id: string, rawStatus: string) => {
   let sender = "admin";
   let senderName = "System";
   if (newStatus === "Accepted") {
-    text = "Your order has been accepted! Kitchen preparation will begin shortly.";
+    text =
+      "Your order has been accepted! Kitchen preparation will begin shortly.";
     senderName = "Barcode Admin";
   } else if (newStatus === "Rejected") {
     text = "We regret to inform you that your order has been rejected.";
