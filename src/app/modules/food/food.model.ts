@@ -53,9 +53,25 @@ const foodSchema = new Schema<IFood>(
       transform(_doc, ret: any) {
         delete ret._id;
         delete ret.__v;
+        
+        // 🎯 Map অবজেক্টকে প্লেন অবজেক্টে কনভার্ট করার আপডেট (কোনো এক্সিস্টিং লজিক পরিবর্তন করা হয়নি)
+        if (ret.branchPrices && ret.branchPrices instanceof Map) {
+          ret.branchPrices = Object.fromEntries(ret.branchPrices);
+        } else if (ret.branchPrices && typeof ret.branchPrices === 'object') {
+          ret.branchPrices = Object.fromEntries(new Map(Object.entries(ret.branchPrices)));
+        }
+
         return ret;
       },
     },
+    toObject: {
+      transform(_doc, ret: any) {
+        if (ret.branchPrices && ret.branchPrices instanceof Map) {
+          ret.branchPrices = Object.fromEntries(ret.branchPrices);
+        }
+        return ret;
+      },
+    }
   }
 );
 
