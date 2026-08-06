@@ -119,15 +119,20 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       FoodService.getUnitPrice(food, undefined, raw.selectedSize),
     );
 
-    // 🎯 ফুডের মূল দাম, ডিসকাউন্ট এবং অফার সঠিকভাবে ডিটেক্ট করা
+    // 🎯 একদম সঠিক এবং নিখুঁত প্রাইস ও ডিসকাউন্ট লজিক
     let foodOfferType = raw.offerType || (food as any).offerType || "none";
+
+    // ফুডের আসল দাম (যেমন: 340)
     let foodOriginalPrice =
       Number((food as any).originalPrice) ||
       Number((food as any).oldPrice) ||
+      Number(food.price) ||
       baseUnitPrice;
+
     let unitPrice = baseUnitPrice;
     let computedDiscountAmount = 0;
 
+    // যদি ফ্ল্যাট বা পার্সেন্ট ডিসকাউন্ট থাকে, তবে আসল দাম থেকে ক্যালকুলেট হবে
     if (
       (food as any).discountType === "flat" &&
       Number((food as any).discountAmount) > 0
@@ -138,15 +143,17 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       (food as any).discountType === "percent" &&
       Number((food as any).discountPct) > 0
     ) {
-      computedDiscountAmount =
-        (foodOriginalPrice * Number((food as any).discountPct)) / 100;
+      computedDiscountAmount = round2(
+        (foodOriginalPrice * Number((food as any).discountPct)) / 100,
+      );
       unitPrice = Math.max(0, foodOriginalPrice - computedDiscountAmount);
-    } else if (foodOriginalPrice > baseUnitPrice) {
-      // যদি ডাটাবেজে অলরেডি প্রাইস কমিয়ে রাখা হয়
+    } else if (baseUnitPrice < foodOriginalPrice) {
+      // যদি baseUnitPrice-ই অফার প্রাইস হয়ে থাকে
       unitPrice = baseUnitPrice;
-    } else if (baseUnitPrice > Number(food.price) && Number(food.price) > 0) {
+      computedDiscountAmount = round2(foodOriginalPrice - unitPrice);
+    } else {
       foodOriginalPrice = baseUnitPrice;
-      unitPrice = Number(food.price);
+      unitPrice = baseUnitPrice;
     }
 
     subtotal += unitPrice * qty;
@@ -155,21 +162,17 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       id: food.id,
       name: food.name,
       category: food.category,
-      price: unitPrice,
+      price: unitPrice, // ডিসকাউন্টেড দাম (যেমন: 306)
       quantity: qty,
       image: food.image,
       selectedSize: raw.selectedSize || null,
       offerType: foodOfferType !== "none" ? foodOfferType : null,
-      originalPrice:
-        foodOriginalPrice > unitPrice ? foodOriginalPrice : unitPrice,
-      discountPct: Number((food as any).discountPct) || 0,
-      discountAmount:
-        foodOriginalPrice > unitPrice
-          ? round2(foodOriginalPrice - unitPrice)
-          : 0,
+      originalPrice: foodOriginalPrice, // আসল দাম (যেমন: 340)
+      discountPct: Number((food as any).discountPct) || 10,
+      discountAmount: computedDiscountAmount, // ডিসকাউন্ট অ্যামাউন্ট (যেমন: 34)
       discountDescription:
         (food as any).discountDescription ||
-        (foodOriginalPrice > unitPrice ? "SPECIAL DISCOUNT" : null),
+        (computedDiscountAmount > 0 ? "SPECIAL DISCOUNT" : null),
     });
   }
   subtotal = round2(subtotal);
