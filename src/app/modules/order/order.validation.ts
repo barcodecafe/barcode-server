@@ -26,6 +26,9 @@ export const createOrderValidationSchema = z.object({
           id: z.coerce.number({ invalid_type_error: 'Item ID must be a number' }),
           quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
           selectedSize: z.string().nullable().optional(),
+          // 🎯 অফার ও অরিজিনাল প্রাইস ফিল্ডগুলো ভ্যালিডেশনে অপশনাল হিসেবে যুক্ত করা হলো
+          offerType: z.string().nullable().optional(),
+          originalPrice: z.coerce.number().optional(),
         })
       )
       .min(1, 'Order must contain at least one item'),

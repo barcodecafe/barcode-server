@@ -119,23 +119,29 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       throw err;
     }
 
-    // region-based ordering → no per-branch price adjustment; use the base price.
+  // region-based ordering → no per-branch price adjustment; use the base price.
     const baseUnitPrice = round2(
       FoodService.getUnitPrice(food, undefined, raw.selectedSize),
     );
 
-    // 🎯 ফুডের নিজস্ব অফার এবং ডিসকাউন্ট সঠিকভাবে সার্ভারে নির্ধারণ করা
+    // 🎯 ফুডের মূল দাম, ডিসকাউন্ট এবং অফার সঠিকভাবে ডিটেক্ট করা
     let foodOfferType = raw.offerType || (food as any).offerType || "none";
-    let foodOriginalPrice = Number(raw.originalPrice) || baseUnitPrice;
+    let foodOriginalPrice = Number(food.originalPrice) || Number((food as any).oldPrice) || baseUnitPrice;
     let unitPrice = baseUnitPrice;
+    let computedDiscountAmount = 0;
 
-    // যদি ফুডে ফ্ল্যাট বা পার্সেন্টেজ ডিসকাউন্ট থাকে তা ক্যালকুলেট করা
     if ((food as any).discountType === "flat" && Number((food as any).discountAmount) > 0) {
-      unitPrice = Math.max(0, baseUnitPrice - Number((food as any).discountAmount));
-      foodOriginalPrice = baseUnitPrice;
+      computedDiscountAmount = Number((food as any).discountAmount);
+      unitPrice = Math.max(0, foodOriginalPrice - computedDiscountAmount);
     } else if ((food as any).discountType === "percent" && Number((food as any).discountPct) > 0) {
-      unitPrice = Math.max(0, baseUnitPrice - (baseUnitPrice * Number((food as any).discountPct)) / 100);
+      computedDiscountAmount = (foodOriginalPrice * Number((food as any).discountPct)) / 100;
+      unitPrice = Math.max(0, foodOriginalPrice - computedDiscountAmount);
+    } else if (foodOriginalPrice > baseUnitPrice) {
+      // যদি ডাটাবেজে অলরেডি প্রাইস কমিয়ে রাখা হয়
+      unitPrice = baseUnitPrice;
+    } else if (baseUnitPrice > Number(food.price) && Number(food.price) > 0) {
       foodOriginalPrice = baseUnitPrice;
+      unitPrice = Number(food.price);
     }
 
     subtotal += unitPrice * qty;
@@ -143,17 +149,16 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     lineItems.push({
       id: food.id,
       name: food.name,
-      category: food.category, // snapshot — analytics food-delete এ স্থিতিশীল
+      category: food.category,
       price: unitPrice,
       quantity: qty,
       image: food.image,
       selectedSize: raw.selectedSize || null,
-      // 🎯 অফার টাইপ, অরিজিনাল প্রাইস এবং ডিসকাউন্ট প্রপার্টিগুলো পার্মানেন্টলি সেভ করা হলো
       offerType: foodOfferType !== "none" ? foodOfferType : null,
-      originalPrice: foodOriginalPrice,
+      originalPrice: foodOriginalPrice > unitPrice ? foodOriginalPrice : unitPrice,
       discountPct: Number((food as any).discountPct) || 0,
-      discountAmount: Number((food as any).discountAmount) || 0,
-      discountDescription: (food as any).discountDescription || null,
+      discountAmount: foodOriginalPrice > unitPrice ? round2(foodOriginalPrice - unitPrice) : 0,
+      discountDescription: (food as any).discountDescription || (foodOriginalPrice > unitPrice ? "SPECIAL DISCOUNT" : null),
     });
   }
   subtotal = round2(subtotal);

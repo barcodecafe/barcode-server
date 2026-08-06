@@ -10,6 +10,12 @@ const orderItemSchema = new Schema(
     quantity: { type: Number, required: true, min: 1 },
     image: { type: String, default: '' },
     selectedSize: { type: String, default: null },
+    // 🎯 অফার ও ডিসকাউন্ট ফিল্ডগুলো এখানে স্কিমায় যুক্ত করা বাধ্যতামূলক
+    offerType: { type: String, default: null },
+    originalPrice: { type: Number, default: 0 },
+    discountPct: { type: Number, default: 0 },
+    discountAmount: { type: Number, default: 0 },
+    discountDescription: { type: String, default: null },
   },
   { _id: false }
 );

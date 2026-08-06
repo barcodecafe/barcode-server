@@ -55,6 +55,12 @@ export interface IOrderItem {
   quantity: number;
   image?: string;
   selectedSize?: string | null;
+  // 🎯 অফার ও ডিসকাউন্ট প্রপার্টিগুলো এখানে টাইপস্ক্রিপ্ট ইন্টারফেসে যুক্ত করা হলো
+  offerType?: string | null;
+  originalPrice?: number;
+  discountPct?: number;
+  discountAmount?: number;
+  discountDescription?: string | null;
 }
 
 export interface IOrderUser {
