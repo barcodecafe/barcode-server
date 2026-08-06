@@ -52,12 +52,7 @@ const pointsForSubtotal = (subtotal: number) =>
 const getPendingCountService = async () => {
   return Order.countDocuments({
     status: {
-      $in: [
-        "Placed",
-        "Pending",
-        "PLACED",
-        "PENDING",
-      ],
+      $in: ["Placed", "Pending", "PLACED", "PENDING"],
     },
   });
 };
@@ -119,22 +114,32 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       throw err;
     }
 
-  // region-based ordering → no per-branch price adjustment; use the base price.
+    // region-based ordering → no per-branch price adjustment; use the base price.
     const baseUnitPrice = round2(
       FoodService.getUnitPrice(food, undefined, raw.selectedSize),
     );
 
     // 🎯 ফুডের মূল দাম, ডিসকাউন্ট এবং অফার সঠিকভাবে ডিটেক্ট করা
     let foodOfferType = raw.offerType || (food as any).offerType || "none";
-    let foodOriginalPrice = Number(food.originalPrice) || Number((food as any).oldPrice) || baseUnitPrice;
+    let foodOriginalPrice =
+      Number((food as any).originalPrice) ||
+      Number((food as any).oldPrice) ||
+      baseUnitPrice;
     let unitPrice = baseUnitPrice;
     let computedDiscountAmount = 0;
 
-    if ((food as any).discountType === "flat" && Number((food as any).discountAmount) > 0) {
+    if (
+      (food as any).discountType === "flat" &&
+      Number((food as any).discountAmount) > 0
+    ) {
       computedDiscountAmount = Number((food as any).discountAmount);
       unitPrice = Math.max(0, foodOriginalPrice - computedDiscountAmount);
-    } else if ((food as any).discountType === "percent" && Number((food as any).discountPct) > 0) {
-      computedDiscountAmount = (foodOriginalPrice * Number((food as any).discountPct)) / 100;
+    } else if (
+      (food as any).discountType === "percent" &&
+      Number((food as any).discountPct) > 0
+    ) {
+      computedDiscountAmount =
+        (foodOriginalPrice * Number((food as any).discountPct)) / 100;
       unitPrice = Math.max(0, foodOriginalPrice - computedDiscountAmount);
     } else if (foodOriginalPrice > baseUnitPrice) {
       // যদি ডাটাবেজে অলরেডি প্রাইস কমিয়ে রাখা হয়
@@ -155,10 +160,16 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       image: food.image,
       selectedSize: raw.selectedSize || null,
       offerType: foodOfferType !== "none" ? foodOfferType : null,
-      originalPrice: foodOriginalPrice > unitPrice ? foodOriginalPrice : unitPrice,
+      originalPrice:
+        foodOriginalPrice > unitPrice ? foodOriginalPrice : unitPrice,
       discountPct: Number((food as any).discountPct) || 0,
-      discountAmount: foodOriginalPrice > unitPrice ? round2(foodOriginalPrice - unitPrice) : 0,
-      discountDescription: (food as any).discountDescription || (foodOriginalPrice > unitPrice ? "SPECIAL DISCOUNT" : null),
+      discountAmount:
+        foodOriginalPrice > unitPrice
+          ? round2(foodOriginalPrice - unitPrice)
+          : 0,
+      discountDescription:
+        (food as any).discountDescription ||
+        (foodOriginalPrice > unitPrice ? "SPECIAL DISCOUNT" : null),
     });
   }
   subtotal = round2(subtotal);
