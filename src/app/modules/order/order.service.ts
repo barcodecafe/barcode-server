@@ -158,21 +158,25 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
 
     subtotal += unitPrice * qty;
 
+    // 🎯 সঠিক ডিসকাউন্ট ও অফার কন্ডিশন চেক
+    const hasDiscount =
+      computedDiscountAmount > 0 || (foodOfferType && foodOfferType !== "none");
+
     lineItems.push({
       id: food.id,
       name: food.name,
       category: food.category,
-      price: unitPrice, // ডিসকাউন্টেড দাম (যেমন: 306)
+      price: unitPrice,
       quantity: qty,
       image: food.image,
       selectedSize: raw.selectedSize || null,
-      offerType: foodOfferType !== "none" ? foodOfferType : null,
-      originalPrice: foodOriginalPrice, // আসল দাম (যেমন: 340)
-      discountPct: Number((food as any).discountPct) || 10,
-      discountAmount: computedDiscountAmount, // ডিসকাউন্ট অ্যামাউন্ট (যেমন: 34)
-      discountDescription:
-        (food as any).discountDescription ||
-        (computedDiscountAmount > 0 ? "SPECIAL DISCOUNT" : null),
+      offerType: hasDiscount ? foodOfferType : null,
+      originalPrice: foodOriginalPrice,
+      discountPct: hasDiscount ? Number((food as any).discountPct) || 10 : 0,
+      discountAmount: hasDiscount ? computedDiscountAmount : 0,
+      discountDescription: hasDiscount
+        ? (food as any).discountDescription || "SPECIAL DISCOUNT"
+        : null,
     });
   }
   subtotal = round2(subtotal);
