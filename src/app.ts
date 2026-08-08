@@ -111,6 +111,52 @@ const rateLimitKey = (req: Request): string => {
   return `ip:${ipKeyGenerator(req.ip ?? '')}`;
 };
 
+// The public catalogue: read-only, non-sensitive, identical for every visitor.
+//
+// These are the endpoints an anonymous customer hits just to look at the menu,
+// so they must not share the same budget as real API traffic. A soak test made
+// the problem concrete: behind one IP — which is what a mobile carrier NAT
+// looks like — anonymous visitors exhausted the shared allowance and every
+// subsequent one got a 429, while logged-in users (keyed per user) sailed
+// through untouched. That is a smaller replay of the original bug.
+//
+// They get a much larger allowance and a short cache lifetime, so a customer
+// browsing the menu costs the server almost nothing.
+const PUBLIC_CATALOGUE = [
+  '/api/foods',
+  '/api/branches',
+  '/api/brands',
+  '/api/regions',
+  '/api/hero-slides',
+  '/api/about',
+  '/api/settings',
+];
+
+const isPublicCatalogueRead = (req: Request): boolean =>
+  req.method === 'GET' && PUBLIC_CATALOGUE.some((p) => req.originalUrl.startsWith(p));
+
+// 60s is a deliberate compromise: long enough that a customer clicking through
+// the menu re-reads from cache instead of the server, short enough that an
+// admin's edit shows up while they are still looking at it.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (isPublicCatalogueRead(req)) {
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  }
+  next();
+});
+
+const catalogueLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 6000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: rateLimitKey,
+  message: { success: false, message: 'Too many requests. Please try again later.' },
+});
+app.use(PUBLIC_CATALOGUE, (req: Request, res: Response, next: NextFunction) =>
+  req.method === 'GET' ? catalogueLimiter(req, res, next) : next(),
+);
+
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 1500,
@@ -125,7 +171,11 @@ const globalLimiter = rateLimit({
   // immutable and browser-cached after the first visit, and charging them
   // against the same budget as real API calls would lock a browsing customer
   // out of the site they are trying to order from.
-  skip: (req) => req.method === 'OPTIONS' || req.path.startsWith('/images/'),
+  //
+  // Public catalogue reads are metered by catalogueLimiter above instead, so
+  // they are skipped here rather than counted twice.
+  skip: (req) =>
+    req.method === 'OPTIONS' || req.path.startsWith('/images/') || isPublicCatalogueRead(req),
   message: { success: false, message: 'Too many requests. Please try again later.' },
 });
 app.use('/api', globalLimiter);
