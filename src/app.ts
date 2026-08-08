@@ -24,6 +24,7 @@ import { AnalyticsRoutes } from './app/modules/analytics/analytics.routes';
 import { PaymentRoutes } from './app/modules/payment/payment.routes';
 import { FavoritesRoutes } from './app/modules/favorites/favorites.routes';
 import { SearchRoutes } from './app/modules/search/search.routes';
+import { ImageRoutes } from './app/modules/images/images.routes';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
 
 const app: Application = express();
@@ -118,7 +119,13 @@ const globalLimiter = rateLimit({
   keyGenerator: rateLimitKey,
   // CORS preflights carry no credentials and do no work — counting them just
   // halves everyone's real budget.
-  skip: (req) => req.method === 'OPTIONS',
+  //
+  // /api/images is skipped for the same reason a CDN would not count static
+  // files: one menu page legitimately requests twenty of them, they are
+  // immutable and browser-cached after the first visit, and charging them
+  // against the same budget as real API calls would lock a browsing customer
+  // out of the site they are trying to order from.
+  skip: (req) => req.method === 'OPTIONS' || req.path.startsWith('/images/'),
   message: { success: false, message: 'Too many requests. Please try again later.' },
 });
 app.use('/api', globalLimiter);
@@ -194,6 +201,7 @@ app.use('/api/rider-applications', RiderApplicationRoutes);
 app.use('/api/analytics', AnalyticsRoutes);
 app.use('/api/payments', PaymentRoutes);
 app.use('/api/search', SearchRoutes);
+app.use('/api/images', ImageRoutes);
 
 // Health check
 app.get('/', (req: Request, res: Response) => {

@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { isValidObjectId } from 'mongoose';
 import config from '../../config';
 import { PaymentService } from './payment.service';
+import { publicApiBase } from '../../utils/publicApiBase';
 
 // The gateway POSTs a form to success/fail/cancel — a SPA can't receive a POST,
 // so the gateway lands here and we 302 the customer on to the frontend.
@@ -47,17 +48,11 @@ const orderIdFrom = (req: Request) =>
 // Note: Host is a client-supplied header, so a caller can point *their own*
 // payment's callback elsewhere. That is harmless here — settlement is never
 // based on the callback itself, only on a gateway-verified val_id lookup.
+// Moved to utils/publicApiBase so the images module can resolve its own URLs
+// with the identical rule; re-exported here because this is where callers (and
+// tests) have always found it.
 // exported for tests — this one function decides whether payments settle at all
-export const publicApiBase = (req: Request): string => {
-  if (config.server_url_explicit) return config.server_url_explicit;
-
-  const first = (v: unknown) => String(v || '').split(',')[0].trim();
-  const proto = first(req.headers['x-forwarded-proto']) || req.protocol || 'http';
-  const host = first(req.headers['x-forwarded-host']) || first(req.headers.host);
-  if (host) return `${proto}://${host}`;
-
-  return config.server_url; // last resort — dev only
-};
+export { publicApiBase };
 
 // POST /api/payments/init  { orderId }  (auth)
 const initController = async (req: Request, res: Response) => {

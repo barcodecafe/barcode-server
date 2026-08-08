@@ -2,13 +2,15 @@
 import { Request, Response } from 'express';
 import { BranchService } from './branch.service';
 import { FoodService } from '../food/food.service';
+import { externalizeImages, externalizeImagesList, stripExternalImageRefs } from '../images/images.transform';
+import { publicApiBase } from '../../utils/publicApiBase';
 
 // GET /api/branches  (+ ?limit=)
 const getAllBranchesController = async (req: Request, res: Response) => {
   try {
     const limit = req.query.limit ? Number(req.query.limit) : undefined;
     const branches = await BranchService.getAllBranchesService(limit);
-    res.status(200).json({ success: true, data: branches });
+    res.status(200).json({ success: true, data: externalizeImagesList(branches as any[], 'branch', publicApiBase(req)) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -18,7 +20,7 @@ const getAllBranchesController = async (req: Request, res: Response) => {
 const searchBranchesController = async (req: Request, res: Response) => {
   try {
     const branches = await BranchService.searchBranchesService((req.query.q as string) || '');
-    res.status(200).json({ success: true, data: branches });
+    res.status(200).json({ success: true, data: externalizeImagesList(branches as any[], 'branch', publicApiBase(req)) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -31,7 +33,7 @@ const getBranchByIdController = async (req: Request, res: Response) => {
     if (!branch) {
       return res.status(404).json({ success: false, message: 'Branch not found' });
     }
-    res.status(200).json({ success: true, data: branch });
+    res.status(200).json({ success: true, data: externalizeImages(branch as any, 'branch', publicApiBase(req)) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -41,7 +43,7 @@ const getBranchByIdController = async (req: Request, res: Response) => {
 const getBranchMenuController = async (req: Request, res: Response) => {
   try {
     const foods = await FoodService.getFoodsByBranchService(req.params.branchId);
-    res.status(200).json({ success: true, data: foods });
+    res.status(200).json({ success: true, data: externalizeImagesList(foods as any[], 'food', publicApiBase(req)) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -62,6 +64,9 @@ const createBranchController = async (req: Request, res: Response) => {
 
 const updateBranchController = async (req: Request, res: Response) => {
   try {
+    // Drop the image field when it came back as one of our own image urls —
+    // otherwise saving an unrelated edit would overwrite the stored base64.
+    stripExternalImageRefs(req.body, 'branch');
     const branch = await BranchService.updateBranchService(req.params.id, req.body);
     if (!branch) return res.status(404).json({ success: false, message: 'Branch not found' });
     res.status(200).json({ success: true, message: 'Branch updated', data: branch });

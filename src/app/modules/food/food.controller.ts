@@ -1,13 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Request, Response } from 'express';
 import { FoodService } from './food.service';
+import { externalizeImages, externalizeImagesList, stripExternalImageRefs } from '../images/images.transform';
+import { publicApiBase } from '../../utils/publicApiBase';
 
 // GET /api/foods  (+ ?category=)
 const getAllFoodsController = async (req: Request, res: Response) => {
   try {
     const category = req.query.category as string | undefined;
     const foods = await FoodService.getAllFoodsService(category);
-    res.status(200).json({ success: true, data: foods });
+    res.status(200).json({ success: true, data: externalizeImagesList(foods as any[], 'food', publicApiBase(req)) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -18,7 +20,7 @@ const getPopularFoodsController = async (req: Request, res: Response) => {
   try {
     const limit = req.query.limit ? Number(req.query.limit) : 6;
     const foods = await FoodService.getPopularFoodsService(limit);
-    res.status(200).json({ success: true, data: foods });
+    res.status(200).json({ success: true, data: externalizeImagesList(foods as any[], 'food', publicApiBase(req)) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -29,7 +31,7 @@ const getFeaturedFoodsController = async (req: Request, res: Response) => {
   try {
     const limit = req.query.limit ? Number(req.query.limit) : 6;
     const foods = await FoodService.getFeaturedFoodsService(limit);
-    res.status(200).json({ success: true, data: foods });
+    res.status(200).json({ success: true, data: externalizeImagesList(foods as any[], 'food', publicApiBase(req)) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -39,7 +41,7 @@ const getFeaturedFoodsController = async (req: Request, res: Response) => {
 const searchFoodsController = async (req: Request, res: Response) => {
   try {
     const foods = await FoodService.searchFoodsService((req.query.q as string) || '');
-    res.status(200).json({ success: true, data: foods });
+    res.status(200).json({ success: true, data: externalizeImagesList(foods as any[], 'food', publicApiBase(req)) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -52,7 +54,7 @@ const getFoodByIdController = async (req: Request, res: Response) => {
     if (!food) {
       return res.status(404).json({ success: false, message: 'Food not found' });
     }
-    res.status(200).json({ success: true, data: food });
+    res.status(200).json({ success: true, data: externalizeImages(food as any, 'food', publicApiBase(req)) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -73,9 +75,14 @@ const createFoodController = async (req: Request, res: Response) => {
 
 const updateFoodController = async (req: Request, res: Response) => {
   try {
+    // ⚠️ Drop image fields that came back as one of OUR urls. The admin form
+    // loads a dish, keeps whatever is in `image`, and posts the whole object
+    // back on save — without this, saving any unrelated edit would write the
+    // url over the stored base64 and destroy the image.
+    stripExternalImageRefs(req.body, 'food');
     const food = await FoodService.updateFoodService(req.params.id, req.body);
     if (!food) return res.status(404).json({ success: false, message: 'Food not found' });
-    res.status(200).json({ success: true, message: 'Food updated', data: food });
+    res.status(200).json({ success: true, message: 'Food updated', data: externalizeImages(food as any, 'food', publicApiBase(req)) });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
   }
