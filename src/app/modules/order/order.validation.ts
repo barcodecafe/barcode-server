@@ -29,6 +29,8 @@ export const createOrderValidationSchema = z.object({
           // 🎯 অফার ও অরিজিনাল প্রাইস ফিল্ডগুলো ভ্যালিডেশনে অপশনাল হিসেবে যুক্ত করা হলো
           offerType: z.string().nullable().optional(),
           originalPrice: z.coerce.number().optional(),
+          price: z.coerce.number().optional(),     // 🎯 ভ্যালিডেশনে প্রাইস পাস করার জন্য
+          branchId: z.coerce.number().optional(),  // 🎯 ব্রাঞ্চ আইডি পাস করার জন্য
         })
       )
       .min(1, 'Order must contain at least one item'),
