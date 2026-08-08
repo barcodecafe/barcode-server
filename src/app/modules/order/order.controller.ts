@@ -12,7 +12,7 @@ const canAccess = (order: any, actor: any): boolean => {
 
   const actorId = String(actor._id || actor.id || '').trim();
 
-  // ২. কাস্টমার আইডি সেফলি বের করা (user অবজেক্ট বা নরমাল ID স্ট্রিং উভয় ক্ষেত্রেই কাজ করবে)
+  // ২. কাস্টমার আইডি সেফলি বের করা
   const orderUserId = String(
     typeof order.user === 'object'
       ? order.user?.id || order.user?._id || ''
@@ -67,10 +67,9 @@ const getPendingOrderCountController = async (req: Request, res: Response) => {
        return res.status(403).json({ success: false, message: 'Forbidden. Admin access required.' });
     }
 
-    // 🎯 সঠিক ফাংশন নাম দিয়ে কল করা হলো (getPendingCountService)
     const count = await OrderService.getPendingCountService();
     
-    // 🛑 FIX: ব্রাউজার ক্যাশিং ও 304 Not Modified এড়াতে নো-ক্যাশ হেডার যুক্ত করা হলো
+    // 🛑 FIX: ব্রাউজার ক্যাশিং ও 304 Not Modified এড়াতে নো-ক্যাশ হেডার যুক্ত করা হলো
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
@@ -89,21 +88,23 @@ const getOrdersController = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: 'Unauthorized. Please login first.' });
     }
 
-    const active = req.query.active === 'true';
     let data;
     const role = String(actor?.role || '').toLowerCase();
 
     if (['admin', 'super_admin', 'superadmin'].includes(role)) {
       const userId = req.query.userId as string | undefined;
+      // 🎯 অ্যাডমিনের ক্ষেত্রে সবসময় false পাঠানো হচ্ছে, যাতে রিফ্রেশ দিলেও পুরানো ও নতুন সব অর্ডার ডাটাবেজ থেকে রিটার্ন হয়
       data = userId
-        ? await OrderService.getOrdersForUserService(userId, active)
-        : await OrderService.getAllOrdersService(active);
+        ? await OrderService.getOrdersForUserService(userId, false)
+        : await OrderService.getAllOrdersService(false);
     } else if (role === 'rider') {
+      const active = req.query.active === 'true';
       data = await OrderService.getOrdersForRiderService(actor._id, active);
     } else {
-      // 🔒 non-admin কখনো অন্যের অর্ডার দেখতে পারবে না — userId param উপেক্ষিত
+      const active = req.query.active === 'true';
       data = await OrderService.getOrdersForUserService(actor._id, active);
     }
+
     res.status(200).json({ success: true, data });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -316,5 +317,5 @@ export const OrderController = {
   assignRiderController,
   acceptRiderController,
   rejectRiderController,
-  getPendingOrderCountController, // 🎯 যুক্ত করা হয়েছে
+  getPendingOrderCountController,
 };
