@@ -31,8 +31,8 @@ type CreateItem = {
   selectedSize?: string | null;
   offerType?: string | null;
   originalPrice?: number;
-  price?: number;     // 🎯 ফ্রন্টএন্ড থেকে আসা ফাইনাল বা ব্রাঞ্চ প্রাইস রিসিভ করার জন্য
-  branchId?: number;  // 🎯 ব্রাঞ্চ আইডি রিসিভ করার জন্য
+  price?: number;
+  branchId?: number;
 };
 type CreatePayload = {
   items: CreateItem[];
@@ -46,11 +46,11 @@ type CreatePayload = {
   paymentMethod?: string;
 };
 
-// লয়্যালটি — বিলের ৳100 এ 5 পয়েন্ট (subtotal-ভিত্তিক), 1 পয়েন্ট = ৳1 ছাড়
+// লয়্যালটি — বিলের ৳100 এ 5 পয়েন্ট
 const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
-// 🎯 আপডেটেড পেন্ডিং কাউন্ট সার্ভিস (শুধুমাত্র নতুন অর্ডার কাউন্ট করার জন্য)
+// 🎯 পেন্ডিং কাউন্ট সার্ভিস
 const getPendingCountService = async () => {
   return Order.countDocuments({
     status: {
@@ -59,7 +59,7 @@ const getPendingCountService = async () => {
   });
 };
 
-// ── POST /orders — সার্ভারই দাম/কুপন/পয়েন্ট হিসাব করে; client-এর টাকা উপেক্ষা করা হয় ──
+// ── POST /orders ──
 const createOrderService = async (userId: string, payload: CreatePayload) => {
   const user = await User.findById(userId);
   if (!user) {
@@ -68,7 +68,6 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     throw err;
   }
 
-  // Ordering is region-based now — validate the region (not a branch).
   const regionId = Number(payload.regionId);
   if (!regionId || regionId <= 0) {
     const err: any = new Error("Please select your delivery region.");
@@ -88,7 +87,6 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     throw err;
   }
 
-  // 💡 কাস্টমারের ফোন নম্বর ও ঠিকানা আগে বের করে নেওয়া (কুপন ভ্যালিডেশনে পাস করার জন্য)
   const deliveryPhone = (payload.deliveryPhone ?? user.phone ?? "")
     .toString()
     .trim();
@@ -99,7 +97,6 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     .toString()
     .trim();
 
-  // 1) প্রতিটা আইটেম সার্ভারে যাচাই — দাম ও স্টক (client যা পাঠায় তা বিশ্বাস নয়)
   const lineItems: any[] = [];
   let subtotal = 0;
   for (const raw of payload.items) {
@@ -116,8 +113,6 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       throw err;
     }
 
-    // 🎯 ফিক্স: যদি ফ্রন্টএন্ড বা কার্ট থেকে নির্দিষ্ট কোনো প্রাইস (যেমন ব্রাঞ্চ প্রাইস) পাঠানো হয়, 
-    // তবে সেটাকে প্রাধান্য দেওয়া হবে, নতুবা ডিফল্ট বেস প্রাইস ধরবে।
     const frontendPrice = Number(raw.price);
     const baseUnitPrice = round2(
       !isNaN(frontendPrice) && frontendPrice > 0 
@@ -139,7 +134,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     if (
       (food as any).discountType === "flat" &&
       Number((food as any).discountAmount) > 0 &&
-      isNaN(frontendPrice) // ব্রাঞ্চ প্রাইস থাকলে ফ্ল্যাট ডিসকাউন্ট ওভাররাইড এড়াতে
+      isNaN(frontendPrice)
     ) {
       computedDiscountAmount = Number((food as any).discountAmount);
       unitPrice = Math.max(0, foodOriginalPrice - computedDiscountAmount);
@@ -185,7 +180,6 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
   }
   subtotal = round2(subtotal);
 
-  // 2) 💡 কুপন সার্ভারে re-validate
   let discount = 0;
   let couponCode = "";
   if (payload.couponCode && payload.couponCode.trim()) {
@@ -201,7 +195,6 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     couponCode = coupon.code;
   }
 
-  // 3) লয়্যালটি পয়েন্ট redeem
   let pointsRedeemed = 0;
   const requestedPts = Math.max(
     0,
@@ -213,7 +206,6 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     pointsRedeemed = Math.min(requestedPts, available, maxByBill);
   }
 
-  // 4) ডেলিভারি charge
   const deliveryCharge = round2(chargeFromRegion(region, deliveryArea));
   const total = round2(subtotal - discount - pointsRedeemed + deliveryCharge);
 
@@ -283,48 +275,56 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
   return order;
 };
 
-// ── ⚡ OPTIMIZED GET /orders (Admin — সব; user — শুধু নিজের) ──
+// ── 🎯 FIX: OPTIMIZED GET /orders (Admin — সব পুরানো ও নতুন অর্ডার ফেরত পাঠাবে) ──
 const getAllOrdersService = async (
   active?: boolean,
-  limit: number = 50,
+  limit?: number,
   page: number = 1,
 ) => {
-  const filter: any = { status: { $nin: NON_LIVE_STATUSES } };
-  if (active)
+  const filter: any = {};
+  
+  // শুধুমাত্র যদি এক্সপ্লিসিটভাবে active === true পাস করা হয়, তবেই ফিল্টার হবে
+  if (active === true) {
     filter.status = { $nin: [...NON_LIVE_STATUSES, "Delivered", "Rejected"] };
+  }
 
-  return Order.find(filter)
+  let query = Order.find(filter)
     .select("-chatHistory")
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .skip((page - 1) * limit)
-    .lean();
+    .sort({ createdAt: -1 });
+
+  if (limit && limit > 0) {
+    query = query.limit(limit).skip((page - 1) * limit);
+  }
+
+  return query.lean();
 };
 
 const getOrdersForUserService = async (
   userId: string,
   active?: boolean,
-  limit: number = 50,
+  limit?: number,
   page: number = 1,
 ) => {
   const filter: any = { "user.id": userId };
-  if (active) filter.status = { $nin: ["Delivered", "Rejected"] };
+  if (active === true) filter.status = { $nin: ["Delivered", "Rejected"] };
 
-  return Order.find(filter)
+  let query = Order.find(filter)
     .select("-chatHistory")
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .skip((page - 1) * limit)
-    .lean();
+    .sort({ createdAt: -1 });
+
+  if (limit && limit > 0) {
+    query = query.limit(limit).skip((page - 1) * limit);
+  }
+
+  return query.lean();
 };
 
 const getOrdersForRiderService = async (
   riderId: string,
   active?: boolean,
-  limit: number = 50,
+  limit?: number,
   page: number = 1,
 ) => {
-  // 🎯 FIX: স্ট্রিং বা ObjectId উভয় ফরম্যাটেই যেন কুয়েরি কাজ করে
   const filter: any = {
     $or: [
       { riderId: riderId },
@@ -332,14 +332,17 @@ const getOrdersForRiderService = async (
     ]
   };
   
-  if (active) filter.status = { $nin: ["Delivered", "Rejected"] };
+  if (active === true) filter.status = { $nin: ["Delivered", "Rejected"] };
 
-  return Order.find(filter)
+  let query = Order.find(filter)
     .select("-chatHistory")
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .skip((page - 1) * limit)
-    .lean();
+    .sort({ createdAt: -1 });
+
+  if (limit && limit > 0) {
+    query = query.limit(limit).skip((page - 1) * limit);
+  }
+
+  return query.lean();
 };
 
 const getOrderByIdService = async (id: string) => {
