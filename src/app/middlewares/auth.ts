@@ -38,9 +38,27 @@ export const optionalAuth = (req: Request, _res: Response, next: NextFunction) =
   next();
 };
 
+// The three spellings of "administrator" that exist across this codebase.
+// The User schema stores 'admin' and 'super_admin'; several controllers also
+// accept the unseparated 'superadmin'. Centralising the set here is what stops
+// them drifting apart again.
+export const ADMIN_ROLES = ['admin', 'super_admin', 'superadmin'];
+
+export const isAdminRole = (role?: string): boolean =>
+  ADMIN_ROLES.includes(String(role || '').toLowerCase());
+
 // Role-based Authorization middleware
 // Usage: authorize('admin')  → only listed roles can pass
+//
+// ⚠️ Listing 'admin' implies every administrator role. Routes were split between
+// authorize('admin') and authorize('admin', 'super_admin'), so a super_admin
+// could assign riders and settle cash but was 403'd from analytics, users,
+// coupons and all content management — an inconsistency that depended purely on
+// which file a route happened to live in.
 export const authorize = (...allowedRoles: string[]) => {
+  const allowed = allowedRoles.map((r) => r.toLowerCase());
+  const adminAllowed = allowed.some((r) => ADMIN_ROLES.includes(r));
+
   return (req: Request, res: Response, next: NextFunction) => {
     const user = (req as any).user;
 
@@ -48,7 +66,9 @@ export const authorize = (...allowedRoles: string[]) => {
       return res.status(403).json({ success: false, message: 'Access denied: No role found' });
     }
 
-    if (allowedRoles.includes(user.role)) {
+    const role = String(user.role).toLowerCase();
+
+    if (allowed.includes(role) || (adminAllowed && isAdminRole(role))) {
       return next();
     }
 

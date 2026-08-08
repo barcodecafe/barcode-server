@@ -72,8 +72,22 @@ const getAllRidersController = async (_req: Request, res: Response) => {
   }
 };
 
+// A rider may only read their OWN record; admins may read any.
+// Previously the route allowed role 'rider' and the service looked the record
+// up by :id alone, so any signed-in rider could read every other rider's name,
+// phone and status by walking ids.
+const isSelfOrAdmin = (req: Request): boolean => {
+  const actor = (req as any).user;
+  const role = String(actor?.role || '').toLowerCase();
+  if (['admin', 'super_admin', 'superadmin'].includes(role)) return true;
+  return String(actor?._id || '') === String(req.params.id);
+};
+
 const getRiderByIdController = async (req: Request, res: Response) => {
   try {
+    if (!isSelfOrAdmin(req)) {
+      return res.status(403).json({ success: false, message: 'You may only view your own rider profile' });
+    }
     const rider = await RiderService.getRiderByIdService(req.params.id);
     if (!rider) return res.status(404).json({ success: false, message: 'Rider not found' });
     res.status(200).json({ success: true, data: rider });
@@ -85,6 +99,11 @@ const getRiderByIdController = async (req: Request, res: Response) => {
 // ⚡ UPDATED: updateRiderStatusController (Socket Added)
 const updateRiderStatusController = async (req: Request, res: Response) => {
   try {
+    if (!isSelfOrAdmin(req)) {
+      return res
+        .status(403)
+        .json({ success: false, message: 'You may only change your own availability' });
+    }
     const status = req.body.status;
     if (!['Available', 'Busy'].includes(status)) {
       return res.status(400).json({ success: false, message: 'status must be Available or Busy' });

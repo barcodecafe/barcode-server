@@ -2,8 +2,9 @@ import cors, { CorsOptions } from 'cors';
 import express, { Application, NextFunction, Request, Response } from 'express';
 import path from 'path';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import mongoSanitize from 'express-mongo-sanitize';
+import jwt from 'jsonwebtoken';
 
 import config from './app/config';
 import { AuthRoutes } from './app/modules/auth/auth.routes';
@@ -26,6 +27,15 @@ import { SearchRoutes } from './app/modules/search/search.routes';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
 
 const app: Application = express();
+
+// 🔁 Behind a reverse proxy (Coolify / nginx / Traefik), req.ip is the PROXY's
+// address unless this is set — which made every rate limiter below key on a
+// single IP, so the whole site shared one 500-request budget and one busy rider
+// could 429 every other user.
+//
+// Defaults to one hop (Coolify/Traefik). Override with TRUST_PROXY if a CDN
+// sits in front as well — see the note in config/index.ts.
+app.set('trust proxy', config.trust_proxy);
 
 // ✅ Security: Helmet (HTTP headers)
 app.use(helmet());
@@ -64,7 +74,9 @@ app.use(cors(corsOptions));
 //
 // Everything the app serves outside /api is listed here and passes through
 // untouched; anything else is assumed to be an API call missing its prefix.
-const PROXY_PASSTHROUGH_PREFIXES = ['/api', '/uploads'];
+// `/health` is listed so load-balancer probes don't get rewritten into
+// `/api/health`, 404, and burn a slot in the rate limiter below.
+const PROXY_PASSTHROUGH_PREFIXES = ['/api', '/uploads', '/health', '/favicon.ico'];
 app.use((req: Request, _res: Response, next: NextFunction) => {
   const isRoot = req.url === '/' || req.url.startsWith('/?');
   const isPassthrough = PROXY_PASSTHROUGH_PREFIXES.some(
@@ -74,12 +86,39 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
-// ✅ Security: Rate Limiting (global — 500 req / 15min / IP)
+// ✅ Security: Rate Limiting (global)
+//
+// Keyed per authenticated USER, falling back to IP for anonymous traffic. IP
+// alone is the wrong unit here: riders and staff routinely share one mobile
+// carrier NAT or one office connection, so an IP-only budget let one person's
+// dashboard lock out everyone behind the same address. The token is verified
+// (not just decoded) so nobody can mint fresh buckets with a forged `sub`.
+const rateLimitKey = (req: Request): string => {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(authHeader.split(' ')[1], config.jwt.access_secret) as {
+        _id?: string;
+      };
+      if (decoded?._id) return `u:${decoded._id}`;
+    } catch {
+      // fall through to IP — an invalid token is anonymous traffic
+    }
+  }
+  // ipKeyGenerator normalizes IPv6 into a /64 subnet so a single host can't
+  // rotate through its address space to get unlimited buckets.
+  return `ip:${ipKeyGenerator(req.ip ?? '')}`;
+};
+
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500, // dev-friendly; reduce to ~100 in production
+  max: 1500,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: rateLimitKey,
+  // CORS preflights carry no credentials and do no work — counting them just
+  // halves everyone's real budget.
+  skip: (req) => req.method === 'OPTIONS',
   message: { success: false, message: 'Too many requests. Please try again later.' },
 });
 app.use('/api', globalLimiter);
@@ -159,6 +198,9 @@ app.use('/api/search', SearchRoutes);
 // Health check
 app.get('/', (req: Request, res: Response) => {
   res.status(200).json({ success: true, message: 'Barcode Restaurant Server is running! 🍽️🚀' });
+});
+app.get('/health', (_req: Request, res: Response) => {
+  res.status(200).json({ success: true, status: 'ok' });
 });
 
 // Global error handler

@@ -29,8 +29,12 @@ const userSchema = new Schema<IUser>(
     password: { type: String, required: true, select: false },
     
     role: {
+      // 'super_admin' is listed because routes and controllers already branch on
+      // it. It was missing here, so the role could never actually be stored —
+      // every authorize('admin','super_admin') was really just authorize('admin')
+      // and the extra branches were dead code.
       type: String,
-      enum: ['user', 'rider', 'admin'],
+      enum: ['user', 'rider', 'admin', 'super_admin'],
       default: 'user',
       required: true,
     },
@@ -95,5 +99,13 @@ userSchema.pre('save', async function (next) {
   }
   next();
 });
+
+// ── Indexes ────────────────────────────────────────────────────────────────
+// `role` had no index at all, so listing the rider fleet or finding the next
+// available rider scanned every user document. email/phone/membershipId are
+// already indexed via their `unique: true` declarations above.
+userSchema.index({ role: 1, isDeleted: 1 }); // rider fleet, admin user list
+userSchema.index({ role: 1, isDeleted: 1, riderStatus: 1 }); // next-available-rider lookup
+userSchema.index({ isDeleted: 1, createdAt: -1 }); // admin customer registry
 
 export const User = model<IUser>('User', userSchema);

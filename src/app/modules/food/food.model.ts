@@ -75,4 +75,13 @@ const foodSchema = new Schema<IFood>(
   }
 );
 
+// ── Indexes ────────────────────────────────────────────────────────────────
+// The single-field indexes declared inline above cannot serve the three-key
+// default sort, so every menu request paid for an in-memory sort of the whole
+// collection. These compounds match the actual sort/filter shapes.
+foodSchema.index({ categoryOrder: 1, order: 1, id: 1 }); // default menu sort
+foodSchema.index({ category: 1, order: 1, id: 1 }); // category-filtered menu
+foodSchema.index({ isAdminFeatured: 1, featuredOrder: 1 }); // featured rail
+foodSchema.index({ branchIds: 1 }); // multikey — per-branch menu
+
 export const Food = model<IFood>('Food', foodSchema);

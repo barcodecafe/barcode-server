@@ -91,18 +91,27 @@ const getOrdersController = async (req: Request, res: Response) => {
     let data;
     const role = String(actor?.role || '').toLowerCase();
 
+    // ?limit / ?page were accepted by the service layer but never read here, so
+    // every caller downloaded the entire collection. They stay OPTIONAL: with no
+    // limit the response is unchanged, which keeps the settlement views (which
+    // genuinely need the full history) working exactly as before.
+    const rawLimit = Math.floor(Number(req.query.limit));
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : undefined;
+    const rawPage = Math.floor(Number(req.query.page));
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+
     if (['admin', 'super_admin', 'superadmin'].includes(role)) {
       const userId = req.query.userId as string | undefined;
       // 🎯 অ্যাডমিনের ক্ষেত্রে সবসময় false পাঠানো হচ্ছে, যাতে রিফ্রেশ দিলেও পুরানো ও নতুন সব অর্ডার ডাটাবেজ থেকে রিটার্ন হয়
       data = userId
-        ? await OrderService.getOrdersForUserService(userId, false)
-        : await OrderService.getAllOrdersService(false);
+        ? await OrderService.getOrdersForUserService(userId, false, limit, page)
+        : await OrderService.getAllOrdersService(false, limit, page);
     } else if (role === 'rider') {
       const active = req.query.active === 'true';
-      data = await OrderService.getOrdersForRiderService(actor._id, active);
+      data = await OrderService.getOrdersForRiderService(actor._id, active, limit, page);
     } else {
       const active = req.query.active === 'true';
-      data = await OrderService.getOrdersForUserService(actor._id, active);
+      data = await OrderService.getOrdersForUserService(actor._id, active, limit, page);
     }
 
     res.status(200).json({ success: true, data });
@@ -138,6 +147,28 @@ const getOrderByIdController = async (req: Request, res: Response) => {
 // PATCH /api/orders/:id/status — Admin/Rider
 const updateStatusController = async (req: Request, res: Response) => {
   try {
+    const actor = (req as any).user;
+    const role = String(actor?.role || '').toLowerCase();
+
+    // The route allows role 'rider', but nothing checked WHICH rider. Any
+    // signed-in rider could drive any order through the delivery flow — mark a
+    // stranger's order Delivered, or Reject it — because the service only ever
+    // looked the order up by :id. Riders are now restricted to the orders
+    // actually assigned to them; admins keep full control.
+    if (role === 'rider') {
+      const existing = await OrderService.getOrderByIdService(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ success: false, message: 'Order not found' });
+      }
+      const assignedRiderId = String((existing as any).riderId || '');
+      if (!assignedRiderId || assignedRiderId !== String(actor?._id || '')) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not the rider assigned to this order',
+        });
+      }
+    }
+
     const order = await OrderService.updateOrderStatusService(req.params.id, req.body.status);
 
     // ⚡ Socket Notification: Status Changed

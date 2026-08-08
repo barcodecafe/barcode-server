@@ -3,6 +3,7 @@
 import { Order } from '../order/order.model';
 import { Food } from '../food/food.model';
 import { Branch } from '../branch/branch.model';
+import { cached } from '../../utils/ttlCache';
 
 // Rejected বাদ দিয়ে valid orders
 // 'Awaiting Payment' orders are not real orders yet — they must not appear in
@@ -10,6 +11,18 @@ import { Branch } from '../branch/branch.model';
 const VALID = { status: { $nin: ['Rejected', 'Awaiting Payment'] } };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+
+// Every figure below is a full pass over the Order collection, and the seven
+// dashboard cards request them together on each mount. Revenue charts do not
+// need second-level freshness, so results are cached briefly and concurrent
+// callers share one computation (see ttlCache).
+const TTL_MS = 45_000;
+
+// Stages that sort or group the whole collection can exceed MongoDB's 100 MB
+// per-stage memory limit once the order history grows, which surfaced as the
+// endpoint 500-ing and the dashboard card going permanently blank. Spilling to
+// disk is slower than failing but it is correct.
+const AGG_OPTS = { allowDiskUse: true } as const;
 
 // GET /analytics/revenue-by-branch
 const getRevenueByBranchService = async () => {
@@ -41,7 +54,7 @@ const getOrdersByCategoryService = async () => {
     { $unwind: '$items' },
     { $group: { _id: { $ifNull: ['$items.category', 'Uncategorized'] }, value: { $sum: '$items.quantity' } } },
     { $sort: { value: -1 } },
-  ]);
+  ], AGG_OPTS);
   return rows.map((r: any) => ({ category: r._id || 'Uncategorized', value: r.value }));
 };
 
@@ -50,15 +63,31 @@ const getRevenueTrendService = async (months = 12) => {
   // months clamp করি (1..36) — বিশাল value দিলে যেন giant array allocate না হয়। 0/NaN → [] (loop চলে না)।
   const mn = Math.floor(Number(months));
   const safeMonths = Number.isFinite(mn) && mn > 0 ? Math.min(mn, 36) : 0;
-  const rows = await Order.aggregate([
-    { $match: VALID },
-    {
-      $group: {
-        _id: { y: { $year: '$createdAt' }, m: { $month: '$createdAt' } },
-        revenue: { $sum: '$total' },
-      },
-    },
-  ]);
+
+  // Only the requested window is grouped. Previously the $match had no date
+  // bound at all, so `?months=1` still grouped the entire order history and
+  // then threw everything outside the window away in JS below.
+  const nowForWindow = new Date();
+  const windowStart = new Date(
+    nowForWindow.getFullYear(),
+    nowForWindow.getMonth() - (safeMonths - 1),
+    1,
+  );
+
+  const rows = safeMonths
+    ? await Order.aggregate(
+        [
+          { $match: { ...VALID, createdAt: { $gte: windowStart } } },
+          {
+            $group: {
+              _id: { y: { $year: '$createdAt' }, m: { $month: '$createdAt' } },
+              revenue: { $sum: '$total' },
+            },
+          },
+        ],
+        AGG_OPTS,
+      )
+    : [];
   const key = (y: number, m: number) => `${y}-${m}`;
   const map = new Map(rows.map((r: any) => [key(r._id.y, r._id.m), r.revenue]));
 
@@ -92,7 +121,7 @@ const getTopDishesService = async (limit = 5) => {
     },
     { $sort: { orders: -1 } },
     { $limit: safeLimit },
-  ]);
+  ], AGG_OPTS);
   const ids = rows.map((r: any) => r._id);
   const foods = await Food.find({ id: { $in: ids } });
   const foodMap = new Map(foods.map((f) => [f.id, f]));
@@ -165,7 +194,7 @@ const getTopCustomersService = async (limit = 0) => {
     { $sort: { totalSpent: -1 } },
   ];
   if (safeLimit) pipeline.push({ $limit: safeLimit });
-  const rows = await Order.aggregate(pipeline);
+  const rows = await Order.aggregate(pipeline, AGG_OPTS);
   return rows.map((r: any, i: number) => ({
     rank: i + 1,
     userId: r._id,
@@ -247,7 +276,7 @@ const getTopRidersService = async (limit = 5) => {
       // createdAt alone is not a total order; _id breaks ties deterministically.
       { $sort: { deliveries: -1, deliveredValue: -1 } },
       { $limit: safeLimit },
-    ]),
+    ], AGG_OPTS),
     // Deliveries a rider actually turned down.
     Order.aggregate([
       { $match: { rejectedRiderIds: { $exists: true, $ne: [] } } },
@@ -275,7 +304,7 @@ const getTopRidersService = async (limit = 5) => {
         },
       },
       { $group: { _id: '$rejectedRiderIds', rejected: { $sum: 1 } } },
-    ]),
+    ], AGG_OPTS),
   ]);
 
   const rejectedBy = new Map(refusals.map((r: any) => [String(r._id), r.rejected]));
@@ -301,12 +330,27 @@ const getTopRidersService = async (limit = 5) => {
   });
 };
 
+// Cache keys carry every argument that changes the result, so `?limit=5` and
+// `?limit=20` never serve each other's rows.
 export const AnalyticsService = {
-  getRevenueByBranchService,
-  getOrdersByCategoryService,
-  getRevenueTrendService,
-  getTopDishesService,
-  getDashboardSummaryService,
-  getTopCustomersService,
-  getTopRidersService,
+  getRevenueByBranchService: () =>
+    cached('analytics:revenue-by-branch', TTL_MS, getRevenueByBranchService),
+
+  getOrdersByCategoryService: () =>
+    cached('analytics:orders-by-category', TTL_MS, getOrdersByCategoryService),
+
+  getRevenueTrendService: (months = 12) =>
+    cached(`analytics:revenue-trend:${months}`, TTL_MS, () => getRevenueTrendService(months)),
+
+  getTopDishesService: (limit = 5) =>
+    cached(`analytics:top-dishes:${limit}`, TTL_MS, () => getTopDishesService(limit)),
+
+  getDashboardSummaryService: () =>
+    cached('analytics:summary', TTL_MS, getDashboardSummaryService),
+
+  getTopCustomersService: (limit = 0) =>
+    cached(`analytics:top-customers:${limit}`, TTL_MS, () => getTopCustomersService(limit)),
+
+  getTopRidersService: (limit = 5) =>
+    cached(`analytics:top-riders:${limit}`, TTL_MS, () => getTopRidersService(limit)),
 };

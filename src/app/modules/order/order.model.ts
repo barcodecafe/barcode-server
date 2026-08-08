@@ -98,4 +98,20 @@ const orderSchema = new Schema<IOrder>(
   }
 );
 
+// ── Indexes ────────────────────────────────────────────────────────────────
+// Without these every list, count and analytics aggregation was a full
+// collection scan, which is what made the admin and rider dashboards take
+// seconds to paint. Each one is paired with the query that needs it; the sort
+// key is part of the compound index so Mongo can walk it instead of loading
+// the whole result set into memory to sort.
+orderSchema.index({ createdAt: -1 }); // admin list (unfiltered) + default sort
+orderSchema.index({ status: 1, createdAt: -1 }); // active-order filters, pending-count
+orderSchema.index({ 'user.id': 1, createdAt: -1 }); // a customer's own orders
+orderSchema.index({ riderId: 1, createdAt: -1 }); // a rider's assigned orders
+orderSchema.index({ riderId: 1, riderAcceptStatus: 1, status: 1 }); // rider accept/reject flow
+orderSchema.index({ riderId: 1, deliveredAt: -1 }); // cash settlement summaries
+// Payment callbacks look an order up by gateway transaction id on every IPN.
+// Sparse: only gateway orders have one, COD orders store ''.
+orderSchema.index({ transactionId: 1 }, { sparse: true });
+
 export const Order = model<IOrder>('Order', orderSchema);

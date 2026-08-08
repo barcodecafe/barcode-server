@@ -43,4 +43,8 @@ const couponSchema = new Schema<ICoupon>(
   }
 );
 
+// Admin coupon list sorts by newest first; `code` and `couponId` are already
+// indexed via their unique declarations above.
+couponSchema.index({ createdAt: -1 });
+
 export const Coupon = model<ICoupon>('Coupon', couponSchema);

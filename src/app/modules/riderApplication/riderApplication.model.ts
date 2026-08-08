@@ -39,4 +39,9 @@ const schema = new Schema<IRiderApplication>(
   }
 );
 
+// ── Indexes ────────────────────────────────────────────────────────────────
+// This collection had none; both queries it serves were full scans.
+schema.index({ userId: 1, status: 1 }); // "does this user already have an application?"
+schema.index({ createdAt: -1 }); // admin review list
+
 export const RiderApplication = model<IRiderApplication>('RiderApplication', schema);

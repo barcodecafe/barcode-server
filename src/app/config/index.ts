@@ -1,7 +1,30 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
+// Resolve .env relative to THIS file, not the process working directory.
+// process.cwd() depends on how the app was started — pm2 without `cwd`,
+// systemd, a Docker WORKDIR mismatch or a one-off shell all silently loaded no
+// .env at all, and every value below fell back to its development default. The
+// symptom was not an error: JWT verification began failing on every request and
+// CORS stopped emitting the production origin, so the dashboard authenticated
+// and then showed nothing. __dirname is dist/app/config at runtime and
+// src/app/config under ts-node, so walk up to the project root either way.
+dotenv.config({ path: path.join(__dirname, '../../../.env') });
+// Keep the old location as a fallback so an existing deployment that relies on
+// the cwd-relative file does not suddenly lose its configuration.
 dotenv.config({ path: path.join(process.cwd(), '.env') });
+
+// Fail fast on missing secrets. Without this the process starts happily and
+// then rejects every authenticated request with 403 'Invalid or expired token',
+// which looks like an application bug rather than a misconfigured deploy.
+const REQUIRED_ENV = ['DATABASE_URL', 'JWT_ACCESS_SECRET'] as const;
+const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (missing.length) {
+  throw new Error(
+    `Missing required environment variable(s): ${missing.join(', ')}. ` +
+      'Set them in .env or in the deployment environment before starting the server.',
+  );
+}
 
 export default {
   node_env: process.env.NODE_ENV || 'development',
@@ -30,6 +53,24 @@ export default {
     store_pass: process.env.SSLCOMMERZ_STORE_PASS,
     is_live: process.env.SSLCOMMERZ_IS_LIVE === 'true',
   },
+
+  // How many reverse-proxy hops sit in front of this server. Express uses it to
+  // work out the real client IP, which the rate limiter keys anonymous traffic
+  // on. Coolify/Traefik alone is one hop (the default). Put Cloudflare — or any
+  // other CDN — in front and it becomes two: leave this at 1 and every visitor
+  // is bucketed under the CDN's edge IP, i.e. the exact shared-budget problem
+  // trust proxy was added to fix.
+  //
+  // Never set this to 'true'. That trusts a client-supplied X-Forwarded-For, so
+  // anyone can forge a fresh rate-limit bucket per request.
+  // ⚠️ The empty string must fall through to the default, not be parsed:
+  // Number('') is 0, and `trust proxy: 0` silently disables proxy awareness —
+  // reinstating the shared-IP rate-limit bucket this setting exists to prevent.
+  // A dashboard that creates the variable without a value is an easy mistake.
+  trust_proxy:
+    process.env.TRUST_PROXY && Number.isFinite(Number(process.env.TRUST_PROXY))
+      ? Number(process.env.TRUST_PROXY)
+      : 1,
 
   // Client
   client_url: process.env.CLIENT_URL || 'http://localhost:5173',

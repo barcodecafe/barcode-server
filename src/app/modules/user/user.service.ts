@@ -5,9 +5,23 @@ import { ensureMembership } from '../../utils/membership';
 // সব ইউজার তালিকা (Admin) — BACKEND: GET /api/users
 const getAllUsersService = async () => {
   const users = await User.find({ isDeleted: false }).sort({ createdAt: -1 });
+
   // Lazy backfill: customers created before the loyalty-card feature have no
   // membershipId/QR yet — generate them once, on first admin list.
-  await Promise.all(users.map((u) => (u.role === 'user' ? ensureMembership(u) : Promise.resolve(u))));
+  //
+  // ⚠️ Only users that are actually MISSING one get touched. This used to call
+  // ensureMembership() for every customer on every request; each call generated
+  // a 240px QR PNG and issued an updateOne, so a read-only endpoint performed N
+  // writes and N image encodes each time the admin opened the Customers page.
+  // Once a customer is backfilled, this filter drops to empty and the endpoint
+  // becomes a plain read.
+  const needsBackfill = users.filter(
+    (u) => u.role === 'user' && (!u.membershipId || !u.membershipQr),
+  );
+  if (needsBackfill.length) {
+    await Promise.all(needsBackfill.map((u) => ensureMembership(u)));
+  }
+
   return users;
 };
 

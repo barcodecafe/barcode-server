@@ -25,6 +25,41 @@ import {
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
+// ── Projection for order LIST endpoints ────────────────────────────────────
+//
+// `items[].image` holds a full base64 data URL of the dish photo, snapshotted
+// onto every line item at checkout. Measured against production: ~38 KB per
+// item, ~349 KB per order, and 308 orders — so `GET /orders` was shipping
+// **105 MB of JSON** to the admin dashboard on every single load, and to every
+// rider poll. That, far more than query time, is why the dashboards "load late".
+//
+// Nothing in any list view renders these images: the admin table, the rider job
+// list, the fleet page and the customer's order history all show name/qty/price
+// only. The one screen that does show them — the customer's order tracking page
+// — loads a single order through getOrderByIdService, which deliberately keeps
+// the images.
+//
+// Excluding the field here cuts the list payload by roughly 99% without
+// changing a single pixel of the UI.
+const LIST_PROJECTION = "-chatHistory -items.image";
+
+// ── `id` normalisation for .lean() reads ───────────────────────────────────
+//
+// The schema's toJSON transform (order.model.ts) sets `id` and deletes `_id`,
+// but .lean() returns plain objects and bypasses transforms entirely. That gave
+// the same resource two different shapes: list endpoints answered with `_id`
+// only, while socket payloads and mutation responses — real Mongoose documents —
+// answered with `id` only. Every consumer then had to write `o.id || o._id`,
+// and the places that forgot rendered "Order #EFINED" or dropped rows.
+//
+// These helpers put `id` on lean results so both paths agree. `_id` is kept as
+// well so existing callers that read it keep working.
+const withId = <T extends { _id?: unknown }>(doc: T | null): T | null =>
+  doc ? ({ ...doc, id: String(doc._id) } as T) : null;
+
+const withIds = <T extends { _id?: unknown }>(docs: T[]): T[] =>
+  docs.map((d) => ({ ...d, id: String(d._id) }) as T);
+
 type CreateItem = {
   id: number;
   quantity: number;
@@ -97,6 +132,21 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     .toString()
     .trim();
 
+  // Fetch every food in ONE query instead of one round trip per cart line.
+  // Checkout previously issued N sequential findOne() calls, so a five-item
+  // cart paid five network round trips to MongoDB before it could even price
+  // the order.
+  //
+  // Non-numeric ids are filtered out rather than passed to $in: a NaN inside
+  // the array makes Mongoose throw a CastError, which would surface as a 500
+  // instead of the clean 400 "Food not found" the loop below produces. The loop
+  // still validates every item, so a bad id is rejected with the right status.
+  const foodIds = payload.items
+    .map((raw) => Number(raw.id))
+    .filter((id) => Number.isFinite(id));
+  const foodDocs = await Food.find({ id: { $in: foodIds } });
+  const foodById = new Map(foodDocs.map((f) => [f.id, f]));
+
   const lineItems: any[] = [];
   let subtotal = 0;
   for (const raw of payload.items) {
@@ -106,7 +156,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       err.status = 400;
       throw err;
     }
-    const food = await Food.findOne({ id: Number(raw.id) });
+    const food = foodById.get(Number(raw.id));
     if (!food) {
       const err: any = new Error(`Food not found (id ${raw.id}).`);
       err.status = 400;
@@ -289,14 +339,14 @@ const getAllOrdersService = async (
   }
 
   let query = Order.find(filter)
-    .select("-chatHistory")
+    .select(LIST_PROJECTION)
     .sort({ createdAt: -1 });
 
   if (limit && limit > 0) {
     query = query.limit(limit).skip((page - 1) * limit);
   }
 
-  return query.lean();
+  return withIds(await query.lean());
 };
 
 const getOrdersForUserService = async (
@@ -309,14 +359,14 @@ const getOrdersForUserService = async (
   if (active === true) filter.status = { $nin: ["Delivered", "Rejected"] };
 
   let query = Order.find(filter)
-    .select("-chatHistory")
+    .select(LIST_PROJECTION)
     .sort({ createdAt: -1 });
 
   if (limit && limit > 0) {
     query = query.limit(limit).skip((page - 1) * limit);
   }
 
-  return query.lean();
+  return withIds(await query.lean());
 };
 
 const getOrdersForRiderService = async (
@@ -335,19 +385,19 @@ const getOrdersForRiderService = async (
   if (active === true) filter.status = { $nin: ["Delivered", "Rejected"] };
 
   let query = Order.find(filter)
-    .select("-chatHistory")
+    .select(LIST_PROJECTION)
     .sort({ createdAt: -1 });
 
   if (limit && limit > 0) {
     query = query.limit(limit).skip((page - 1) * limit);
   }
 
-  return query.lean();
+  return withIds(await query.lean());
 };
 
 const getOrderByIdService = async (id: string) => {
   if (!isValidObjectId(id)) return null;
-  return Order.findById(id).lean();
+  return withId(await Order.findById(id).lean());
 };
 
 const syncRiderAvailability = async (riderId?: string | null) => {

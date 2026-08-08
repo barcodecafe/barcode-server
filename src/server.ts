@@ -16,9 +16,19 @@ async function connectDB() {
 
   if (!cached.promise) {
     const opts = {
-      bufferCommands: false,
+      // Buffering is ON deliberately. With `bufferCommands: false`, any brief
+      // loss of the Atlas connection (failover, idle reap, network blip) made
+      // every in-flight query fail instantly with "Client must be connected
+      // before running operations" — which reached the browser as an empty
+      // dashboard. Buffering holds queries for up to bufferTimeoutMS while the
+      // driver reconnects, so a blip costs latency instead of blank screens.
+      bufferCommands: true,
+      bufferTimeoutMS: 15000,
       serverSelectionTimeoutMS: 10000,
       connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      maxPoolSize: 20,
+      maxIdleTimeMS: 60000,
     };
     cached.promise = mongoose
       .connect(config.database_url as string, opts)
