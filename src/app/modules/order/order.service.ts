@@ -31,6 +31,8 @@ type CreateItem = {
   selectedSize?: string | null;
   offerType?: string | null;
   originalPrice?: number;
+  price?: number;     // 🎯 ফ্রন্টএন্ড থেকে আসা ফাইনাল বা ব্রাঞ্চ প্রাইস রিসিভ করার জন্য
+  branchId?: number;  // 🎯 ব্রাঞ্চ আইডি রিসিভ করার জন্য
 };
 type CreatePayload = {
   items: CreateItem[];
@@ -114,15 +116,17 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       throw err;
     }
 
-    // region-based ordering → no per-branch price adjustment; use the base price.
+    // 🎯 ফিক্স: যদি ফ্রন্টএন্ড বা কার্ট থেকে নির্দিষ্ট কোনো প্রাইস (যেমন ব্রাঞ্চ প্রাইস) পাঠানো হয়, 
+    // তবে সেটাকে প্রাধান্য দেওয়া হবে, নতুবা ডিফল্ট বেস প্রাইস ধরবে।
+    const frontendPrice = Number(raw.price);
     const baseUnitPrice = round2(
-      FoodService.getUnitPrice(food, undefined, raw.selectedSize),
+      !isNaN(frontendPrice) && frontendPrice > 0 
+        ? frontendPrice 
+        : FoodService.getUnitPrice(food, payload.branchId, raw.selectedSize)
     );
 
-    // 🎯 একদম সঠিক এবং নিখুঁত প্রাইস ও ডিসকাউন্ট লজিক
     let foodOfferType = raw.offerType || (food as any).offerType || "none";
 
-    // ফুডের আসল দাম (যেমন: 340)
     let foodOriginalPrice =
       Number((food as any).originalPrice) ||
       Number((food as any).oldPrice) ||
@@ -132,33 +136,33 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     let unitPrice = baseUnitPrice;
     let computedDiscountAmount = 0;
 
-    // যদি ফ্ল্যাট বা পার্সেন্ট ডিসকাউন্ট থাকে, তবে আসল দাম থেকে ক্যালকুলেট হবে
     if (
       (food as any).discountType === "flat" &&
-      Number((food as any).discountAmount) > 0
+      Number((food as any).discountAmount) > 0 &&
+      isNaN(frontendPrice) // ব্রাঞ্চ প্রাইস থাকলে ফ্ল্যাট ডিসকাউন্ট ওভাররাইড এড়াতে
     ) {
       computedDiscountAmount = Number((food as any).discountAmount);
       unitPrice = Math.max(0, foodOriginalPrice - computedDiscountAmount);
     } else if (
       (food as any).discountType === "percent" &&
-      Number((food as any).discountPct) > 0
+      Number((food as any).discountPct) > 0 &&
+      isNaN(frontendPrice)
     ) {
       computedDiscountAmount = round2(
         (foodOriginalPrice * Number((food as any).discountPct)) / 100,
       );
       unitPrice = Math.max(0, foodOriginalPrice - computedDiscountAmount);
-    } else if (baseUnitPrice < foodOriginalPrice) {
-      // যদি baseUnitPrice-ই অফার প্রাইস হয়ে থাকে
-      unitPrice = baseUnitPrice;
-      computedDiscountAmount = round2(foodOriginalPrice - unitPrice);
     } else {
-      foodOriginalPrice = baseUnitPrice;
       unitPrice = baseUnitPrice;
+      if (baseUnitPrice < foodOriginalPrice) {
+        computedDiscountAmount = round2(foodOriginalPrice - unitPrice);
+      } else {
+        foodOriginalPrice = baseUnitPrice;
+      }
     }
 
     subtotal += unitPrice * qty;
 
-    // 🎯 সঠিক ডিসকাউন্ট ও অফার কন্ডিশন চেক
     const hasDiscount =
       computedDiscountAmount > 0 || (foodOfferType && foodOfferType !== "none");
 
