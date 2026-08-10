@@ -91,10 +91,6 @@ const getOrdersController = async (req: Request, res: Response) => {
     let data;
     const role = String(actor?.role || '').toLowerCase();
 
-    // ?limit / ?page were accepted by the service layer but never read here, so
-    // every caller downloaded the entire collection. They stay OPTIONAL: with no
-    // limit the response is unchanged, which keeps the settlement views (which
-    // genuinely need the full history) working exactly as before.
     const rawLimit = Math.floor(Number(req.query.limit));
     const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : undefined;
     const rawPage = Math.floor(Number(req.query.page));
@@ -102,7 +98,6 @@ const getOrdersController = async (req: Request, res: Response) => {
 
     if (['admin', 'super_admin', 'superadmin'].includes(role)) {
       const userId = req.query.userId as string | undefined;
-      // 🎯 অ্যাডমিনের ক্ষেত্রে সবসময় false পাঠানো হচ্ছে, যাতে রিফ্রেশ দিলেও পুরানো ও নতুন সব অর্ডার ডাটাবেজ থেকে রিটার্ন হয়
       data = userId
         ? await OrderService.getOrdersForUserService(userId, false, limit, page)
         : await OrderService.getAllOrdersService(false, limit, page);
@@ -164,24 +159,29 @@ const updateStatusController = async (req: Request, res: Response) => {
       }
     }
 
-    // 🎯 FIX: ইনপুট স্ট্যাটাসকে সঠিক Title Case-এ কনভার্ট করা ( e.g. "ACCEPTED" -> "Accepted" )
     let rawStatus = String(req.body.status || '').trim();
     if (rawStatus) {
-      // "ACCEPTED" বা "accepted" কে "Accepted"-এ রূপান্তর
       rawStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
       
-      // "Ready to pick" বা "Out for delivery" ফরম্যাটিংয়ের জন্য:
       if (rawStatus.toLowerCase() === 'ready to pick') rawStatus = 'Ready to Pick';
       if (rawStatus.toLowerCase() === 'out for delivery') rawStatus = 'Out for Delivery';
     }
 
-    const order = await OrderService.updateOrderStatusService(req.params.id, rawStatus);
+    // 🎯 FIX: req.body থেকে riderAcceptStatus এক্সট্র্যাক্ট করে সার্ভিসে ৩ নম্বর প্যারামিটার হিসেবে পাস করা হলো
+    const riderAcceptStatus = req.body.riderAcceptStatus || null;
+
+    const order = await OrderService.updateOrderStatusService(
+      req.params.id, 
+      rawStatus, 
+      riderAcceptStatus
+    );
 
     // ⚡ Socket Notification: Status Changed
     const io = req.app.get('io');
     if (io) {
       io.emit('order_status_updated', { orderId: req.params.id, status: rawStatus, order });
       io.emit('order_updated', order);
+      io.emit('rider_order_updated', order);
     }
 
     res.status(200).json({ success: true, message: 'Status updated', data: order });
