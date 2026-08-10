@@ -10,7 +10,7 @@ const orderItemSchema = new Schema(
     quantity: { type: Number, required: true, min: 1 },
     image: { type: String, default: '' },
     selectedSize: { type: String, default: null },
-    // 🎯 অফার ও ডিসকাউন্ট ফিল্ডগুলো এখানে স্কিমায় যুক্ত করা বাধ্যতামূলক
+    // 🎯 অফার ও ডিসকাউন্ট ফিল্ডগুলো এখানে স্কিমায় যুক্ত করা বাধ্যতামূলক
     offerType: { type: String, default: null },
     originalPrice: { type: Number, default: 0 },
     discountPct: { type: Number, default: 0 },
@@ -73,7 +73,11 @@ const orderSchema = new Schema<IOrder>(
     riderId: { type: String, default: null },
     riderName: { type: String, default: null },
     riderPhone: { type: String, default: null }, // snapshot for the customer's Call button
-    riderAcceptStatus: { type: String, enum: ['pending', 'accepted', null], default: null },
+    riderAcceptStatus: { 
+      type: String, 
+      enum: ['pending', 'accepted', 'rejected', 'none', null], 
+      default: null 
+    },
     rejectedRiderIds: { type: [String], default: [] },
     chatHistory: { type: [chatMessageSchema], default: [] },
 

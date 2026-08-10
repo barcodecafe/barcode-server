@@ -99,7 +99,8 @@ export interface IOrder {
   riderId?: string | null;
   riderName?: string | null;
   riderPhone?: string | null; // snapshot so the customer can call the actual rider
-  riderAcceptStatus?: 'pending' | 'accepted' | null;
+  // 🎯 'rejected' এবং 'none' যুক্ত করা হয়েছে যাতে এডমিন বা রাইডার রিজেক্ট করলে টাইপ এরর না আসে
+  riderAcceptStatus?: 'pending' | 'accepted' | 'rejected' | 'none' | null;
   rejectedRiderIds?: string[];
   chatHistory: IChatMessage[];
 

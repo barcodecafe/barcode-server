@@ -16,12 +16,6 @@ async function connectDB() {
 
   if (!cached.promise) {
     const opts = {
-      // Buffering is ON deliberately. With `bufferCommands: false`, any brief
-      // loss of the Atlas connection (failover, idle reap, network blip) made
-      // every in-flight query fail instantly with "Client must be connected
-      // before running operations" — which reached the browser as an empty
-      // dashboard. Buffering holds queries for up to bufferTimeoutMS while the
-      // driver reconnects, so a blip costs latency instead of blank screens.
       bufferCommands: true,
       bufferTimeoutMS: 15000,
       serverSelectionTimeoutMS: 10000,
@@ -126,12 +120,19 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 📝 4. ডাটা আপডেট
+  // 📝 4. ডাটা আপডেট (এডমিন ও রাইডার স্ট্যাটাস ওভাররাইডের জন্য)
   socket.on('order_updated', (data) => {
+    io.emit('order_updated', data);
+    io.emit('rider_order_updated', data);
+  });
+
+  // 🚴 5. রাইডার অর্ডারের স্ট্যাটাস আপডেট ব্রডকাস্ট
+  socket.on('rider_order_updated', (data) => {
+    io.emit('rider_order_updated', data);
     io.emit('order_updated', data);
   });
 
-  // 💬 5. চ্যাট মেসেজ
+  // 💬 6. চ্যাট মেসেজ
   socket.on('send_message', (data) => {
     io.emit('new_chat_message', data);
   });
@@ -163,5 +164,3 @@ export default async function handler(req: any, res: any) {
   await connectDB();
   return app(req, res);
 }
-
-// ...........
