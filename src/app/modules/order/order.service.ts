@@ -408,25 +408,25 @@ const updateOrderStatusService = async (
     order.riderAcceptStatus = riderAcceptStatus as any;
   }
 
-  let statusKey = (rawStatus || "").trim().toLowerCase();
-  let newStatus: OrderStatus;
-
-  if (statusKey === "accepted") {
-    newStatus = "Accepted" as OrderStatus;
-  } else if (LEGACY_MAP[statusKey]) {
-    newStatus = LEGACY_MAP[statusKey];
+  // 🎯 FIX: ইনপুট কেস-ইনসেন্সিটিভভাবে আসল ORDER_STATUSES এর সাথে ম্যাচ করা
+  const cleanInput = (rawStatus || "").trim().toLowerCase();
+  
+  let matchedStatus: OrderStatus | undefined;
+  if (LEGACY_MAP[cleanInput]) {
+    matchedStatus = LEGACY_MAP[cleanInput];
   } else {
-    newStatus = rawStatus
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(" ") as OrderStatus;
+    matchedStatus = ORDER_STATUSES.find(
+      (s) => s.toLowerCase() === cleanInput
+    );
   }
 
-  if (!ORDER_STATUSES.includes(newStatus)) {
+  if (!matchedStatus) {
     const err: any = new Error(`Invalid status "${rawStatus}".`);
     err.status = 400;
     throw err;
   }
+
+  const newStatus = matchedStatus;
 
   if (newStatus === "Out for Delivery" || newStatus === "Delivered") {
     if (!order.riderId || (order.riderAcceptStatus || "").toLowerCase() !== "accepted") {
