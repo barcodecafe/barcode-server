@@ -160,14 +160,18 @@ const updateStatusController = async (req: Request, res: Response) => {
     }
 
     let rawStatus = String(req.body.status || '').trim();
-    if (rawStatus) {
-      rawStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
-      
-      if (rawStatus.toLowerCase() === 'ready to pick') rawStatus = 'Ready to Pick';
-      if (rawStatus.toLowerCase() === 'out for delivery') rawStatus = 'Out for Delivery';
-    }
 
-    // 🎯 FIX: req.body থেকে riderAcceptStatus এক্সট্র্যাক্ট করে সার্ভিসে ৩ নম্বর প্যারামিটার হিসেবে পাস করা হলো
+    // 🎯 FIX: কেস-সংবেদনশীল নরম্যালাইজেশন সঠিকভাবে হ্যান্ডেল করা হলো
+    const lowerStatus = rawStatus.toLowerCase();
+    if (lowerStatus === 'accepted') rawStatus = 'Accepted';
+    else if (lowerStatus === 'preparing' || lowerStatus === 'ready to cook') rawStatus = 'Preparing';
+    else if (lowerStatus === 'ready to pick' || lowerStatus === 'food ready') rawStatus = 'Ready to Pick';
+    else if (lowerStatus === 'out for delivery' || lowerStatus === 'on the way') rawStatus = 'Out for Delivery';
+    else if (lowerStatus === 'delivered' || lowerStatus === 'order handover') rawStatus = 'Delivered';
+    else if (lowerStatus === 'rejected') rawStatus = 'Rejected';
+    else if (lowerStatus === 'placed') rawStatus = 'Placed';
+
+    // req.body থেকে riderAcceptStatus এক্সট্র্যাক্ট করে সার্ভিসে ৩ নম্বর প্যারামিটার হিসেবে পাস করা হলো
     const riderAcceptStatus = req.body.riderAcceptStatus || null;
 
     const order = await OrderService.updateOrderStatusService(
