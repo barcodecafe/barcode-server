@@ -150,11 +150,6 @@ const updateStatusController = async (req: Request, res: Response) => {
     const actor = (req as any).user;
     const role = String(actor?.role || '').toLowerCase();
 
-    // The route allows role 'rider', but nothing checked WHICH rider. Any
-    // signed-in rider could drive any order through the delivery flow — mark a
-    // stranger's order Delivered, or Reject it — because the service only ever
-    // looked the order up by :id. Riders are now restricted to the orders
-    // actually assigned to them; admins keep full control.
     if (role === 'rider') {
       const existing = await OrderService.getOrderByIdService(req.params.id);
       if (!existing) {
@@ -169,12 +164,23 @@ const updateStatusController = async (req: Request, res: Response) => {
       }
     }
 
-    const order = await OrderService.updateOrderStatusService(req.params.id, req.body.status);
+    // 🎯 FIX: ইনপুট স্ট্যাটাসকে সঠিক Title Case-এ কনভার্ট করা ( e.g. "ACCEPTED" -> "Accepted" )
+    let rawStatus = String(req.body.status || '').trim();
+    if (rawStatus) {
+      // "ACCEPTED" বা "accepted" কে "Accepted"-এ রূপান্তর
+      rawStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+      
+      // "Ready to pick" বা "Out for delivery" ফরম্যাটিংয়ের জন্য:
+      if (rawStatus.toLowerCase() === 'ready to pick') rawStatus = 'Ready to Pick';
+      if (rawStatus.toLowerCase() === 'out for delivery') rawStatus = 'Out for Delivery';
+    }
+
+    const order = await OrderService.updateOrderStatusService(req.params.id, rawStatus);
 
     // ⚡ Socket Notification: Status Changed
     const io = req.app.get('io');
     if (io) {
-      io.emit('order_status_updated', { orderId: req.params.id, status: req.body.status, order });
+      io.emit('order_status_updated', { orderId: req.params.id, status: rawStatus, order });
       io.emit('order_updated', order);
     }
 

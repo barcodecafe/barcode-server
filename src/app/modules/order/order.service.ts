@@ -435,7 +435,22 @@ const updateOrderStatusService = async (id: string, rawStatus: string) => {
   }
   const oldStatus = order.status;
 
-  let newStatus = (LEGACY_MAP[rawStatus] || rawStatus) as OrderStatus;
+  // 🎯 FIX: ইনপুট স্ট্যাটাস নরম্যালাইজেশন (Uppercase, Lowercase বা Legacy Mapping হ্যান্ডেল করতে)
+  let statusKey = (rawStatus || "").trim().toLowerCase();
+  let newStatus: OrderStatus;
+
+  if (statusKey === "accepted") {
+    newStatus = "Accepted" as OrderStatus;
+  } else if (LEGACY_MAP[statusKey]) {
+    newStatus = LEGACY_MAP[statusKey];
+  } else {
+    // Title Case রূপান্তর (যেমন: "out for delivery" -> "Out for Delivery")
+    newStatus = rawStatus
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ") as OrderStatus;
+  }
+
   if (!ORDER_STATUSES.includes(newStatus)) {
     const err: any = new Error(`Invalid status "${rawStatus}".`);
     err.status = 400;
@@ -443,7 +458,7 @@ const updateOrderStatusService = async (id: string, rawStatus: string) => {
   }
 
   if (newStatus === "Out for Delivery" || newStatus === "Delivered") {
-    if (!order.riderId || order.riderAcceptStatus !== "accepted") {
+    if (!order.riderId || (order.riderAcceptStatus || "").toLowerCase() !== "accepted") {
       const err: any = new Error(
         "Assign and confirm a rider before marking this order out for delivery or delivered.",
       );
@@ -613,7 +628,10 @@ const acceptRiderOrderService = async (orderId: string, actorId: string) => {
     e.status = 403;
     throw e;
   }
+
+  // 🎯 FIX: Schema Enum এর সাথে মিল রেখে 'accepted' সেভ নিশ্চিত করা
   order.riderAcceptStatus = "accepted";
+  
   sysMsg(
     order,
     `${order.riderName || "Rider"} accepted the delivery and is heading to the branch.`,

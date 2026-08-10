@@ -55,11 +55,13 @@ const orderSchema = new Schema<IOrder>(
         'Awaiting Payment',
         'Placed',
         'Accepted',
+        'ACCEPTED',
         'Preparing',
         'Ready to Pick',
         'Out for Delivery',
         'Delivered',
-        'Rejected'
+        'Rejected',
+        'REJECTED'
       ], 
       default: 'Placed' 
     },
