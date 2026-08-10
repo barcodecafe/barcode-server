@@ -13,6 +13,8 @@ const toRiderShape = (u: any, activeOrders = 0) => ({
   phone: u.phone || '',
   vehicle: u.vehicle || '',
   status: u.riderStatus || 'Available',
+  approvalStatus: u.riderApprovalStatus || 'pending',
+  role: u.role,
   activeOrders, // in-flight deliveries assigned to this rider (0 = free to take one)
 });
 
@@ -23,11 +25,10 @@ const getAllRidersService = async () => {
     isDeleted: { $ne: true },
     riderApprovalStatus: { $nin: ['pending', 'rejected'] },
   })
-    .select('-password -__v') // ⚡ পাসওয়ার্ড এবং অপ্রয়োজনীয় মঙ্গুস ভার্সন ফিল্ড বাদ দেয়া হলো
+    .select('-password -__v')
     .sort({ createdAt: -1 })
-    .lean(); // ⚡ Mongoose এর মেমোরি প্রসেসিং বাদ দিয়ে প্লেন JS অবজেক্ট ফেচ করবে
+    .lean();
 
-  // count each rider's in-flight (assigned, not-yet-finished) orders in one pass
   const counts = await Order.aggregate([
     { $match: { riderId: { $ne: null }, status: { $nin: ['Delivered', 'Rejected'] } } },
     { $group: { _id: '$riderId', n: { $sum: 1 } } },
@@ -54,8 +55,8 @@ const registerRiderService = async (
   const user = await User.create({
     name: String(payload.name || '').trim(),
     email,
-    password: payload.password, // hashed by the User pre-save hook
-    role: 'user', // শুরুতে রোল অবশ্যই 'user' হবে!
+    password: payload.password,
+    role: 'user', // শুরুতে রোল অবশ্যই 'user' থাকবে
     riderApprovalStatus: 'pending',
     riderStatus: 'Available',
     vehicle: String(payload.vehicle || '').trim() || 'Motorbike',
@@ -88,15 +89,53 @@ const registerRiderService = async (
 
 const getRiderByIdService = async (id: string) => {
   if (!isValidObjectId(id)) return null;
-  const rider = await User.findOne({ _id: id, role: 'rider', isDeleted: false }).lean();
+  const rider = await User.findOne({ _id: id, isDeleted: { $ne: true } }).lean();
   return rider ? toRiderShape(rider) : null;
 };
 
-const updateRiderStatusService = async (id: string, status: 'Available' | 'Busy') => {
+// ⚡ FIXED: Handled Admin Forceful Accept/Reject & Rider Availability
+const updateRiderStatusService = async (id: string, rawStatus: string) => {
   if (!isValidObjectId(id)) return null;
-  const rider = await User.findOne({ _id: id, role: 'rider', isDeleted: false });
+
+  // 🎯 ১. role: 'rider' ফিল্টার তুলে নেওয়া হয়েছে যেন Pending 'user' অ্যাকাউন্টও পাওয়া যায়
+  const rider = await User.findOne({ _id: id, isDeleted: { $ne: true } });
   if (!rider) return null;
-  rider.riderStatus = status;
+
+  const normalizedStatus = String(rawStatus || '').trim().toLowerCase();
+
+  // 🎯 ২. অ্যাডমিন যদি Force ACCEPT / APPROVE করে
+  if (['accepted', 'approved'].includes(normalizedStatus)) {
+    rider.riderApprovalStatus = 'approved';
+    rider.role = 'rider'; // রোল ইউজার থেকে রাইডারে কনভার্ট হবে
+    rider.riderStatus = 'Available';
+
+    // RiderApplication কালেকশনে স্ট্যাটাস সিংক্রোনাইজ করা হচ্ছে
+    await RiderApplication.findOneAndUpdate(
+      { userId: id },
+      { status: 'approved' }
+    );
+  } 
+  // 🎯 ৩. অ্যাডমিন যদি Force REJECT করে
+  else if (['rejected'].includes(normalizedStatus)) {
+    rider.riderApprovalStatus = 'rejected';
+
+    // RiderApplication কালেকশনে স্ট্যাটাস সিংক্রোনাইজ করা হচ্ছে
+    await RiderApplication.findOneAndUpdate(
+      { userId: id },
+      { status: 'rejected' }
+    );
+  } 
+  // 🎯 ৪. রাইডার নিজে Availability আপডেট করলে (Available / Busy)
+  else if (normalizedStatus === 'available') {
+    rider.riderStatus = 'Available';
+  } else if (normalizedStatus === 'busy') {
+    rider.riderStatus = 'Busy';
+  } else {
+    const err: any = new Error(`Invalid status "${rawStatus}".`);
+    err.status = 400;
+    throw err;
+  }
+
   await rider.save();
   return toRiderShape(rider);
 };
