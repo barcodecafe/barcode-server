@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { isValidObjectId } from 'mongoose';
+import { isValidObjectId, Types } from 'mongoose';
 import jwt from 'jsonwebtoken';
 import config from '../../config';
 import { User } from '../user/user.model';
@@ -93,51 +93,75 @@ const getRiderByIdService = async (id: string) => {
   return rider ? toRiderShape(rider) : null;
 };
 
-// ⚡ FIXED: Handled Admin Forceful Accept/Reject & Rider Availability
+// ⚡ FIXED: State Reversion Solved with Dual-ID Matching & Flexible Document Updates
 const updateRiderStatusService = async (id: string, rawStatus: string) => {
   if (!isValidObjectId(id)) return null;
 
-  // 🎯 ১. role: 'rider' ফিল্টার তুলে নেওয়া হয়েছে যেন Pending 'user' অ্যাকাউন্টও পাওয়া যায়
-  const rider = await User.findOne({ _id: id, isDeleted: { $ne: true } });
-  if (!rider) return null;
-
   const normalizedStatus = String(rawStatus || '').trim().toLowerCase();
+  const validObjId = isValidObjectId(id) ? new Types.ObjectId(id) : null;
+
+  // 🎯 ১. ID টি User ID নাকি RiderApplication ID তা হ্যান্ডেল করা
+  let user = await User.findOne({ _id: id, isDeleted: { $ne: true } });
+  let application = await RiderApplication.findOne({
+    $or: [{ _id: id }, { userId: id }, ...(validObjId ? [{ userId: validObjId }] : [])],
+  });
+
+  // যদি id টি RiderApplication এর ID হয়ে থাকে, তবে তার userId দিয়ে User খুঁজে বের করা
+  if (!user && application?.userId) {
+    user = await User.findOne({ _id: application.userId, isDeleted: { $ne: true } });
+  }
+
+  if (!user) return null;
+
+  const userIdStr = String(user._id);
+  const userIdObj = user._id;
 
   // 🎯 ২. অ্যাডমিন যদি Force ACCEPT / APPROVE করে
   if (['accepted', 'approved'].includes(normalizedStatus)) {
-    rider.riderApprovalStatus = 'approved';
-    rider.role = 'rider'; // রোল ইউজার থেকে রাইডারে কনভার্ট হবে
-    rider.riderStatus = 'Available';
+    user.riderApprovalStatus = 'approved';
+    user.role = 'rider'; // রোল ইউজার থেকে রাইডারে কনভার্ট হবে
+    user.riderStatus = 'Available';
 
-    // RiderApplication কালেকশনে স্ট্যাটাস সিংক্রোনাইজ করা হচ্ছে
+    // RiderApplication কালেকশনে স্ট্যাটাস সিংক্রোনাইজ (String, ObjectId, application._id সব চেক করবে)
     await RiderApplication.findOneAndUpdate(
-      { userId: id },
+      {
+        $or: [
+          { _id: id },
+          { userId: userIdStr },
+          { userId: userIdObj },
+        ],
+      },
       { status: 'approved' }
     );
   } 
   // 🎯 ৩. অ্যাডমিন যদি Force REJECT করে
   else if (['rejected'].includes(normalizedStatus)) {
-    rider.riderApprovalStatus = 'rejected';
+    user.riderApprovalStatus = 'rejected';
 
-    // RiderApplication কালেকশনে স্ট্যাটাস সিংক্রোনাইজ করা হচ্ছে
     await RiderApplication.findOneAndUpdate(
-      { userId: id },
+      {
+        $or: [
+          { _id: id },
+          { userId: userIdStr },
+          { userId: userIdObj },
+        ],
+      },
       { status: 'rejected' }
     );
   } 
   // 🎯 ৪. রাইডার নিজে Availability আপডেট করলে (Available / Busy)
   else if (normalizedStatus === 'available') {
-    rider.riderStatus = 'Available';
+    user.riderStatus = 'Available';
   } else if (normalizedStatus === 'busy') {
-    rider.riderStatus = 'Busy';
+    user.riderStatus = 'Busy';
   } else {
     const err: any = new Error(`Invalid status "${rawStatus}".`);
     err.status = 400;
     throw err;
   }
 
-  await rider.save();
-  return toRiderShape(rider);
+  await user.save();
+  return toRiderShape(user);
 };
 
 export const RiderService = {
