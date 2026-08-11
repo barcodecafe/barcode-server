@@ -90,11 +90,19 @@ const updateBrandController = async (req: Request, res: Response) => {
   }
 };
 
-// 🎯 Reorder Brands Controller (Live Server Sync)
+// 🎯 FIX: Reorder Brands Controller (Handles both brandIds and orderedIds flexibly)
 const reorderBrandsController = async (req: Request, res: Response) => {
   try {
-    const { brandIds } = req.body;
-    await BrandService.reorderBrandsService(brandIds);
+    const ids = req.body.brandIds || req.body.orderedIds || req.body.ids;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid array of brand IDs provided.' 
+      });
+    }
+
+    await BrandService.reorderBrandsService(ids);
     res.status(200).json({ success: true, message: 'Brand order updated successfully' });
   } catch (e: any) {
     res.status(e.status || 500).json({ success: false, message: e.message });
@@ -119,6 +127,6 @@ export const BrandController = {
   getBrandByIdController,
   createBrandController,
   updateBrandController,
-  reorderBrandsController, // 👈 🎯 Export এ যোগ করা হয়েছে
+  reorderBrandsController,
   deleteBrandController,
 };

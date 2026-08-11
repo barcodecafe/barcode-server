@@ -6,23 +6,17 @@ import { getNextId } from '../../utils/counter';
 
 const slugify = (s: string) =>
   String(s || '')
-    // NFD splits "é" into "e" + combining accent; dropping non-ASCII then leaves
-    // the base letter, so "Barcode Café" → "barcode-cafe" (not "barcode-caf").
     .normalize('NFD')
-    // eslint-disable-next-line no-control-regex
     .replace(/[^\x00-\x7f]/g, '')
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
-// Ensure the slug is unique, appending -2, -3, … if needed. `exceptId` lets an
-// update keep its own slug without colliding with itself.
 const uniqueSlug = async (base: string, exceptId?: number): Promise<string> => {
   const root = slugify(base) || 'brand';
   let candidate = root;
   let n = 1;
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const clash = await Brand.findOne({ slug: candidate });
     if (!clash || clash.id === exceptId) return candidate;
@@ -31,7 +25,6 @@ const uniqueSlug = async (base: string, exceptId?: number): Promise<string> => {
   }
 };
 
-// public listing only shows active brands, ordered; admin gets everything
 const getAllBrandsService = async (opts?: { includeInactive?: boolean }) => {
   const filter = opts?.includeInactive ? {} : { isActive: true };
   return Brand.find(filter).sort({ order: 1, id: 1 });
@@ -47,7 +40,6 @@ const getBrandBySlugService = async (slug: string) => {
   return Brand.findOne({ slug: String(slug || '').toLowerCase().trim() });
 };
 
-// The branches that belong to a brand (its microsite's "Our Branches").
 const getBrandBranchesService = async (slug: string) => {
   const brand = await getBrandBySlugService(slug);
   if (!brand) return null;
@@ -55,8 +47,6 @@ const getBrandBranchesService = async (slug: string) => {
   return { brand, branches };
 };
 
-// The menu for a brand = dishes served at any of the brand's branches. A dish
-// with an empty branchIds is available everywhere, so it shows for every brand.
 const getBrandMenuService = async (slug: string) => {
   const brand = await getBrandBySlugService(slug);
   if (!brand) return null;
@@ -69,7 +59,7 @@ const getBrandMenuService = async (slug: string) => {
 };
 
 const createBrandService = async (payload: any) => {
-  const id = await getNextId('brand'); // atomic — race-free
+  const id = await getNextId('brand');
   const slug = await uniqueSlug(payload.slug || payload.name);
   return Brand.create({
     id,
@@ -98,7 +88,6 @@ const updateBrandService = async (id: string | number, payload: any) => {
   if (!brand) return null;
 
   if (payload.name !== undefined) brand.name = payload.name;
-  // Re-slug only when a new slug is explicitly provided, keeping it unique.
   if (payload.slug !== undefined && payload.slug !== '') {
     brand.slug = await uniqueSlug(payload.slug, n);
   }
@@ -114,16 +103,21 @@ const updateBrandService = async (id: string | number, payload: any) => {
   return brand;
 };
 
-// 🎯 Live Bulk BulkWrite Order Reordering Service
+// 🎯 FIX: Supports numeric `id` and ObjectId `_id` safely
 const reorderBrandsService = async (brandIds: (string | number)[]) => {
   if (!Array.isArray(brandIds) || brandIds.length === 0) return null;
 
-  const operations = brandIds.map((id, index) => ({
-    updateOne: {
-      filter: { id: Number(id) },
-      update: { $set: { order: index + 1 } },
-    },
-  }));
+  const operations = brandIds.map((id, index) => {
+    const numId = Number(id);
+    const filter = Number.isFinite(numId) ? { id: numId } : { _id: id };
+
+    return {
+      updateOne: {
+        filter,
+        update: { $set: { order: index + 1 } },
+      },
+    };
+  });
 
   return await Brand.bulkWrite(operations);
 };
@@ -133,7 +127,6 @@ const deleteBrandService = async (id: string | number) => {
   if (!Number.isFinite(n)) return null;
   const brand = await Brand.findOneAndDelete({ id: n });
   if (brand) {
-    // unassign branches that pointed to this brand (no orphan references)
     await Branch.updateMany({ brandId: n }, { $set: { brandId: null } });
   }
   return brand;
@@ -147,6 +140,6 @@ export const BrandService = {
   getBrandMenuService,
   createBrandService,
   updateBrandService,
-  reorderBrandsService, // 👈 🎯 Exported
+  reorderBrandsService,
   deleteBrandService,
 };
