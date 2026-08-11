@@ -27,6 +27,7 @@ const uniqueSlug = async (base: string, exceptId?: number): Promise<string> => {
 
 const getAllBrandsService = async (opts?: { includeInactive?: boolean }) => {
   const filter = opts?.includeInactive ? {} : { isActive: true };
+  // 🎯 strictly sort by order ascending first
   return Brand.find(filter).sort({ order: 1, id: 1 });
 };
 
@@ -117,17 +118,21 @@ const updateBrandService = async (id: string | number, payload: any) => {
   return brand;
 };
 
-// 🎯 Ultra-fast parallel bulkWrite updates for brand ordering
+// 🎯 FIX: Robust matching with $or for both custom `id` and `_id`
 const reorderBrandsService = async (brandIds: (string | number)[]) => {
   if (!Array.isArray(brandIds) || brandIds.length === 0) return null;
 
   const operations = brandIds.map((id, index) => {
     const numId = Number(id);
-    const filter = Number.isFinite(numId) ? { id: numId } : { _id: id };
+    const filterConditions: any[] = [{ _id: id }];
+
+    if (Number.isFinite(numId) && !isNaN(numId)) {
+      filterConditions.push({ id: numId });
+    }
 
     return {
       updateOne: {
-        filter,
+        filter: { $or: filterConditions },
         update: { $set: { order: index + 1 } },
       },
     };
