@@ -103,7 +103,7 @@ const updateBrandService = async (id: string | number, payload: any) => {
   return brand;
 };
 
-// 🎯 FIX: Supports numeric `id` and ObjectId `_id` safely
+// 🎯 FIX: Added { ordered: false } for ultra-fast parallel bulk updates
 const reorderBrandsService = async (brandIds: (string | number)[]) => {
   if (!Array.isArray(brandIds) || brandIds.length === 0) return null;
 
@@ -119,7 +119,8 @@ const reorderBrandsService = async (brandIds: (string | number)[]) => {
     };
   });
 
-  return await Brand.bulkWrite(operations);
+  // { ordered: false } যোগ করায় MongoDB একবারে প্যারালালভাবে ইনস্ট্যান্ট সেভ করবে
+  return await Brand.bulkWrite(operations, { ordered: false });
 };
 
 const deleteBrandService = async (id: string | number) => {
