@@ -58,9 +58,17 @@ const getBrandMenuService = async (slug: string) => {
   return { brand, foods };
 };
 
+// 🎯 UPDATED: Auto-calculate order if not provided to place new brand at the end
 const createBrandService = async (payload: any) => {
   const id = await getNextId('brand');
   const slug = await uniqueSlug(payload.slug || payload.name);
+
+  let orderNum = Number(payload.order);
+  if (!Number.isFinite(orderNum) || orderNum === 0) {
+    const lastBrand = await Brand.findOne().sort({ order: -1 }).select('order');
+    orderNum = lastBrand && typeof lastBrand.order === 'number' ? lastBrand.order + 1 : 1;
+  }
+
   return Brand.create({
     id,
     name: payload.name,
@@ -76,21 +84,29 @@ const createBrandService = async (payload: any) => {
     contactAddress: payload.contactAddress || '',
     facebook: payload.facebook || '',
     instagram: payload.instagram || '',
-    order: Number(payload.order) || 0,
+    order: orderNum,
     isActive: payload.isActive !== undefined ? !!payload.isActive : true,
   });
 };
 
+// 🎯 UPDATED: Auto-sync slug if name is updated without providing explicit slug
 const updateBrandService = async (id: string | number, payload: any) => {
   const n = Number(id);
   if (!Number.isFinite(n)) return null;
   const brand = await Brand.findOne({ id: n });
   if (!brand) return null;
 
-  if (payload.name !== undefined) brand.name = payload.name;
+  if (payload.name !== undefined) {
+    brand.name = payload.name;
+    if (!payload.slug) {
+      brand.slug = await uniqueSlug(payload.name, n);
+    }
+  }
+
   if (payload.slug !== undefined && payload.slug !== '') {
     brand.slug = await uniqueSlug(payload.slug, n);
   }
+
   const scalar = [
     'tagline', 'description', 'logoLight', 'logoDark', 'cover', 'website',
     'contactPhone', 'contactEmail', 'contactAddress', 'facebook', 'instagram',
@@ -103,7 +119,7 @@ const updateBrandService = async (id: string | number, payload: any) => {
   return brand;
 };
 
-// 🎯 FIX: Added { ordered: false } for ultra-fast parallel bulk updates
+// 🎯 Ultra-fast parallel bulk write updates
 const reorderBrandsService = async (brandIds: (string | number)[]) => {
   if (!Array.isArray(brandIds) || brandIds.length === 0) return null;
 
@@ -119,7 +135,6 @@ const reorderBrandsService = async (brandIds: (string | number)[]) => {
     };
   });
 
-  // { ordered: false } যোগ করায় MongoDB একবারে প্যারালালভাবে ইনস্ট্যান্ট সেভ করবে
   return await Brand.bulkWrite(operations, { ordered: false });
 };
 

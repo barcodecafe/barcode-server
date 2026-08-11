@@ -5,12 +5,24 @@ import { externalizeImages, externalizeImagesList, stripExternalImageRefs } from
 import { publicApiBase } from '../../utils/publicApiBase';
 
 // Public listing shows active brands only; admins can request everything with
-// ?all=true so the admin manager can see/toggle hidden brands.
 const getAllBrandsController = async (req: Request, res: Response) => {
   try {
     const isAdmin = (req as any).user?.role === 'admin';
     const includeInactive = isAdmin && req.query.all === 'true';
-    res.status(200).json({ success: true, data: externalizeImagesList((await BrandService.getAllBrandsService({ includeInactive })) as any[], 'brand', publicApiBase(req)) });
+    
+    const rawBrands = (await BrandService.getAllBrandsService({ includeInactive })) as any[];
+    
+    // 🎯 Ensure Backend Array Sorting by Order property before sending
+    const sortedBrands = [...rawBrands].sort((a, b) => {
+      const orderA = typeof a.order === 'number' ? a.order : 9999;
+      const orderB = typeof b.order === 'number' ? b.order : 9999;
+      return orderA - orderB;
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      data: externalizeImagesList(sortedBrands, 'brand', publicApiBase(req)) 
+    });
   } catch (e: any) {
     res.status(500).json({ success: false, message: e.message });
   }
