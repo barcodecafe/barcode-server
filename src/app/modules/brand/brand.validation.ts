@@ -47,11 +47,18 @@ export const updateBrandValidationSchema = z.object({
   }),
 });
 
-// 🎯 Reorder Brands Validation Schema
+// 🎯 FIX: brandIds, orderedIds, বা ids—যে কোনো নামের অ্যারে সাপোর্ট করার জন্য আপডেট
 export const reorderBrandsValidationSchema = z.object({
-  body: z.object({
-    brandIds: z
-      .array(z.union([z.string(), z.number()]))
-      .min(1, 'brandIds array with at least one element is required'),
-  }),
+  body: z
+    .object({
+      brandIds: z.array(z.union([z.string(), z.number()])).optional(),
+      orderedIds: z.array(z.union([z.string(), z.number()])).optional(),
+      ids: z.array(z.union([z.string(), z.number()])).optional(),
+    })
+    .refine(
+      (data) => (data.brandIds?.length || 0) > 0 || (data.orderedIds?.length || 0) > 0 || (data.ids?.length || 0) > 0,
+      {
+        message: 'At least one array of brand IDs (brandIds, orderedIds, or ids) must be provided',
+      }
+    ),
 });
