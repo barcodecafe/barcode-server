@@ -58,7 +58,6 @@ const getBrandMenuService = async (slug: string) => {
   return { brand, foods };
 };
 
-// 🎯 UPDATED: Auto-calculate order if not provided to place new brand at the end
 const createBrandService = async (payload: any) => {
   const id = await getNextId('brand');
   const slug = await uniqueSlug(payload.slug || payload.name);
@@ -89,7 +88,6 @@ const createBrandService = async (payload: any) => {
   });
 };
 
-// 🎯 UPDATED: Auto-sync slug if name is updated without providing explicit slug
 const updateBrandService = async (id: string | number, payload: any) => {
   const n = Number(id);
   if (!Number.isFinite(n)) return null;
@@ -119,7 +117,7 @@ const updateBrandService = async (id: string | number, payload: any) => {
   return brand;
 };
 
-// 🎯 Ultra-fast parallel bulk write updates
+// 🎯 Ultra-fast parallel bulkWrite updates for brand ordering
 const reorderBrandsService = async (brandIds: (string | number)[]) => {
   if (!Array.isArray(brandIds) || brandIds.length === 0) return null;
 

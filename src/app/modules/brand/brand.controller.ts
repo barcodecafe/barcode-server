@@ -4,7 +4,6 @@ import { BrandService } from './brand.service';
 import { externalizeImages, externalizeImagesList, stripExternalImageRefs } from '../images/images.transform';
 import { publicApiBase } from '../../utils/publicApiBase';
 
-// Public listing shows active brands only; admins can request everything with
 const getAllBrandsController = async (req: Request, res: Response) => {
   try {
     const isAdmin = (req as any).user?.role === 'admin';
@@ -12,7 +11,7 @@ const getAllBrandsController = async (req: Request, res: Response) => {
     
     const rawBrands = (await BrandService.getAllBrandsService({ includeInactive })) as any[];
     
-    // 🎯 Ensure Backend Array Sorting by Order property before sending
+    // Ensure array is strictly sorted by 'order' before sending
     const sortedBrands = [...rawBrands].sort((a, b) => {
       const orderA = typeof a.order === 'number' ? a.order : 9999;
       const orderB = typeof b.order === 'number' ? b.order : 9999;
@@ -91,8 +90,6 @@ const createBrandController = async (req: Request, res: Response) => {
 
 const updateBrandController = async (req: Request, res: Response) => {
   try {
-    // Drop logo/cover fields that came back as one of our own image urls —
-    // otherwise saving an unrelated edit would overwrite the stored base64.
     stripExternalImageRefs(req.body, 'brand');
     const brand = await BrandService.updateBrandService(req.params.id, req.body);
     if (!brand) return res.status(404).json({ success: false, message: 'Brand not found' });
@@ -102,7 +99,6 @@ const updateBrandController = async (req: Request, res: Response) => {
   }
 };
 
-// 🎯 FIX: Reorder Brands Controller (Handles both brandIds and orderedIds flexibly)
 const reorderBrandsController = async (req: Request, res: Response) => {
   try {
     const ids = req.body.brandIds || req.body.orderedIds || req.body.ids;

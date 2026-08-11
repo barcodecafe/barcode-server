@@ -5,27 +5,22 @@ import validateRequest from '../../middlewares/validateRequest';
 import { 
   createBrandValidationSchema, 
   updateBrandValidationSchema, 
-  reorderBrandsValidationSchema 
 } from './brand.validation';
 
 const router = express.Router();
 const adminOnly = [authMiddleware, authorize('admin')];
 
-// ⚠️ /slug/:slug must come before /:id so a slug is never parsed as an id
-router.get('/', optionalAuth, BrandController.getAllBrandsController); // public (admins may pass ?all=true)
-router.get('/slug/:slug', BrandController.getBrandBySlugController); // public — brand microsite lookup
-router.get('/slug/:slug/branches', BrandController.getBrandBranchesController); // public — brand's branches
-router.get('/slug/:slug/menu', BrandController.getBrandMenuController); // public — brand's menu
+// Public listing
+router.get('/', optionalAuth, BrandController.getAllBrandsController);
+router.get('/slug/:slug', BrandController.getBrandBySlugController);
+router.get('/slug/:slug/branches', BrandController.getBrandBranchesController);
+router.get('/slug/:slug/menu', BrandController.getBrandMenuController);
 
-// 🎯 Reorder Route (অবশ্যই /:id এর পূর্বে রাখতে হবে)
-router.put(
-  '/reorder', 
-  ...adminOnly, 
-  validateRequest(reorderBrandsValidationSchema), 
-  BrandController.reorderBrandsController
-);
+// 🎯 MUST be defined before /:id route
+router.put('/reorder', ...adminOnly, BrandController.reorderBrandsController);
+router.patch('/reorder', ...adminOnly, BrandController.reorderBrandsController);
 
-router.get('/:id', BrandController.getBrandByIdController); // public
+router.get('/:id', BrandController.getBrandByIdController);
 
 // Admin CRUD
 router.post('/', ...adminOnly, validateRequest(createBrandValidationSchema), BrandController.createBrandController);
