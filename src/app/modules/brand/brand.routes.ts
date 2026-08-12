@@ -5,6 +5,7 @@ import validateRequest from '../../middlewares/validateRequest';
 import { 
   createBrandValidationSchema, 
   updateBrandValidationSchema, 
+  reorderBrandsValidationSchema, // 🎯 Added validation schema import
 } from './brand.validation';
 
 const router = express.Router();
@@ -16,9 +17,19 @@ router.get('/slug/:slug', BrandController.getBrandBySlugController);
 router.get('/slug/:slug/branches', BrandController.getBrandBranchesController);
 router.get('/slug/:slug/menu', BrandController.getBrandMenuController);
 
-// 🎯 MUST be defined before /:id route
-router.put('/reorder', ...adminOnly, BrandController.reorderBrandsController);
-router.patch('/reorder', ...adminOnly, BrandController.reorderBrandsController);
+// 🎯 MUST be defined before /:id route (With Zod Validation)
+router.put(
+  '/reorder', 
+  ...adminOnly, 
+  validateRequest(reorderBrandsValidationSchema), 
+  BrandController.reorderBrandsController
+);
+router.patch(
+  '/reorder', 
+  ...adminOnly, 
+  validateRequest(reorderBrandsValidationSchema), 
+  BrandController.reorderBrandsController
+);
 
 router.get('/:id', BrandController.getBrandByIdController);
 

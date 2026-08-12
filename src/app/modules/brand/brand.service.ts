@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { Types } from 'mongoose'; // 🎯 FIX: Valid ObjectId type handling
 import { Brand } from './brand.model';
 import { Branch } from '../branch/branch.model';
 import { Food } from '../food/food.model';
@@ -118,16 +119,25 @@ const updateBrandService = async (id: string | number, payload: any) => {
   return brand;
 };
 
-// 🎯 FIX: Robust matching with $or for both custom `id` and `_id`
+// 🎯 FIX: Robust matching with $or supporting both Numeric `id` and `_id` (ObjectId)
 const reorderBrandsService = async (brandIds: (string | number)[]) => {
   if (!Array.isArray(brandIds) || brandIds.length === 0) return null;
 
   const operations = brandIds.map((id, index) => {
-    const numId = Number(id);
-    const filterConditions: any[] = [{ _id: id }];
+    const filterConditions: any[] = [];
 
+    // ১. কাস্টম Numeric ID চেক (যেমন: id: 7)
+    const numId = Number(id);
     if (Number.isFinite(numId) && !isNaN(numId)) {
       filterConditions.push({ id: numId });
+    }
+
+    // ২. MongoDB Valid ObjectId (24 char hex string) রূপান্তর
+    const stringId = String(id);
+    if (Types.ObjectId.isValid(stringId)) {
+      filterConditions.push({ _id: new Types.ObjectId(stringId) });
+    } else {
+      filterConditions.push({ _id: stringId });
     }
 
     return {
