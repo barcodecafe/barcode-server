@@ -14,6 +14,8 @@ export interface IFood {
   price: number;
   image: string;
   rating: number;
+  reviewCount?: number; // 🌟 মোট কতজন কাস্টমার রিভিউ দিয়েছেন
+  adminBaseRating?: number; // 🌟 রিভিউ না থাকা পর্যন্ত ফলব্যাক হিসেবে অ্যাডমিন সেট করা রেটিং
   description: string;
   popular: boolean;
   isAdminFeatured: boolean;

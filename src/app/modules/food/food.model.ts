@@ -19,7 +19,9 @@ const foodSchema = new Schema<IFood>(
     categoryOrder: { type: Number, default: 0, index: true }, // 🎯 Drag & Drop Sorting-এর জন্য ফিল্ড (Categories)
     price: { type: Number, required: true, default: 0 },
     image: { type: String, default: '' },
-    rating: { type: Number, default: 0 },
+    rating: { type: Number, default: 4.5 },
+    reviewCount: { type: Number, default: 0 }, // 🌟 মোট রিভিউ সংখ্যা
+    adminBaseRating: { type: Number, default: 4.5 }, // 🌟 ফলব্যাক অ্যাডমিন রেটিং (০ রিভিউ থাকা পর্যন্ত দেখাবে)
     description: { type: String, default: '' },
     popular: { type: Boolean, default: false },
     isAdminFeatured: { type: Boolean, default: false },

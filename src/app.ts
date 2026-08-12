@@ -25,6 +25,7 @@ import { PaymentRoutes } from './app/modules/payment/payment.routes';
 import { FavoritesRoutes } from './app/modules/favorites/favorites.routes';
 import { SearchRoutes } from './app/modules/search/search.routes';
 import { ImageRoutes } from './app/modules/images/images.routes';
+import { ReviewRoutes } from './app/modules/review/review.routes';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
 
 const app: Application = express();
@@ -254,6 +255,7 @@ app.use('/api/analytics', AnalyticsRoutes);
 app.use('/api/payments', PaymentRoutes);
 app.use('/api/search', SearchRoutes);
 app.use('/api/images', ImageRoutes);
+app.use('/api/reviews', ReviewRoutes);
 
 // Health check
 app.get('/', (req: Request, res: Response) => {
