@@ -71,6 +71,14 @@ const getBrandMenuService = async (slug: string) => {
 const createBrandService = async (payload: any) => {
   const id = await getNextId('brand'); // atomic — race-free
   const slug = await uniqueSlug(payload.slug || payload.name);
+
+  // [SORTING-FIX] নতুন brand list-এর শেষে যাবে (Food-এর মতোই)
+  // আগে order: 0 থাকায় নতুন brand refresh-এ সবার উপরে চলে যেত
+  const highestOrderBrand = await Brand.findOne({}).sort({ order: -1 });
+  const newOrder = highestOrderBrand && typeof highestOrderBrand.order === 'number'
+    ? highestOrderBrand.order + 1
+    : 1;
+
   return Brand.create({
     id,
     name: payload.name,
@@ -86,7 +94,7 @@ const createBrandService = async (payload: any) => {
     contactAddress: payload.contactAddress || '',
     facebook: payload.facebook || '',
     instagram: payload.instagram || '',
-    order: Number(payload.order) || 0,
+    order: Number(payload.order) || newOrder, // [SORTING-FIX] 0 এর বদলে highest + 1
     isActive: payload.isActive !== undefined ? !!payload.isActive : true,
   });
 };

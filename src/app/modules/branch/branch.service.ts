@@ -44,8 +44,17 @@ const normalizeFeatures = (f: any): string[] | undefined => {
 
 const createBranchService = async (payload: any) => {
   const id = await getNextId('branch'); // atomic (Phase 4 QA fix)
+
+  // [SORTING-FIX] নতুন branch list-এর শেষে যাবে (Food-এর মতোই)
+  // আগে order field set হতো না, default 0 থাকায় refresh-এ সবার উপরে চলে যেত
+  const highestOrderBranch = await Branch.findOne({}).sort({ order: -1 });
+  const newOrder = highestOrderBranch && typeof highestOrderBranch.order === 'number'
+    ? highestOrderBranch.order + 1
+    : 1;
+
   return Branch.create({
     id,
+    order: newOrder, // [SORTING-FIX] নতুন branch list-এর শেষে
     name: payload.name,
     location: payload.location || '',
     contact: payload.contact || '',
