@@ -17,7 +17,7 @@ const brandSchema = new Schema<IBrand>(
     contactAddress: { type: String, default: '' },
     facebook: { type: String, default: '' },
     instagram: { type: String, default: '' },
-    order: { type: Number, default: 0, index: true },
+    order: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
   },
   {
