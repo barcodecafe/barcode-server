@@ -10,6 +10,9 @@ const getAllBranchesController = async (req: Request, res: Response) => {
   try {
     const limit = req.query.limit ? Number(req.query.limit) : undefined;
     const branches = await BranchService.getAllBranchesService(limit);
+    // [SORTING-FIX] No-cache headers to prevent browser from serving stale cached list on refresh
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
     res.status(200).json({ success: true, data: externalizeImagesList(branches as any[], 'branch', publicApiBase(req)) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });

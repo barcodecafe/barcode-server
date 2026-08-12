@@ -8,6 +8,9 @@ const getAllBrandsController = async (req: Request, res: Response) => {
   try {
     const isAdmin = (req as any).user?.role === 'admin';
     const includeInactive = isAdmin && req.query.all === 'true';
+    // [SORTING-FIX] No-cache headers to prevent browser from serving stale cached list on refresh
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
     res.status(200).json({ success: true, data: await BrandService.getAllBrandsService({ includeInactive }) });
   } catch (e: any) {
     res.status(500).json({ success: false, message: e.message });

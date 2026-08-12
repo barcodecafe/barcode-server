@@ -9,6 +9,9 @@ const getAllFoodsController = async (req: Request, res: Response) => {
   try {
     const category = req.query.category as string | undefined;
     const foods = await FoodService.getAllFoodsService(category);
+    // [SORTING-FIX] No-cache headers to prevent browser from serving stale cached list on refresh
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
     res.status(200).json({ success: true, data: externalizeImagesList(foods as any[], 'food', publicApiBase(req)) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
