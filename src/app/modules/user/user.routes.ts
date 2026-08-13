@@ -10,6 +10,11 @@ const adminOnly = [authMiddleware, authorize('admin')];
 // ⚠️ /:id এর আগে থাকতে হবে (route ordering)
 router.patch('/me', authMiddleware, UserController.updateMeController);
 
+// 🎯 POS Scanner / Customer Search Lookup (Admin / Staff / POS) — GET /api/users/pos-lookup/:query
+// ⚠️ /:id এর আগে থাকতে হবে (route ordering)
+router.get('/pos-lookup/:query', ...adminOnly, UserController.posLookupController);
+router.get('/pos-lookup', ...adminOnly, UserController.posLookupController);
+
 // সব ইউজার (Admin only) — GET /api/users
 router.get('/', ...adminOnly, UserController.getAllUsersController);
 
