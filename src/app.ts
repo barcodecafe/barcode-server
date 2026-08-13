@@ -18,6 +18,7 @@ import { OrderRoutes } from './app/modules/order/order.routes';
 import { HeroRoutes } from './app/modules/hero/hero.routes';
 import { AboutRoutes } from './app/modules/about/about.routes';
 import { SettingsRoutes } from './app/modules/settings/settings.routes';
+import { PolicyRoutes } from './app/modules/policy/policy.routes';
 import { RiderRoutes } from './app/modules/rider/rider.routes';
 import { RiderApplicationRoutes } from './app/modules/riderApplication/riderApplication.routes';
 import { AnalyticsRoutes } from './app/modules/analytics/analytics.routes';
@@ -133,6 +134,7 @@ const PUBLIC_CATALOGUE = [
   '/api/hero-slides',
   '/api/about',
   '/api/settings',
+  '/api/policies',
 ];
 
 const isPublicCatalogueRead = (req: Request): boolean =>
@@ -249,6 +251,7 @@ app.use('/api/orders', OrderRoutes);
 app.use('/api/hero-slides', HeroRoutes);
 app.use('/api/about', AboutRoutes);
 app.use('/api/settings', SettingsRoutes);
+app.use('/api/policies', PolicyRoutes);
 app.use('/api/riders', RiderRoutes);
 app.use('/api/rider-applications', RiderApplicationRoutes);
 app.use('/api/analytics', AnalyticsRoutes);
