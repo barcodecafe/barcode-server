@@ -5,6 +5,7 @@ import { authMiddleware, authorize } from '../../middlewares/auth';
 const router = express.Router();
 const adminOnly = [authMiddleware, authorize('admin')];
 
+router.get('/dashboard-all', ...adminOnly, AnalyticsController.dashboardAllController);
 router.get('/summary', ...adminOnly, AnalyticsController.summaryController);
 router.get('/revenue-by-branch', ...adminOnly, AnalyticsController.revenueByBranchController);
 router.get('/orders-by-category', ...adminOnly, AnalyticsController.ordersByCategoryController);

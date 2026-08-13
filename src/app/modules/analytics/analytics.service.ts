@@ -51,6 +51,7 @@ const getRevenueByBranchService = async () => {
 const getOrdersByCategoryService = async () => {
   const rows = await Order.aggregate([
     { $match: VALID },
+    { $project: { 'items.category': 1, 'items.quantity': 1 } },
     { $unwind: '$items' },
     { $group: { _id: { $ifNull: ['$items.category', 'Uncategorized'] }, value: { $sum: '$items.quantity' } } },
     { $sort: { value: -1 } },
@@ -108,6 +109,7 @@ const getTopDishesService = async (limit = 5) => {
   // item snapshot (name/image/category/price) group করি → food পরে delete হলেও top-dish হারায় না (QA §2.2)
   const rows = await Order.aggregate([
     { $match: VALID },
+    { $project: { 'items.id': 1, 'items.quantity': 1, 'items.name': 1, 'items.image': 1, 'items.category': 1, 'items.price': 1 } },
     { $unwind: '$items' },
     {
       $group: {
@@ -123,8 +125,8 @@ const getTopDishesService = async (limit = 5) => {
     { $limit: safeLimit },
   ], AGG_OPTS);
   const ids = rows.map((r: any) => r._id);
-  const foods = await Food.find({ id: { $in: ids } });
-  const foodMap = new Map(foods.map((f) => [f.id, f]));
+  const foods = await Food.find({ id: { $in: ids } }).select('id rating').lean();
+  const foodMap = new Map(foods.map((f: any) => [f.id, f]));
   // rating current food থেকে enrich (deleted হলে 0), বাকি সব order snapshot থেকে
   return rows.map((r: any) => ({
     id: r._id,
@@ -330,9 +332,43 @@ const getTopRidersService = async (limit = 5) => {
   });
 };
 
+// GET /analytics/dashboard-all — Unified single-roundtrip aggregation for maximum dashboard loading speed
+const getDashboardAllService = async () => {
+  const [
+    summary,
+    revenueByBranch,
+    ordersByCategory,
+    revenueTrend,
+    topDishes,
+    topCustomers,
+    topRiders,
+  ] = await Promise.all([
+    getDashboardSummaryService(),
+    getRevenueByBranchService(),
+    getOrdersByCategoryService(),
+    getRevenueTrendService(12),
+    getTopDishesService(5),
+    getTopCustomersService(5),
+    getTopRidersService(5),
+  ]);
+
+  return {
+    summary,
+    revenueByBranch,
+    ordersByCategory,
+    revenueTrend,
+    topDishes,
+    topCustomers,
+    topRiders,
+  };
+};
+
 // Cache keys carry every argument that changes the result, so `?limit=5` and
 // `?limit=20` never serve each other's rows.
 export const AnalyticsService = {
+  getDashboardAllService: () =>
+    cached('analytics:dashboard-all', TTL_MS, getDashboardAllService),
+
   getRevenueByBranchService: () =>
     cached('analytics:revenue-by-branch', TTL_MS, getRevenueByBranchService),
 

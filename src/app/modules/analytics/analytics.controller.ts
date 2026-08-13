@@ -2,6 +2,14 @@
 import { Request, Response } from 'express';
 import { AnalyticsService } from './analytics.service';
 
+const dashboardAllController = async (_req: Request, res: Response) => {
+  try {
+    res.status(200).json({ success: true, data: await AnalyticsService.getDashboardAllService() });
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
 const summaryController = async (_req: Request, res: Response) => {
   try {
     res.status(200).json({ success: true, data: await AnalyticsService.getDashboardSummaryService() });
@@ -63,6 +71,7 @@ const topRidersController = async (req: Request, res: Response) => {
 };
 
 export const AnalyticsController = {
+  dashboardAllController,
   summaryController,
   topRidersController,
   revenueByBranchController,
