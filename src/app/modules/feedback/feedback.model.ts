@@ -1,0 +1,34 @@
+import { Schema, model } from 'mongoose';
+import { IFeedback } from './feedback.interface';
+
+const feedbackSchema = new Schema<IFeedback>(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+    userName: { type: String, required: true, trim: true },
+    phone: { type: String, required: true, trim: true, index: true },
+    email: { type: String, default: '', trim: true },
+    branchId: { type: Schema.Types.Mixed, default: null },
+    branchName: { type: String, default: 'General / Delivery', trim: true },
+    foodQuality: { type: Number, required: true, min: 1, max: 5 },
+    serviceSpeed: { type: Number, required: true, min: 1, max: 5 },
+    staffBehavior: { type: Number, required: true, min: 1, max: 5 },
+    likedMost: { type: String, default: '', trim: true },
+    improvements: { type: String, default: '', trim: true },
+    comments: { type: String, default: '', trim: true },
+    heardFrom: { type: String, required: true, default: 'social_media' },
+    visitAgain: { type: String, required: true, default: 'definitely' },
+  },
+  {
+    timestamps: true,
+    toJSON: {
+      transform(_doc, ret: any) {
+        delete ret.__v;
+        return ret;
+      },
+    },
+  }
+);
+
+feedbackSchema.index({ createdAt: -1 });
+
+export const Feedback = model<IFeedback>('Feedback', feedbackSchema);
