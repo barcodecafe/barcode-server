@@ -44,8 +44,21 @@ const getAllFeedbacksController = async (req: Request, res: Response) => {
   }
 };
 
+const deleteFeedbackController = async (req: Request, res: Response) => {
+  try {
+    const deleted = await FeedbackService.deleteFeedbackService(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Feedback not found' });
+    }
+    res.status(200).json({ success: true, message: 'Feedback deleted successfully' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const FeedbackController = {
   submitFeedbackController,
   getMyFeedbacksController,
   getAllFeedbacksController,
+  deleteFeedbackController,
 };

@@ -25,4 +25,12 @@ router.get(
   FeedbackController.getAllFeedbacksController
 );
 
+// Admin deletes a feedback
+router.delete(
+  '/:id',
+  authMiddleware,
+  authorize('admin'),
+  FeedbackController.deleteFeedbackController
+);
+
 export const FeedbackRoutes = router;

@@ -28,6 +28,7 @@ const getAllFeedbacksService = async (filters: any = {}) => {
       { phone: { $regex: filters.search, $options: 'i' } },
       { likedMost: { $regex: filters.search, $options: 'i' } },
       { improvements: { $regex: filters.search, $options: 'i' } },
+      { comments: { $regex: filters.search, $options: 'i' } },
     ];
   }
 
@@ -35,8 +36,14 @@ const getAllFeedbacksService = async (filters: any = {}) => {
   return feedbacks;
 };
 
+const deleteFeedbackService = async (id: string) => {
+  const deleted = await Feedback.findByIdAndDelete(id);
+  return deleted;
+};
+
 export const FeedbackService = {
   submitFeedbackService,
   getMyFeedbacksService,
   getAllFeedbacksService,
+  deleteFeedbackService,
 };
