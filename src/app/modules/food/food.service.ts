@@ -178,6 +178,7 @@ const createFoodService = async (payload: any) => {
     branchPrices: payload.branchPrices || {},
     variantLabel: payload.variantLabel || 'Size',
     variations: payload.variations || [],
+    addons: payload.addons || [],
   });
   return applyExpirationCheck(food);
 };
@@ -226,6 +227,7 @@ const updateFoodService = async (id: string | number, payload: any) => {
   if (payload.branchPrices !== undefined) food.set('branchPrices', payload.branchPrices);
   if (payload.variantLabel !== undefined) food.variantLabel = payload.variantLabel || 'Size';
   if (payload.variations !== undefined) food.variations = payload.variations;
+  if (payload.addons !== undefined) food.addons = payload.addons;
 
   await food.save();
   return applyExpirationCheck(food);

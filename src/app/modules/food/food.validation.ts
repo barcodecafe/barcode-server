@@ -6,6 +6,12 @@ const variation = z.object({
   image: z.string().optional().nullable(), 
 });
 
+const addon = z.object({
+  name: z.string().min(1, 'Addon name is required'),
+  price: z.coerce.number().nonnegative('Addon price must be non-negative'),
+  image: z.string().optional().nullable(),
+});
+
 export const createFoodValidationSchema = z.object({
   body: z.object({
     name: z.string().min(1, 'Name is required'),
@@ -37,6 +43,7 @@ export const createFoodValidationSchema = z.object({
     branchPrices: z.record(z.coerce.number()).optional(),
     variantLabel: z.string().optional(),
     variations: z.array(variation).optional(),
+    addons: z.array(addon).optional(), // 🎯 Add-ons ভ্যালিডেশন
   }),
 });
 
@@ -71,6 +78,7 @@ export const updateFoodValidationSchema = z.object({
     branchPrices: z.record(z.coerce.number()).optional(),
     variantLabel: z.string().optional(),
     variations: z.array(variation).optional(),
+    addons: z.array(addon).optional(), // 🎯 Add-ons ভ্যালিডেশন
   }),
 });
 
