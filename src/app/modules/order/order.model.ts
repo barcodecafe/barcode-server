@@ -1,6 +1,14 @@
 import { Schema, model } from 'mongoose';
 import { IOrder, PAYMENT_STATUSES } from './order.interface';
 
+const selectedAddonSchema = new Schema(
+  {
+    name: { type: String, required: true },
+    price: { type: Number, required: true, default: 0 },
+  },
+  { _id: false }
+);
+
 const orderItemSchema = new Schema(
   {
     id: { type: Number, required: true },
@@ -10,6 +18,7 @@ const orderItemSchema = new Schema(
     quantity: { type: Number, required: true, min: 1 },
     image: { type: String, default: '' },
     selectedSize: { type: String, default: null },
+    selectedAddons: { type: [selectedAddonSchema], default: [] }, // 🎯 কাস্টমার সিলেক্ট করা এড-অনস
     // 🎯 অফার ও ডিসকাউন্ট ফিল্ডগুলো এখানে স্কিমায় যুক্ত করা বাধ্যতামূলক
     offerType: { type: String, default: null },
     originalPrice: { type: Number, default: 0 },

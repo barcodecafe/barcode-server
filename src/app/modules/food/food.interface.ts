@@ -4,6 +4,12 @@ export interface IVariation {
   image?: string; // Variant specific image support (optional)
 }
 
+export interface IAddon {
+  name: string;
+  price: number;
+  image?: string;
+}
+
 // ফ্রন্ট এন্ড numeric `id` ব্যবহার করে (branchIds, branchPrices, featuredFoodId) → ObjectId নয়
 export interface IFood {
   id: number; // numeric, frontend-facing
@@ -38,6 +44,7 @@ export interface IFood {
   branchPrices: Record<string, number>; // per-branch দাম সমন্বয়
   variantLabel: string; // variant-এর ধরন লেবেল — "Size" | "Weight" | "Portion"
   variations: IVariation[]; // size/weight অপশন (প্রতিটার আলাদা দাম)
+  addons?: IAddon[]; // 🎯 কাস্টমাইজেশন / এড-অন অপশনসমূহ (যেমন: Extra Cheese, Extra Patty)
   createdAt?: Date;
   updatedAt?: Date;
 }

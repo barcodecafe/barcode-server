@@ -39,6 +39,7 @@ type CreateItem = {
   id: number;
   quantity: number;
   selectedSize?: string | null;
+  selectedAddons?: Array<{ name: string; price: number }>;
   offerType?: string | null;
   originalPrice?: number;
   price?: number;
@@ -185,6 +186,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       quantity: qty,
       image: food.image,
       selectedSize: raw.selectedSize || null,
+      selectedAddons: Array.isArray(raw.selectedAddons) ? raw.selectedAddons : [],
       offerType: hasDiscount ? foodOfferType : null,
       originalPrice: foodOriginalPrice,
       discountPct: hasDiscount ? Number((food as any).discountPct) || 10 : 0,

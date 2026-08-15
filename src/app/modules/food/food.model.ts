@@ -10,6 +10,15 @@ const variationSchema = new Schema(
   { _id: false }
 );
 
+const addonSchema = new Schema(
+  {
+    name: { type: String, required: true },
+    price: { type: Number, required: true, default: 0 },
+    image: { type: String, default: '' },
+  },
+  { _id: false }
+);
+
 const foodSchema = new Schema<IFood>(
   {
     id: { type: Number, required: true, unique: true, index: true }, // numeric frontend id
@@ -48,6 +57,7 @@ const foodSchema = new Schema<IFood>(
     branchPrices: { type: Map, of: Number, default: () => ({}) },
     variantLabel: { type: String, default: 'Size' }, // "Size" | "Weight" | "Portion"
     variations: { type: [variationSchema], default: [] },
+    addons: { type: [addonSchema], default: [] }, // 🎯 এড-অনস / এক্সট্রাস
   },
   {
     timestamps: true,

@@ -55,6 +55,7 @@ export interface IOrderItem {
   quantity: number;
   image?: string;
   selectedSize?: string | null;
+  selectedAddons?: Array<{ name: string; price: number }>; // 🎯 কাস্টমার সিলেক্ট করা এড-অনস
   // 🎯 অফার ও ডিসকাউন্ট প্রপার্টিগুলো এখানে টাইপস্ক্রিপ্ট ইন্টারফেসে যুক্ত করা হলো
   offerType?: string | null;
   originalPrice?: number;
