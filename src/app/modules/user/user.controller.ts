@@ -40,6 +40,20 @@ const posLookupController = async (req: Request, res: Response) => {
   }
 };
 
+// 🎯 Public Customer Membership Verification (For mobile QR scanner / web verification)
+const getPublicMembershipController = async (req: Request, res: Response) => {
+  try {
+    const query = req.params.query || (req.query.q as string) || '';
+    const result = await UserService.getPublicMembershipService(query);
+    if (!result) {
+      return res.status(404).json({ success: false, message: 'Membership not found or invalid ID' });
+    }
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // PATCH /api/users/me — update own profile (name, phone, pickArea, address)
 // PATCH /api/users/me — update own profile
 const updateMeController = async (req: Request, res: Response) => {
@@ -69,5 +83,6 @@ export const UserController = {
   getAllUsersController,
   getUserByIdController,
   posLookupController,
+  getPublicMembershipController,
   updateMeController,
 };

@@ -15,6 +15,12 @@ router.patch('/me', authMiddleware, UserController.updateMeController);
 router.get('/pos-lookup/:query', ...adminOnly, UserController.posLookupController);
 router.get('/pos-lookup', ...adminOnly, UserController.posLookupController);
 
+// 🎯 Public Customer Membership Verification (For QR scan / web verification)
+// ⚠️ /:id এর আগে থাকতে হবে (route ordering)
+router.get('/public-membership/:query', UserController.getPublicMembershipController);
+router.get('/public-membership', UserController.getPublicMembershipController);
+router.get('/membership-verify/:query', UserController.getPublicMembershipController);
+
 // সব ইউজার (Admin only) — GET /api/users
 router.get('/', ...adminOnly, UserController.getAllUsersController);
 

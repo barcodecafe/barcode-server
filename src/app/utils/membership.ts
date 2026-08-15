@@ -7,6 +7,7 @@
 // for POS scanner and customer lookup.
 // ─────────────────────────────────────────────────────────────────────────────
 import QRCode from 'qrcode';
+import config from '../config';
 import { User } from '../modules/user/user.model';
 
 const ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -126,16 +127,29 @@ export const getTierFromSpend = (totalSpent: number) => {
   };
 };
 
-// QR encodes the membershipId as plain text — the most scanner/POS-compatible
-// payload. A POS reads it and looks the customer up by membershipId.
-export const buildMembershipQr = (membershipId: string): Promise<string> =>
-  QRCode.toDataURL(membershipId, { errorCorrectionLevel: 'M', margin: 1, width: 240 });
+/**
+ * Returns the public verification URL for a customer membership.
+ * e.g. https://yourdomain.com/membership/BRG-1712345678
+ */
+export const getMembershipVerificationUrl = (membershipId: string): string => {
+  const base = (config.client_url || 'http://localhost:5173').replace(/\/+$/, '');
+  return `${base}/membership/${encodeURIComponent(membershipId)}`;
+};
+
+/**
+ * QR encodes the full public verification URL so scanning it with any smartphone camera
+ * instantly opens the verified customer membership status and live tier.
+ */
+export const buildMembershipQr = (membershipId: string): Promise<string> => {
+  const url = getMembershipVerificationUrl(membershipId);
+  return QRCode.toDataURL(url, { errorCorrectionLevel: 'M', margin: 1, width: 260 });
+};
 
 // Ensure a user doc has a membershipId + QR; generate + persist if missing.
 // Uses updateOne (not save) so it works even when the doc was loaded without the
 // select:false password field, and never re-triggers full-document validation.
 // Mutates the in-memory doc so the caller's response reflects the new values.
-export const ensureMembership = async (user: any) => {
+export const ensureMembership = async (user: any, forceQrRegen = false) => {
   if (!user) return user;
 
   const expectedId = generateMembershipId(user.phone, String(user._id || user.id));
@@ -155,7 +169,7 @@ export const ensureMembership = async (user: any) => {
 
   const finalId = update.membershipId || currentId || expectedId;
 
-  if (!user.membershipQr || update.membershipId) {
+  if (!user.membershipQr || update.membershipId || forceQrRegen) {
     update.membershipQr = await buildMembershipQr(finalId);
   }
 
