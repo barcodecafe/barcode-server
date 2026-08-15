@@ -52,10 +52,11 @@ const posLookupService = async (rawQuery: string) => {
   if (!clean) return null;
 
   const cleanPhone = cleanPhoneForMembership(clean);
-  const possibleMembershipId = clean.startsWith('BRG-') ? clean : `BRG-${cleanPhone}`;
+  const possibleMembershipId = clean.toUpperCase().startsWith('BRG-') ? clean.toUpperCase() : `BRG-${cleanPhone}`;
 
   const queryConditions: any[] = [
     { membershipId: clean },
+    { membershipId: clean.toUpperCase() },
     { membershipId: possibleMembershipId },
     { phone: clean },
     { email: clean.toLowerCase() },
@@ -65,6 +66,7 @@ const posLookupService = async (rawQuery: string) => {
     queryConditions.push({ phone: `0${cleanPhone}` });
     queryConditions.push({ phone: `+880${cleanPhone}` });
     queryConditions.push({ phone: cleanPhone });
+    queryConditions.push({ membershipId: `BRG-${cleanPhone}` });
   }
 
   if (isValidObjectId(clean)) {
@@ -132,10 +134,11 @@ const getPublicMembershipService = async (rawQuery: string) => {
   if (!clean) return null;
 
   const cleanPhone = cleanPhoneForMembership(clean);
-  const possibleMembershipId = clean.startsWith('BRG-') ? clean : `BRG-${cleanPhone}`;
+  const possibleMembershipId = clean.toUpperCase().startsWith('BRG-') ? clean.toUpperCase() : `BRG-${cleanPhone}`;
 
   const queryConditions: any[] = [
     { membershipId: clean },
+    { membershipId: clean.toUpperCase() },
     { membershipId: possibleMembershipId },
     { phone: clean },
   ];
@@ -144,6 +147,7 @@ const getPublicMembershipService = async (rawQuery: string) => {
     queryConditions.push({ phone: `0${cleanPhone}` });
     queryConditions.push({ phone: `+880${cleanPhone}` });
     queryConditions.push({ phone: cleanPhone });
+    queryConditions.push({ membershipId: `BRG-${cleanPhone}` });
   }
 
   if (isValidObjectId(clean)) {
