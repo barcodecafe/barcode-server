@@ -28,21 +28,12 @@ const extractCleanQuery = (rawQuery: string): string => {
 const getAllUsersService = async () => {
   const users = await User.find({ isDeleted: false }).sort({ createdAt: -1 });
 
-  // Check if any user needs membership ID update or QR code refresh
-  const needsBackfill = users.filter((u) => {
-    if (u.role !== 'user') return false;
-    if (!u.membershipId || !u.membershipQr) return true;
-    const cleanPhone = cleanPhoneForMembership(u.phone);
-    if (cleanPhone && cleanPhone.length >= 6) {
-      const expectedId = `BRG-${cleanPhone}`;
-      if (u.membershipId !== expectedId) return true;
-    }
-    return false;
-  });
-
-  if (needsBackfill.length) {
-    await Promise.all(needsBackfill.map((u) => ensureMembership(u)));
-  }
+  // Refresh all user membership IDs & ensure QR codes have the latest live URL
+  await Promise.all(
+    users
+      .filter((u) => u.role === 'user')
+      .map((u) => ensureMembership(u))
+  );
 
   return users;
 };

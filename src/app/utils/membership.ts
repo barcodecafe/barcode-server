@@ -168,9 +168,11 @@ export const ensureMembership = async (user: any, forceQrRegen = false) => {
   }
 
   const finalId = update.membershipId || currentId || expectedId;
+  const expectedQr = await buildMembershipQr(finalId);
 
-  if (!user.membershipQr || update.membershipId || forceQrRegen) {
-    update.membershipQr = await buildMembershipQr(finalId);
+  // If missing, or if the stored QR is not matching the new URL QR, regenerate and save to DB
+  if (!user.membershipQr || user.membershipQr !== expectedQr || update.membershipId || forceQrRegen) {
+    update.membershipQr = expectedQr;
   }
 
   if (Object.keys(update).length) {
