@@ -599,10 +599,16 @@ const assignRiderToOrderService = async (orderId: string, riderId: string) => {
     return order;
   }
 
+  if (!isValidObjectId(riderId)) {
+    const e: any = new Error("Invalid Rider ID");
+    e.status = 400;
+    throw e;
+  }
+
   const rider = await User.findOne({
-    _id: isValidObjectId(riderId) ? riderId : undefined,
+    _id: riderId,
     role: "rider",
-    isDeleted: false,
+    isDeleted: { $ne: true },
   });
   if (!rider) {
     const e: any = new Error("Rider not found");
@@ -634,7 +640,7 @@ const acceptRiderOrderService = async (orderId: string, actorId: string) => {
     e.status = 404;
     throw e;
   }
-  if (order.riderId !== actorId) {
+  if (String(order.riderId || '') !== String(actorId || '')) {
     const e: any = new Error("This order is not assigned to you.");
     e.status = 403;
     throw e;
@@ -665,7 +671,7 @@ const rejectRiderOrderService = async (orderId: string, actorId: string) => {
     e.status = 404;
     throw e;
   }
-  if (order.riderId !== actorId) {
+  if (String(order.riderId || '') !== String(actorId || '')) {
     const e: any = new Error("This order is not assigned to you.");
     e.status = 403;
     throw e;
