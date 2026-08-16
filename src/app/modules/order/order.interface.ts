@@ -58,9 +58,11 @@ export interface IOrderItem {
   selectedAddons?: Array<{ name: string; price: number }>; // 🎯 কাস্টমার সিলেক্ট করা এড-অনস
   // 🎯 অফার ও ডিসকাউন্ট প্রপার্টিগুলো এখানে টাইপস্ক্রিপ্ট ইন্টারফেসে যুক্ত করা হলো
   offerType?: string | null;
+  promoCode?: string | null;
   originalPrice?: number;
   discountPct?: number;
   discountAmount?: number;
+  discountType?: string | null;
   discountDescription?: string | null;
 }
 

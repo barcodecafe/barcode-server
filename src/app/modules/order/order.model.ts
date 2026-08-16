@@ -21,9 +21,11 @@ const orderItemSchema = new Schema(
     selectedAddons: { type: [selectedAddonSchema], default: [] }, // 🎯 কাস্টমার সিলেক্ট করা এড-অনস
     // 🎯 অফার ও ডিসকাউন্ট ফিল্ডগুলো এখানে স্কিমায় যুক্ত করা বাধ্যতামূলক
     offerType: { type: String, default: null },
+    promoCode: { type: String, default: null },
     originalPrice: { type: Number, default: 0 },
     discountPct: { type: Number, default: 0 },
     discountAmount: { type: Number, default: 0 },
+    discountType: { type: String, default: null },
     discountDescription: { type: String, default: null },
   },
   { _id: false }

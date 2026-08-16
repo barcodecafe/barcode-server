@@ -41,8 +41,12 @@ type CreateItem = {
   selectedSize?: string | null;
   selectedAddons?: Array<{ name: string; price: number }>;
   offerType?: string | null;
+  promoCode?: string | null;
   originalPrice?: number;
   price?: number;
+  discountPct?: number;
+  discountAmount?: number;
+  discountType?: string | null;
   branchId?: number;
 };
 type CreatePayload = {
@@ -140,6 +144,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     let foodOfferType = raw.offerType || (food as any).offerType || "none";
 
     let foodOriginalPrice =
+      Number(raw.originalPrice) ||
       Number((food as any).originalPrice) ||
       Number((food as any).oldPrice) ||
       Number(food.price) ||
@@ -173,7 +178,14 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       }
     }
 
-    subtotal += unitPrice * qty;
+    let paidQty = qty;
+    if (foodOfferType === "bogo_1g1") {
+      paidQty = Math.ceil(qty / 2);
+    } else if (foodOfferType === "bogo_1g2") {
+      paidQty = Math.ceil(qty / 3);
+    }
+
+    subtotal += unitPrice * paidQty;
 
     const hasDiscount =
       computedDiscountAmount > 0 || (foodOfferType && foodOfferType !== "none");
@@ -187,10 +199,23 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       image: food.image,
       selectedSize: raw.selectedSize || null,
       selectedAddons: Array.isArray(raw.selectedAddons) ? raw.selectedAddons : [],
-      offerType: hasDiscount ? foodOfferType : null,
+      offerType: foodOfferType && foodOfferType !== "none" ? foodOfferType : null,
+      promoCode: raw.promoCode || (food as any).promoCode || null,
       originalPrice: foodOriginalPrice,
-      discountPct: hasDiscount ? Number((food as any).discountPct) || 10 : 0,
-      discountAmount: hasDiscount ? computedDiscountAmount : 0,
+      discountPct: hasDiscount
+        ? Number(raw.discountPct) ||
+          Number((food as any).discountPct) ||
+          (computedDiscountAmount > 0 && foodOriginalPrice > 0
+            ? round2((computedDiscountAmount / foodOriginalPrice) * 100)
+            : 0)
+        : 0,
+      discountAmount: hasDiscount
+        ? computedDiscountAmount ||
+          Number(raw.discountAmount) ||
+          Number((food as any).discountAmount) ||
+          0
+        : 0,
+      discountType: (food as any).discountType || raw.discountType || null,
       discountDescription: hasDiscount
         ? (food as any).discountDescription || "SPECIAL DISCOUNT"
         : null,
