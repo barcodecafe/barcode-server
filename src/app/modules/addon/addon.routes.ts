@@ -1,32 +1,45 @@
 import express from 'express';
-import { AddonController } from './addon.controller';
-import { authMiddleware, authorize } from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
-import { createAddonValidationSchema, updateAddonValidationSchema } from './addon.validation';
+import { authMiddleware, authorize } from '../../middlewares/auth';
+import { AddonController } from './addon.controller';
+import {
+  createAddonGroupValidationSchema,
+  updateAddonGroupValidationSchema,
+} from './addon.validation';
 
 const router = express.Router();
 
-const adminOnly = [authMiddleware, authorize('admin', 'super_admin')];
+// Allow reading addon groups publicly (needed for dish customize / details)
+router.get('/', AddonController.getAllAddonGroupsController);
+router.get('/:id', AddonController.getAddonGroupByIdController);
 
-router.get('/', AddonController.getAllAddonsController); // Public for client menu/dish details
-router.get('/:id', AddonController.getAddonByIdController);
+// Admin-only management endpoints
+const adminOnly = [authMiddleware, authorize('admin')];
 
 router.post(
   '/',
   ...adminOnly,
-  validateRequest(createAddonValidationSchema),
-  AddonController.createAddonController
+  validateRequest(createAddonGroupValidationSchema),
+  AddonController.createAddonGroupController
 );
 
 router.patch(
   '/:id',
   ...adminOnly,
-  validateRequest(updateAddonValidationSchema),
-  AddonController.updateAddonController
+  validateRequest(updateAddonGroupValidationSchema),
+  AddonController.updateAddonGroupController
 );
 
-router.delete('/:id', ...adminOnly, AddonController.deleteAddonController);
+router.delete(
+  '/:id',
+  ...adminOnly,
+  AddonController.deleteAddonGroupController
+);
 
-router.post('/seed-defaults', ...adminOnly, AddonController.seedDefaultAddonsController);
+router.post(
+  '/seed-defaults',
+  ...adminOnly,
+  AddonController.seedDefaultAddonGroupsController
+);
 
 export const AddonRoutes = router;

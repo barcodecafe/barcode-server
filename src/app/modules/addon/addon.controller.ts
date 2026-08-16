@@ -1,75 +1,115 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Request, Response } from 'express';
 import { AddonService } from './addon.service';
 
-const getAllAddonsController = async (req: Request, res: Response) => {
+const getAllAddonGroupsController = async (_req: Request, res: Response) => {
   try {
-    const group = req.query.group ? String(req.query.group) : undefined;
-    const addons = await AddonService.getAllAddonsService(group);
-    res.status(200).json({ success: true, data: addons });
+    const result = await AddonService.getAllAddonGroupsService();
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.status(200).json({
+      success: true,
+      message: 'Addon groups retrieved successfully',
+      data: result,
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-const getAddonByIdController = async (req: Request, res: Response) => {
+const getAddonGroupByIdController = async (req: Request, res: Response) => {
   try {
-    const addon = await AddonService.getAddonByIdService(req.params.id);
-    if (!addon) {
-      return res.status(404).json({ success: false, message: 'Addon not found' });
+    const { id } = req.params;
+    const result = await AddonService.getAddonGroupByIdService(id);
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: 'Addon group not found',
+        data: null,
+      });
     }
-    res.status(200).json({ success: true, data: addon });
+    res.status(200).json({
+      success: true,
+      message: 'Addon group retrieved successfully',
+      data: result,
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-const createAddonController = async (req: Request, res: Response) => {
+const createAddonGroupController = async (req: Request, res: Response) => {
   try {
-    const addon = await AddonService.createAddonService(req.body);
-    res.status(201).json({ success: true, message: 'Addon created successfully', data: addon });
+    const result = await AddonService.createAddonGroupService(req.body);
+    res.status(201).json({
+      success: true,
+      message: 'Addon group created successfully',
+      data: result,
+    });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-const updateAddonController = async (req: Request, res: Response) => {
+const updateAddonGroupController = async (req: Request, res: Response) => {
   try {
-    const addon = await AddonService.updateAddonService(req.params.id, req.body);
-    if (!addon) {
-      return res.status(404).json({ success: false, message: 'Addon not found' });
+    const { id } = req.params;
+    const result = await AddonService.updateAddonGroupService(id, req.body);
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: 'Addon group not found',
+        data: null,
+      });
     }
-    res.status(200).json({ success: true, message: 'Addon updated successfully', data: addon });
+    res.status(200).json({
+      success: true,
+      message: 'Addon group updated successfully',
+      data: result,
+    });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-const deleteAddonController = async (req: Request, res: Response) => {
+const deleteAddonGroupController = async (req: Request, res: Response) => {
   try {
-    const addon = await AddonService.deleteAddonService(req.params.id);
-    if (!addon) {
-      return res.status(404).json({ success: false, message: 'Addon not found' });
+    const { id } = req.params;
+    const result = await AddonService.deleteAddonGroupService(id);
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: 'Addon group not found',
+        data: null,
+      });
     }
-    res.status(200).json({ success: true, message: 'Addon deleted successfully', data: addon });
+    res.status(200).json({
+      success: true,
+      message: 'Addon group deleted successfully',
+      data: result,
+    });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-const seedDefaultAddonsController = async (_req: Request, res: Response) => {
+const seedDefaultAddonGroupsController = async (_req: Request, res: Response) => {
   try {
-    const addons = await AddonService.seedDefaultAddonsService();
-    res.status(200).json({ success: true, message: 'Default addons populated', data: addons });
+    const result = await AddonService.seedDefaultAddonGroupsService();
+    res.status(200).json({
+      success: true,
+      message: 'Sample burger addon groups seeded successfully',
+      data: result,
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
 export const AddonController = {
-  getAllAddonsController,
-  getAddonByIdController,
-  createAddonController,
-  updateAddonController,
-  deleteAddonController,
-  seedDefaultAddonsController,
+  getAllAddonGroupsController,
+  getAddonGroupByIdController,
+  createAddonGroupController,
+  updateAddonGroupController,
+  deleteAddonGroupController,
+  seedDefaultAddonGroupsController,
 };

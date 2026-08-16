@@ -1,18 +1,48 @@
 import { Schema, model } from 'mongoose';
-import { ICentralAddon } from './addon.interface';
+import { IAddonGroup, IAddonItem } from './addon.interface';
 
-const centralAddonSchema = new Schema<ICentralAddon>(
+const addonItemSchema = new Schema<IAddonItem>(
   {
-    name: { type: String, required: true, trim: true },
-    price: { type: Number, required: true, min: 0 },
-    group: { type: String, required: true, trim: true, default: 'General Add-ons' },
-    isAvailable: { type: Boolean, default: true },
-    order: { type: Number, default: 0 },
+    name: {
+      type: String,
+      required: [true, 'Addon item name is required'],
+      trim: true,
+    },
+    price: {
+      type: Number,
+      required: [true, 'Addon item price is required'],
+      min: [0, 'Price cannot be negative'],
+    },
+    isAvailable: {
+      type: Boolean,
+      default: true,
+    },
   },
-  { timestamps: true }
+  { _id: true }
 );
 
-// Index for fast group sorting & searching
-centralAddonSchema.index({ group: 1, order: 1, name: 1 });
+const addonGroupSchema = new Schema<IAddonGroup>(
+  {
+    title: {
+      type: String,
+      required: [true, 'Group title is required'],
+      trim: true,
+    },
+    items: {
+      type: [addonItemSchema],
+      default: [],
+    },
+    order: {
+      type: Number,
+      default: 0,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
 
-export const CentralAddon = model<ICentralAddon>('CentralAddon', centralAddonSchema);
+// Index for ordering
+addonGroupSchema.index({ order: 1, createdAt: 1 });
+
+export const AddonGroup = model<IAddonGroup>('AddonGroup', addonGroupSchema);
