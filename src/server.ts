@@ -140,6 +140,13 @@ io.on('connection', (socket) => {
   // 💰 7. রাইডার ক্যাশ সেটেলমেন্ট সাবমিট (Admin Notification)
   socket.on('rider_cash_submitted', (data) => {
     io.emit('rider_cash_submitted', data);
+    io.emit('order_updated', data);
+  });
+
+  // 💰 8. এডমিন ক্যাশ সেটেলমেন্ট কনফার্ম (Rider Notification)
+  socket.on('rider_cash_settled', (data) => {
+    io.emit('rider_cash_settled', data);
+    io.emit('order_updated', data);
   });
 
   socket.on('disconnect', () => {

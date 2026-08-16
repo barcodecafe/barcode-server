@@ -309,6 +309,14 @@ const submitDailyCashController = async (req: Request, res: Response) => {
   try {
     const riderId = String((req as any).user?._id);
     const data = await OrderService.submitRiderDailyCashService(riderId, req.body?.date);
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('rider_cash_submitted', {
+        riderId,
+        date: req.body?.date,
+      });
+      io.emit('order_updated', { type: 'cash_submitted', riderId, date: req.body?.date });
+    }
     res.status(200).json({ success: true, message: 'Cash submitted to admin for confirmation', data });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -323,6 +331,14 @@ const confirmCashSettlementController = async (req: Request, res: Response) => {
       req.body?.date,
       String((req as any).user?._id),
     );
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('rider_cash_settled', {
+        riderId: req.body?.riderId,
+        date: req.body?.date,
+      });
+      io.emit('order_updated', { type: 'cash_settled', riderId: req.body?.riderId, date: req.body?.date });
+    }
     res.status(200).json({ success: true, message: 'Cash settlement confirmed', data });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
