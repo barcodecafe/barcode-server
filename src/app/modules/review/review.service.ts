@@ -4,19 +4,33 @@ import { User } from '../user/user.model';
 import { getNextId } from '../../utils/counter';
 
 /** Helper to recalculate and sync food rating with reviews */
-const syncFoodRatingStats = async (foodId: number) => {
+const syncFoodRatingStats = async (foodId: number | string) => {
+  const n = Number(foodId);
+  const matchFilter = Number.isFinite(n)
+    ? { $or: [{ foodId: n }, { foodId: String(foodId) }] }
+    : { foodId: String(foodId) };
+
   const stats = await Review.aggregate([
-    { $match: { foodId } },
+    { $match: matchFilter },
     {
       $group: {
-        _id: '$foodId',
+        _id: null,
         avgRating: { $avg: '$rating' },
         count: { $sum: 1 },
       },
     },
   ]);
 
-  const food = await Food.findOne({ id: foodId });
+  let food = null;
+  if (Number.isFinite(n)) {
+    food = await Food.findOne({ id: n });
+  }
+  if (!food && typeof foodId === 'string' && foodId.match(/^[0-9a-fA-F]{24}$/)) {
+    food = await Food.findById(foodId);
+  }
+  if (!food) {
+    food = await Food.findOne({ $or: [{ id: foodId }, { _id: foodId }] }).catch(() => null);
+  }
   if (!food) return;
 
   if (stats.length > 0 && stats[0].count > 0) {
@@ -34,14 +48,24 @@ const syncFoodRatingStats = async (foodId: number) => {
 
 /** Create or update a customer review for a food item */
 const createOrUpdateReviewService = async (payload: {
-  foodId: number;
+  foodId: number | string;
   userId: string;
   rating: number;
   comment?: string;
 }) => {
   const { foodId, userId, rating, comment = '' } = payload;
+  const n = Number(foodId);
 
-  const food = await Food.findOne({ id: foodId });
+  let food = null;
+  if (Number.isFinite(n)) {
+    food = await Food.findOne({ id: n });
+  }
+  if (!food && typeof foodId === 'string' && foodId.match(/^[0-9a-fA-F]{24}$/)) {
+    food = await Food.findById(foodId);
+  }
+  if (!food) {
+    food = await Food.findOne({ $or: [{ id: foodId }, { _id: foodId }] }).catch(() => null);
+  }
   if (!food) {
     throw new Error('Food item not found');
   }
@@ -51,8 +75,13 @@ const createOrUpdateReviewService = async (payload: {
     throw new Error('User not found');
   }
 
+  const foodIdVal = food.id || food._id;
+
   // Check if this user already reviewed this food item
-  let review = await Review.findOne({ foodId, userId });
+  let review = await Review.findOne({
+    $or: [{ foodId: foodIdVal }, { foodId: n }],
+    userId,
+  });
 
   if (review) {
     review.rating = rating;
@@ -64,7 +93,7 @@ const createOrUpdateReviewService = async (payload: {
     const id = await getNextId('review');
     review = await Review.create({
       id,
-      foodId,
+      foodId: foodIdVal,
       userId,
       userName: user.name || 'Anonymous Customer',
       userEmail: user.email || '',
@@ -74,16 +103,30 @@ const createOrUpdateReviewService = async (payload: {
   }
 
   // Sync Food rating and count automatically
-  await syncFoodRatingStats(foodId);
+  await syncFoodRatingStats(foodIdVal);
 
   return review;
 };
 
 /** Get reviews for a food item with star breakdown */
-const getFoodReviewsService = async (foodId: number) => {
+const getFoodReviewsService = async (foodId: number | string) => {
+  const n = Number(foodId);
+  const matchFilter = Number.isFinite(n)
+    ? { $or: [{ foodId: n }, { foodId: String(foodId) }] }
+    : { foodId: String(foodId) };
+
+  let foodPromise: Promise<any>;
+  if (Number.isFinite(n)) {
+    foodPromise = Food.findOne({ id: n });
+  } else if (typeof foodId === 'string' && foodId.match(/^[0-9a-fA-F]{24}$/)) {
+    foodPromise = Food.findById(foodId);
+  } else {
+    foodPromise = Food.findOne({ $or: [{ id: foodId }, { _id: foodId }] }).catch(() => null);
+  }
+
   const [reviews, food] = await Promise.all([
-    Review.find({ foodId }).sort({ createdAt: -1 }),
-    Food.findOne({ id: foodId }),
+    Review.find(matchFilter).sort({ createdAt: -1 }),
+    foodPromise,
   ]);
 
   const totalReviews = reviews.length;
