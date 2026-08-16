@@ -280,7 +280,13 @@ const acceptRiderController = async (req: Request, res: Response) => {
 
     const io = req.app.get('io');
     if (io) {
+      io.emit('order_status_updated', {
+        orderId: req.params.id,
+        status: order?.status || 'Preparing',
+        order,
+      });
       io.emit('order_updated', order);
+      io.emit('rider_order_updated', order);
     }
 
     res.status(200).json({ success: true, message: 'Delivery accepted', data: order });
@@ -296,7 +302,13 @@ const rejectRiderController = async (req: Request, res: Response) => {
 
     const io = req.app.get('io');
     if (io) {
+      io.emit('order_status_updated', {
+        orderId: req.params.id,
+        status: order?.status,
+        order,
+      });
       io.emit('order_updated', order);
+      io.emit('rider_order_updated', order);
     }
 
     res.status(200).json({ success: true, message: 'Delivery rejected', data: order });

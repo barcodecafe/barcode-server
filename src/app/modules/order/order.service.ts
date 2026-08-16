@@ -647,10 +647,11 @@ const acceptRiderOrderService = async (orderId: string, actorId: string) => {
   }
 
   order.riderAcceptStatus = "accepted";
+  order.status = "Preparing";
   
   sysMsg(
     order,
-    `${order.riderName || "Rider"} accepted the delivery and is heading to the branch.`,
+    `${order.riderName || "Rider"} accepted the delivery and the kitchen is preparing the order.`,
     "rider",
     order.riderName || "Rider",
   );
