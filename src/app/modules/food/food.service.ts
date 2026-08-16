@@ -37,8 +37,16 @@ const getAllFoodsService = async (category?: string) => {
 // GET /api/foods/:id
 const getFoodByIdService = async (id: string | number) => {
   const n = Number(id);
-  if (!Number.isFinite(n)) return null;
-  const food = await Food.findOne({ id: n });
+  let food = null;
+  if (Number.isFinite(n)) {
+    food = await Food.findOne({ id: n });
+  }
+  if (!food && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+    food = await Food.findById(id);
+  }
+  if (!food) {
+    food = await Food.findOne({ $or: [{ id: id }, { _id: id }] }).catch(() => null);
+  }
   return food ? applyExpirationCheck(food) : null;
 };
 
@@ -185,8 +193,16 @@ const createFoodService = async (payload: any) => {
 
 const updateFoodService = async (id: string | number, payload: any) => {
   const n = Number(id);
-  if (!Number.isFinite(n)) return null;
-  const food = await Food.findOne({ id: n });
+  let food = null;
+  if (Number.isFinite(n)) {
+    food = await Food.findOne({ id: n });
+  }
+  if (!food && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+    food = await Food.findById(id);
+  }
+  if (!food) {
+    food = await Food.findOne({ $or: [{ id: id }, { _id: id }] }).catch(() => null);
+  }
   if (!food) return null;
 
   const scalar = [
@@ -276,8 +292,17 @@ const reorderCategoriesService = async (categories: string[]) => {
 
 const deleteFoodService = async (id: string | number) => {
   const n = Number(id);
-  if (!Number.isFinite(n)) return null;
-  return Food.findOneAndDelete({ id: n });
+  let food = null;
+  if (Number.isFinite(n)) {
+    food = await Food.findOneAndDelete({ id: n });
+  }
+  if (!food && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+    food = await Food.findByIdAndDelete(id);
+  }
+  if (!food) {
+    food = await Food.findOneAndDelete({ $or: [{ id: id }, { _id: id }] }).catch(() => null);
+  }
+  return food;
 };
 
 export const FoodService = {
