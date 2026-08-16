@@ -137,6 +137,11 @@ io.on('connection', (socket) => {
     io.emit('new_chat_message', data);
   });
 
+  // 💰 7. রাইডার ক্যাশ সেটেলমেন্ট সাবমিট (Admin Notification)
+  socket.on('rider_cash_submitted', (data) => {
+    io.emit('rider_cash_submitted', data);
+  });
+
   socket.on('disconnect', () => {
     // disconnected
   });
