@@ -9,6 +9,7 @@ const variation = z.object({
 const addon = z.object({
   name: z.string().min(1, 'Addon name is required'),
   price: z.coerce.number().nonnegative('Addon price must be non-negative'),
+  group: z.string().optional().nullable(),
   image: z.string().optional().nullable(),
 });
 

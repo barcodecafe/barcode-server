@@ -13,7 +13,8 @@ const variationSchema = new Schema(
 const addonSchema = new Schema(
   {
     name: { type: String, required: true },
-    price: { type: Number, required: true, default: 0 },
+    price: { type: Number, required: true },
+    group: { type: String, default: '' },
     image: { type: String, default: '' },
   },
   { _id: false }

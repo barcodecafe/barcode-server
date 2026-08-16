@@ -7,6 +7,7 @@ export interface IVariation {
 export interface IAddon {
   name: string;
   price: number;
+  group?: string; // e.g. "Extra Cheese", "Premium Add-ons"
   image?: string;
 }
 

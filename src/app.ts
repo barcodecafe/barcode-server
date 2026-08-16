@@ -28,6 +28,7 @@ import { SearchRoutes } from './app/modules/search/search.routes';
 import { ImageRoutes } from './app/modules/images/images.routes';
 import { ReviewRoutes } from './app/modules/review/review.routes';
 import { FeedbackRoutes } from './app/modules/feedback/feedback.routes';
+import { AddonRoutes } from './app/modules/addon/addon.routes';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
 
 const app: Application = express();
@@ -261,6 +262,7 @@ app.use('/api/search', SearchRoutes);
 app.use('/api/images', ImageRoutes);
 app.use('/api/reviews', ReviewRoutes);
 app.use('/api/feedbacks', FeedbackRoutes);
+app.use('/api/addons', AddonRoutes);
 
 // Health check
 app.get('/', (req: Request, res: Response) => {
