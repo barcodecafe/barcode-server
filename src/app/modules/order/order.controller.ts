@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Request, Response } from 'express';
 import { OrderService } from './order.service';
+import { User } from '../user/user.model';
 
 // 🔒 Strictly enforce ownership: User must be logged in & own the order (or be admin/assigned rider)
 const canAccess = (order: any, actor: any): boolean => {
@@ -309,13 +310,17 @@ const submitDailyCashController = async (req: Request, res: Response) => {
   try {
     const riderId = String((req as any).user?._id);
     const data = await OrderService.submitRiderDailyCashService(riderId, req.body?.date);
+    const riderUser = await User.findById(riderId).select('name phone').lean();
+    const riderName = riderUser?.name || req.body?.riderName || 'Rider';
     const io = req.app.get('io');
     if (io) {
       io.emit('rider_cash_submitted', {
         riderId,
+        riderName,
         date: req.body?.date,
+        data,
       });
-      io.emit('order_updated', { type: 'cash_submitted', riderId, date: req.body?.date });
+      io.emit('order_updated', { type: 'cash_submitted', riderId, riderName, date: req.body?.date });
     }
     res.status(200).json({ success: true, message: 'Cash submitted to admin for confirmation', data });
   } catch (error: any) {
