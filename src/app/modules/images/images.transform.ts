@@ -72,8 +72,9 @@ export const externalizeImages = <T extends Record<string, any>>(
     typeof (doc as any).toJSON === 'function' ? (doc as any).toJSON() : { ...doc };
   const version = out.updatedAt ?? out.createdAt ?? 0;
 
+  const recId = out.id !== undefined && out.id !== null ? out.id : out._id;
   for (const field of fields) {
-    if (isDataUrl(out[field])) out[field] = urlFor(type, out.id, field, version, origin);
+    if (isDataUrl(out[field])) out[field] = urlFor(type, recId, field, version, origin);
   }
 
   // Food variations carry their own images.
@@ -82,7 +83,7 @@ export const externalizeImages = <T extends Record<string, any>>(
       isDataUrl(variation?.image)
         ? {
             ...variation,
-            image: urlFor(type, out.id, `variations.${index}.image`, version, origin),
+            image: urlFor(type, recId, `variations.${index}.image`, version, origin),
           }
         : variation,
     );

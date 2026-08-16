@@ -82,11 +82,16 @@ export const getImageService = async (
   if (!Model || !isAllowedField(type, field)) return null;
 
   const numericId = Number(id);
-  if (!Number.isFinite(numericId)) return null;
-
-  // Project only the field being served — never pull a whole 600 KB document
-  // to return one of its images.
-  const doc = await Model.findOne({ id: numericId }).select(field).lean();
+  let doc = null;
+  if (Number.isFinite(numericId)) {
+    doc = await Model.findOne({ id: numericId }).select(field).lean();
+  }
+  if (!doc && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+    doc = await Model.findById(id).select(field).lean();
+  }
+  if (!doc) {
+    doc = await Model.findOne({ $or: [{ id: id }, { _id: id }] }).select(field).lean().catch(() => null);
+  }
   if (!doc) return null;
 
   const value = readPath(doc, field);
