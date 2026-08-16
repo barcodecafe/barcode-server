@@ -224,10 +224,19 @@ const updateFoodService = async (id: string | number, payload: any) => {
   } else if (Array.isArray(payload.branches) && payload.branches.length > 0) {
     food.branchIds = payload.branches;
   }
-  if (payload.branchPrices !== undefined) food.set('branchPrices', payload.branchPrices);
+  if (payload.branchPrices !== undefined) {
+    food.set('branchPrices', payload.branchPrices);
+    food.markModified('branchPrices');
+  }
   if (payload.variantLabel !== undefined) food.variantLabel = payload.variantLabel || 'Size';
-  if (payload.variations !== undefined) food.variations = payload.variations;
-  if (payload.addons !== undefined) food.addons = payload.addons;
+  if (payload.variations !== undefined) {
+    food.variations = payload.variations;
+    food.markModified('variations');
+  }
+  if (payload.addons !== undefined) {
+    food.addons = payload.addons;
+    food.markModified('addons');
+  }
 
   await food.save();
   return applyExpirationCheck(food);
