@@ -50,6 +50,13 @@ const approveController = async (req: Request, res: Response) => {
   try {
     const app = await RiderApplicationService.approveApplicationService(req.params.id);
     if (!app) return res.status(404).json({ success: false, message: 'Application not found' });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('rider_updated', { userId: app.userId, status: 'approved', role: 'rider' });
+      io.emit('rider_application_status_changed', { id: app.id, status: 'approved', userId: app.userId });
+    }
+
     res.status(200).json({ success: true, message: 'Application approved — user promoted to rider', data: app });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -60,6 +67,13 @@ const rejectController = async (req: Request, res: Response) => {
   try {
     const app = await RiderApplicationService.rejectApplicationService(req.params.id);
     if (!app) return res.status(404).json({ success: false, message: 'Application not found' });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('rider_updated', { userId: app.userId, status: 'rejected' });
+      io.emit('rider_application_status_changed', { id: app.id, status: 'rejected', userId: app.userId });
+    }
+
     res.status(200).json({ success: true, message: 'Application rejected', data: app });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
