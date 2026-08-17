@@ -246,11 +246,44 @@ const updateFoodService = async (id: string | number, payload: any) => {
   }
   if (payload.variantLabel !== undefined) food.variantLabel = payload.variantLabel || 'Size';
   if (payload.variations !== undefined) {
-    food.variations = payload.variations;
+    if (Array.isArray(payload.variations)) {
+      const existingVariations = Array.isArray(food.variations) ? food.variations : [];
+      food.variations = payload.variations.map((v: any, idx: number) => {
+        let img = v.image;
+        if (img === undefined || (typeof img === 'string' && img.includes('/api/images/'))) {
+          const match = existingVariations.find((ex: any) => ex.name === v.name) || existingVariations[idx];
+          img = match?.image || '';
+        }
+        return {
+          name: v.name,
+          price: Number(v.price) || 0,
+          image: img || '',
+        };
+      });
+    } else {
+      food.variations = [];
+    }
     food.markModified('variations');
   }
   if (payload.addons !== undefined) {
-    food.addons = payload.addons;
+    if (Array.isArray(payload.addons)) {
+      const existingAddons = Array.isArray(food.addons) ? food.addons : [];
+      food.addons = payload.addons.map((a: any, idx: number) => {
+        let img = a.image;
+        if (img === undefined || (typeof img === 'string' && img.includes('/api/images/'))) {
+          const match = existingAddons.find((ex: any) => ex.name === a.name) || existingAddons[idx];
+          img = match?.image || '';
+        }
+        return {
+          name: a.name,
+          price: Number(a.price) || 0,
+          group: a.group || '',
+          image: img || '',
+        };
+      });
+    } else {
+      food.addons = [];
+    }
     food.markModified('addons');
   }
 

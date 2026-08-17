@@ -81,16 +81,18 @@ export const getImageService = async (
   const Model = MODELS[type];
   if (!Model || !isAllowedField(type, field)) return null;
 
+  const rootField = field.split('.')[0];
+
   const numericId = Number(id);
   let doc = null;
   if (Number.isFinite(numericId)) {
-    doc = await Model.findOne({ id: numericId }).select(field).lean();
+    doc = await Model.findOne({ id: numericId }).select(rootField).lean();
   }
   if (!doc && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
-    doc = await Model.findById(id).select(field).lean();
+    doc = await Model.findById(id).select(rootField).lean();
   }
   if (!doc) {
-    doc = await Model.findOne({ $or: [{ id: id }, { _id: id }] }).select(field).lean().catch(() => null);
+    doc = await Model.findOne({ $or: [{ id: id }, { _id: id }] }).select(rootField).lean().catch(() => null);
   }
   if (!doc) return null;
 
