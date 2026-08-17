@@ -30,23 +30,111 @@ const leadershipSchema = new Schema(
 );
 
 export interface IAbout {
-  mission: string;
-  vision: string;
-  stats: { founded: string; branchesCount: string; standard: string };
+  // 1. Hero Section
+  heroBadge?: string;
+  heroTitle?: string;
+  heroHighlightText?: string;
+  heroDescription?: string;
+  heroImageMain?: string;
+  heroImageSecondary1?: string;
+  heroImageSecondary2?: string;
+  heroNetworkBadgeTitle?: string;
+  heroNetworkBadgeSubtitle?: string;
+  
+  // Hero Trust Stats
+  heroStat1Value?: string;
+  heroStat1Label?: string;
+  heroStat2Value?: string;
+  heroStat2Label?: string;
+  heroStat3Value?: string;
+  heroStat3Label?: string;
+
+  // 2. Our Story Section
+  storyBadge?: string;
+  storyTitle?: string;
+  storyDescription?: string;
+  storyImage?: string;
+  storyImageCaption?: string;
   timeline: any[];
+
+  // 3. Mission & Vision Section
+  missionTitle?: string;
+  mission: string;
+  visionTitle?: string;
+  vision: string;
+  stats: {
+    founded: string;
+    foundedLabel?: string;
+    branchesCount: string;
+    branchesCountLabel?: string;
+    standard: string;
+    standardLabel?: string;
+  };
+
+  // 4. Leadership Section
+  leadershipBadge?: string;
+  leadershipTitle?: string;
+  leadershipSubtitle?: string;
   leadership: any[];
 }
 
 const aboutSchema = new Schema(
   {
+    // 1. Hero Section
+    heroBadge: { type: String, default: 'About Barcode Group' },
+    heroTitle: { type: String, default: 'Good Food, \nRun Like a Promise' },
+    heroHighlightText: { type: String, default: 'Promise' },
+    heroDescription: {
+      type: String,
+      default:
+        'From a single kitchen to six thriving branches, Barcode has stayed true to one core philosophy: every dish should meet the exact same culinary standard. Every single time. Everywhere.',
+    },
+    heroImageMain: { type: String, default: '' },
+    heroImageSecondary1: { type: String, default: '' },
+    heroImageSecondary2: { type: String, default: '' },
+    heroNetworkBadgeTitle: { type: String, default: 'Group Network' },
+    heroNetworkBadgeSubtitle: { type: String, default: 'Barcode Hospitality' },
+
+    heroStat1Value: { type: String, default: '6' },
+    heroStat1Label: { type: String, default: 'Active Branches' },
+    heroStat2Value: { type: String, default: '100%' },
+    heroStat2Label: { type: String, default: 'Consistency' },
+    heroStat3Value: { type: String, default: '1' },
+    heroStat3Label: { type: String, default: 'Uncompromising Taste' },
+
+    // 2. Our Story Section
+    storyBadge: { type: String, default: 'Our Story' },
+    storyTitle: { type: String, default: 'How We Got Here' },
+    storyDescription: {
+      type: String,
+      default:
+        'Barcode started as one restaurant with a clear point of view: dining out should feel considered, not complicated. That same standard now travels across every branch we open.',
+    },
+    storyImage: { type: String, default: '' },
+    storyImageCaption: { type: String, default: 'Inside a Barcode restaurant branch' },
+    timeline: { type: [timelineSchema], default: [] },
+
+    // 3. Mission & Vision Section
+    missionTitle: { type: String, default: 'Our Mission' },
     mission: { type: String, default: '' },
+    visionTitle: { type: String, default: 'Our Vision' },
     vision: { type: String, default: '' },
     stats: {
-      founded: { type: String, default: '' },
-      branchesCount: { type: String, default: '' },
-      standard: { type: String, default: '' },
+      founded: { type: String, default: '2022' },
+      foundedLabel: { type: String, default: 'Founded' },
+      branchesCount: { type: String, default: '6' },
+      branchesCountLabel: { type: String, default: 'Branches' },
+      standard: { type: String, default: '100%' },
+      standardLabel: { type: String, default: 'Standard' },
     },
-    timeline: { type: [timelineSchema], default: [] },
+
+    // 4. Leadership Section
+    leadershipBadge: { type: String, default: 'Leadership' },
+    leadershipTitle: { type: String, default: 'Owner & Executive Team' },
+    leadershipSubtitle: {
+      type: String,
+      default: 'The people responsible for keeping every branch on the same standard.',
+    },
     leadership: { type: [leadershipSchema], default: [] },
   },
   {

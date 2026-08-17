@@ -19,6 +19,7 @@ import { Food } from '../food/food.model';
 import { Branch } from '../branch/branch.model';
 import { Brand } from '../brand/brand.model';
 import { HeroSlide } from '../hero/hero.model';
+import { About } from '../about/about.model';
 
 // Only these resources expose images, and only through this map — a request
 // cannot name an arbitrary collection.
@@ -27,6 +28,7 @@ const MODELS: Record<string, any> = {
   branch: Branch,
   brand: Brand,
   hero: HeroSlide,
+  about: About,
 };
 
 // Field paths that may be read, per type. A request for anything else is
@@ -37,6 +39,7 @@ const ALLOWED_FIELDS: Record<string, RegExp> = {
   branch: /^image$/,
   brand: /^(logoLight|logoDark|cover)$/,
   hero: /^image$/,
+  about: /^(heroImageMain|heroImageSecondary1|heroImageSecondary2|storyImage|leadership\.\d+\.image)$/,
 };
 
 export const isImageType = (type: string): boolean => type in MODELS;
@@ -83,16 +86,20 @@ export const getImageService = async (
 
   const rootField = field.split('.')[0];
 
-  const numericId = Number(id);
   let doc = null;
-  if (Number.isFinite(numericId)) {
-    doc = await Model.findOne({ id: numericId }).select(rootField).lean();
-  }
-  if (!doc && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
-    doc = await Model.findById(id).select(rootField).lean();
-  }
-  if (!doc) {
-    doc = await Model.findOne({ $or: [{ id: id }, { _id: id }] }).select(rootField).lean().catch(() => null);
+  if (type === 'about') {
+    doc = await Model.findOne({}).select(rootField).lean();
+  } else {
+    const numericId = Number(id);
+    if (Number.isFinite(numericId)) {
+      doc = await Model.findOne({ id: numericId }).select(rootField).lean();
+    }
+    if (!doc && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+      doc = await Model.findById(id).select(rootField).lean();
+    }
+    if (!doc) {
+      doc = await Model.findOne({ $or: [{ id: id }, { _id: id }] }).select(rootField).lean().catch(() => null);
+    }
   }
   if (!doc) return null;
 

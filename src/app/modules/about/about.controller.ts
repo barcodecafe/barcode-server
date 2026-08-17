@@ -1,12 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Request, Response } from 'express';
 import { AboutService } from './about.service';
+import { externalizeImages, stripExternalImageRefs } from '../images/images.transform';
+import { publicApiBase } from '../../utils/publicApiBase';
 
 const nf = (res: Response) => res.status(404).json({ success: false, message: 'Item not found' });
 
-const getAboutController = async (_req: Request, res: Response) => {
+const getAboutController = async (req: Request, res: Response) => {
   try {
-    res.status(200).json({ success: true, data: await AboutService.getAboutService() });
+    const doc = await AboutService.getAboutService();
+    res.status(200).json({ success: true, data: externalizeImages(doc as any, 'about', publicApiBase(req)) });
   } catch (e: any) {
     res.status(500).json({ success: false, message: e.message });
   }
@@ -14,7 +17,9 @@ const getAboutController = async (_req: Request, res: Response) => {
 
 const updateCoreController = async (req: Request, res: Response) => {
   try {
-    res.status(200).json({ success: true, message: 'About updated', data: await AboutService.updateAboutCoreService(req.body) });
+    stripExternalImageRefs(req.body, 'about');
+    const doc = await AboutService.updateAboutCoreService(req.body);
+    res.status(200).json({ success: true, message: 'About updated', data: externalizeImages(doc as any, 'about', publicApiBase(req)) });
   } catch (e: any) {
     res.status(500).json({ success: false, message: e.message });
   }
@@ -50,7 +55,8 @@ const deleteTimelineController = async (req: Request, res: Response) => {
 
 const addLeadershipController = async (req: Request, res: Response) => {
   try {
-    res.status(201).json({ success: true, message: 'Leader added', data: await AboutService.addLeadershipMemberService(req.body) });
+    const data = await AboutService.addLeadershipMemberService(req.body);
+    res.status(201).json({ success: true, message: 'Leader added', data: externalizeImages(data as any, 'about', publicApiBase(req)) });
   } catch (e: any) {
     res.status(500).json({ success: false, message: e.message });
   }
@@ -58,9 +64,12 @@ const addLeadershipController = async (req: Request, res: Response) => {
 
 const updateLeadershipController = async (req: Request, res: Response) => {
   try {
+    if (req.body.image && typeof req.body.image === 'string' && req.body.image.includes('/api/images/')) {
+      delete req.body.image;
+    }
     const data = await AboutService.updateLeadershipMemberService(req.params.id, req.body);
     if (!data) return nf(res);
-    res.status(200).json({ success: true, message: 'Leader updated', data });
+    res.status(200).json({ success: true, message: 'Leader updated', data: externalizeImages(data as any, 'about', publicApiBase(req)) });
   } catch (e: any) {
     res.status(500).json({ success: false, message: e.message });
   }
@@ -70,7 +79,7 @@ const deleteLeadershipController = async (req: Request, res: Response) => {
   try {
     const data = await AboutService.deleteLeadershipMemberService(req.params.id);
     if (!data) return nf(res);
-    res.status(200).json({ success: true, message: 'Leader deleted', data });
+    res.status(200).json({ success: true, message: 'Leader deleted', data: externalizeImages(data as any, 'about', publicApiBase(req)) });
   } catch (e: any) {
     res.status(500).json({ success: false, message: e.message });
   }

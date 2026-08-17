@@ -20,6 +20,7 @@ const IMAGE_FIELDS: Record<string, string[]> = {
   branch: ['image'],
   brand: ['logoLight', 'logoDark', 'cover'],
   hero: ['image'],
+  about: ['heroImageMain', 'heroImageSecondary1', 'heroImageSecondary2', 'storyImage'],
 };
 
 const IMAGE_PATH = '/api/images/';
@@ -89,6 +90,18 @@ export const externalizeImages = <T extends Record<string, any>>(
     );
   }
 
+  // About leadership members carry their own images.
+  if (type === 'about' && Array.isArray(out.leadership)) {
+    out.leadership = out.leadership.map((member: any, index: number) =>
+      isDataUrl(member?.image)
+        ? {
+            ...member,
+            image: urlFor(type, recId || 'single', `leadership.${index}.image`, version, origin),
+          }
+        : member,
+    );
+  }
+
   return out as T;
 };
 
@@ -120,6 +133,17 @@ export const stripExternalImageRefs = (payload: any, type: string): any => {
         return rest;
       }
       return variation;
+    });
+  }
+
+  if (type === 'about' && Array.isArray(payload.leadership)) {
+    payload.leadership = payload.leadership.map((member: any) => {
+      if (member && isExternalImageRef(member.image)) {
+        const { image, ...rest } = member;
+        void image;
+        return rest;
+      }
+      return member;
     });
   }
 
