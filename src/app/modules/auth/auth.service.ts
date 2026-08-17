@@ -119,15 +119,32 @@ const loginUser = async (payload: LoginPayload) => {
     throw err;
   }
 
+  const cleanDigits = rawIdentifier.replace(/\D/g, "");
   const normalizedPhone = normalizeBdPhone(rawIdentifier);
   const normalizedEmail = rawIdentifier.toLowerCase();
 
+  const phoneVariants: string[] = [rawIdentifier, normalizedPhone];
+  if (cleanDigits) {
+    phoneVariants.push(cleanDigits);
+    if (cleanDigits.startsWith("880")) {
+      phoneVariants.push(`0${cleanDigits.slice(3)}`);
+      phoneVariants.push(`+${cleanDigits}`);
+    } else if (cleanDigits.startsWith("0")) {
+      phoneVariants.push(`+88${cleanDigits}`);
+      phoneVariants.push(`88${cleanDigits}`);
+    } else if (cleanDigits.startsWith("1") && cleanDigits.length === 10) {
+      phoneVariants.push(`0${cleanDigits}`);
+      phoneVariants.push(`+880${cleanDigits}`);
+      phoneVariants.push(`880${cleanDigits}`);
+    }
+  }
+
   const user = await User.findOne({
-    isDeleted: false,
+    isDeleted: { $ne: true },
     $or: [
-      { phone: normalizedPhone },
-      { phone: rawIdentifier },
+      { phone: { $in: phoneVariants } },
       { email: normalizedEmail },
+      { email: rawIdentifier },
     ],
   }).select("+password");
 
@@ -281,7 +298,7 @@ const resetPasswordWithOtp = async (payload: { phone: string; otp: string; newPa
 
 // সেশন হাইড্রেশন → GET /api/auth/me
 const getMe = async (userId: string) => {
-  const user = await User.findOne({ _id: userId, isDeleted: false });
+  const user = await User.findOne({ _id: userId, isDeleted: { $ne: true } });
   if (!user) {
     const err: any = new Error("User not found");
     err.status = 404;
