@@ -134,9 +134,62 @@ const updateRiderStatusController = async (req: Request, res: Response) => {
   }
 };
 
+// 🎯 POST /api/riders/manual-create (Admin only)
+const createRiderManualController = async (req: Request, res: Response) => {
+  try {
+    const rider = await RiderService.createRiderManualService(req.body);
+    const io = req.app.get('io');
+    if (io) io.emit('rider_updated', rider);
+    res.status(201).json({
+      success: true,
+      message: 'Rider created successfully.',
+      data: rider,
+    });
+  } catch (e: any) {
+    res.status(e.status || 500).json({ success: false, message: e.message });
+  }
+};
+
+// 🎯 PATCH /api/riders/:id/profile (Admin only)
+const updateRiderProfileController = async (req: Request, res: Response) => {
+  try {
+    const rider = await RiderService.updateRiderProfileService(req.params.id, req.body);
+    if (!rider) return res.status(404).json({ success: false, message: 'Rider not found' });
+    const io = req.app.get('io');
+    if (io) io.emit('rider_updated', rider);
+    res.status(200).json({
+      success: true,
+      message: 'Rider profile updated successfully.',
+      data: rider,
+    });
+  } catch (e: any) {
+    res.status(e.status || 500).json({ success: false, message: e.message });
+  }
+};
+
+// 🎯 DELETE /api/riders/:id (Admin only)
+const deleteRiderController = async (req: Request, res: Response) => {
+  try {
+    const rider = await RiderService.deleteRiderService(req.params.id);
+    if (!rider) return res.status(404).json({ success: false, message: 'Rider not found' });
+    const io = req.app.get('io');
+    if (io) io.emit('rider_updated', rider);
+    res.status(200).json({
+      success: true,
+      message: 'Rider removed successfully.',
+      data: rider,
+    });
+  } catch (e: any) {
+    res.status(e.status || 500).json({ success: false, message: e.message });
+  }
+};
+
 export const RiderController = {
   registerController,
   getAllRidersController,
   getRiderByIdController,
+  createRiderManualController,
+  updateRiderProfileController,
+  deleteRiderController,
   updateRiderStatusController,
 };

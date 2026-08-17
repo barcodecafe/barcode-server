@@ -10,10 +10,16 @@ import { RiderApplication } from '../riderApplication/riderApplication.model';
 const toRiderShape = (u: any, activeOrders = 0) => ({
   id: String(u._id),
   name: u.name,
+  email: u.email || '',
   phone: u.phone || '',
   vehicle: u.vehicle || '',
   status: u.riderStatus || 'Available',
   approvalStatus: u.riderApprovalStatus || 'pending',
+  employmentType: u.employmentType || 'permanent',
+  commissionRate: u.employmentType === 'freelance' ? (Number(u.commissionRate) > 0 ? Number(u.commissionRate) : 15) : 0,
+  agencyName: u.agencyName || '',
+  pickArea: u.pickArea || '',
+  address: u.address || '',
   role: u.role,
   activeOrders, // in-flight deliveries assigned to this rider (0 = free to take one)
 });
@@ -38,6 +44,64 @@ const getAllRidersService = async () => {
   return riders.map((r: any) => toRiderShape(r, activeByRider.get(String(r._id)) || 0));
 };
 
+// 🎯 Dedicated Admin Manual Rider Creation (Directly active & approved)
+const createRiderManualService = async (payload: {
+  name: string;
+  phone: string;
+  password?: string;
+  email?: string;
+  vehicle?: string;
+  employmentType?: 'permanent' | 'freelance';
+  commissionRate?: number;
+  agencyName?: string;
+  pickArea?: string;
+  address?: string;
+}) => {
+  const name = String(payload.name || '').trim();
+  const phone = String(payload.phone || '').trim();
+  const email = payload.email ? String(payload.email).trim().toLowerCase() : undefined;
+  const password = payload.password || phone.slice(-6) || '123456';
+  const vehicle = String(payload.vehicle || 'Motorbike').trim();
+  const employmentType = payload.employmentType === 'freelance' ? 'freelance' : 'permanent';
+  const commissionRate =
+    employmentType === 'freelance' ? (Number(payload.commissionRate) > 0 ? Number(payload.commissionRate) : 15) : 0;
+  const agencyName = String(payload.agencyName || '').trim();
+
+  if (!name || !phone) {
+    const err: any = new Error('Name and phone number are required.');
+    err.status = 400;
+    throw err;
+  }
+
+  // Check if phone or email already exists
+  const query: any[] = [{ phone }];
+  if (email) query.push({ email });
+  const existing = await User.findOne({ $or: query, isDeleted: { $ne: true } });
+  if (existing) {
+    const err: any = new Error('A user with this phone or email already exists.');
+    err.status = 409;
+    throw err;
+  }
+
+  const user = await User.create({
+    name,
+    phone,
+    email: email || undefined,
+    password,
+    role: 'rider',
+    riderStatus: 'Available',
+    riderApprovalStatus: 'approved',
+    vehicle,
+    employmentType,
+    commissionRate,
+    agencyName,
+    pickArea: String(payload.pickArea || '').trim(),
+    address: String(payload.address || '').trim(),
+  });
+
+  return toRiderShape(user);
+};
+
 // Dedicated rider signup: creates a rider account (pending approval) + an application record
 const registerRiderService = async (
   payload: any,
@@ -59,6 +123,7 @@ const registerRiderService = async (
     role: 'user', // শুরুতে রোল অবশ্যই 'user' থাকবে
     riderApprovalStatus: 'pending',
     riderStatus: 'Available',
+    employmentType: 'permanent',
     vehicle: String(payload.vehicle || '').trim() || 'Motorbike',
     phone: String(payload.phone || '').trim(),
     pickArea: String(payload.pickArea || '').trim(),
@@ -90,6 +155,46 @@ const registerRiderService = async (
 const getRiderByIdService = async (id: string) => {
   if (!isValidObjectId(id)) return null;
   const rider = await User.findOne({ _id: id, isDeleted: { $ne: true } }).lean();
+  return rider ? toRiderShape(rider) : null;
+};
+
+// 🎯 Update full rider profile (type, commission rate, agency, phone, vehicle, password)
+const updateRiderProfileService = async (id: string, payload: any) => {
+  if (!isValidObjectId(id)) return null;
+  const rider = await User.findOne({ _id: id, role: 'rider', isDeleted: { $ne: true } });
+  if (!rider) return null;
+
+  if (payload.name) rider.name = String(payload.name).trim();
+  if (payload.phone) rider.phone = String(payload.phone).trim();
+  if (payload.email !== undefined) rider.email = payload.email ? String(payload.email).trim().toLowerCase() : undefined;
+  if (payload.vehicle) rider.vehicle = String(payload.vehicle).trim();
+  if (payload.employmentType) {
+    rider.employmentType = payload.employmentType === 'freelance' ? 'freelance' : 'permanent';
+  }
+  if (payload.commissionRate !== undefined) {
+    rider.commissionRate = Number(payload.commissionRate) || 0;
+  }
+  if (payload.agencyName !== undefined) {
+    rider.agencyName = String(payload.agencyName || '').trim();
+  }
+  if (payload.pickArea !== undefined) rider.pickArea = String(payload.pickArea || '').trim();
+  if (payload.address !== undefined) rider.address = String(payload.address || '').trim();
+  if (payload.password && String(payload.password).trim().length >= 6) {
+    rider.password = String(payload.password).trim();
+  }
+
+  await rider.save();
+  return toRiderShape(rider);
+};
+
+// 🎯 Delete / Deactivate Rider
+const deleteRiderService = async (id: string) => {
+  if (!isValidObjectId(id)) return null;
+  const rider = await User.findOneAndUpdate(
+    { _id: id, role: 'rider' },
+    { $set: { isDeleted: true, riderStatus: 'Busy' } },
+    { new: true }
+  );
   return rider ? toRiderShape(rider) : null;
 };
 
@@ -167,6 +272,9 @@ const updateRiderStatusService = async (id: string, rawStatus: string) => {
 export const RiderService = {
   getAllRidersService,
   getRiderByIdService,
+  createRiderManualService,
+  updateRiderProfileService,
+  deleteRiderService,
   updateRiderStatusService,
   registerRiderService,
   toRiderShape,

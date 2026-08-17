@@ -48,6 +48,13 @@ const userSchema = new Schema<IUser>(
       enum: ['none', 'pending', 'approved', 'rejected'],
       default: 'none',
     },
+    employmentType: {
+      type: String,
+      enum: ['permanent', 'freelance'],
+      default: 'permanent',
+    },
+    commissionRate: { type: Number, default: 0 },
+    agencyName: { type: String, default: '', trim: true },
     favorites: { type: [Number], default: [] },
     points: { type: Number, default: 0, min: 0 },
     

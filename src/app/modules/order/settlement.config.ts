@@ -20,7 +20,18 @@ const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 /** What the rider earns for completing this delivery. */
 export const riderCommissionFor = (order: {
   deliveryCharge?: number;
-}): number => round2(order.deliveryCharge || 0);
+  subtotal?: number;
+  riderEmploymentType?: string;
+  riderCommissionRate?: number;
+}): number => {
+  if (order.riderEmploymentType === 'freelance') {
+    const rate = Number(order.riderCommissionRate) > 0 ? Number(order.riderCommissionRate) : 15;
+    const foodCost = Number(order.subtotal) || 0;
+    return round2(foodCost * (rate / 100));
+  }
+  // Permanent: Area delivery charge
+  return round2(order.deliveryCharge || 0);
+};
 
 /**
  * Cash physically taken from the customer at the door.

@@ -502,6 +502,13 @@ const updateOrderStatusService = async (
   order.status = newStatus;
 
   if (newStatus === "Delivered" && !order.deliveredAt) {
+    if (!order.riderEmploymentType && order.riderId && isValidObjectId(order.riderId)) {
+      const assignedRider = await User.findById(order.riderId).lean();
+      if (assignedRider) {
+        order.riderEmploymentType = assignedRider.employmentType || 'permanent';
+        order.riderCommissionRate = assignedRider.employmentType === 'freelance' ? (assignedRider.commissionRate || 15) : 0;
+      }
+    }
     order.deliveredAt = new Date();
     order.riderCommission = riderCommissionFor(order);
     order.cashCollected = cashCollectedFor(order);
@@ -653,6 +660,8 @@ const assignRiderToOrderService = async (orderId: string, riderId: string) => {
   order.riderId = String(rider._id);
   order.riderName = rider.name;
   order.riderPhone = rider.phone || "";
+  order.riderEmploymentType = rider.employmentType || "permanent";
+  order.riderCommissionRate = rider.employmentType === "freelance" ? (rider.commissionRate || 15) : 0;
   order.riderAcceptStatus = "pending";
   sysMsg(
     order,

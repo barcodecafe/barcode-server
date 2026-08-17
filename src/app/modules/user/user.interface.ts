@@ -14,6 +14,9 @@ export interface IUser {
   riderStatus?: 'Available' | 'Busy';
   // approval gate for rider signup: pending → admin approves/rejects
   riderApprovalStatus?: 'none' | 'pending' | 'approved' | 'rejected';
+  employmentType?: 'permanent' | 'freelance'; // 'permanent' (area delivery charge) | 'freelance' (food cost % commission)
+  commissionRate?: number; // percentage of food subtotal for freelance/agency (e.g. 15%)
+  agencyName?: string; // agency / company name if freelance/contract
   favorites?: number[]; // per-user favorite food ids (audit #23 fix)
   points?: number; // loyalty reward points balance (৳100 spent = 5 pts; 1 pt = ৳1 discount)
   // Loyalty card: stable unique id (BRG-XXXXXXXX) + a QR that encodes it.
