@@ -12,5 +12,14 @@ export const updateSettingsValidationSchema = z.object({
     footerFacebook: z.string().optional(),
     footerInstagram: z.string().optional(),
     footerTwitter: z.string().optional(),
+
+    // 🚚 Free Delivery Campaign Fields
+    freeDeliveryEnabled: z.boolean().optional(),
+    freeDeliveryScope: z.enum(['all', 'min_amount', 'dishes', 'areas']).optional(),
+    freeDeliveryMinOrder: z.coerce.number().nonnegative().optional(),
+    freeDeliveryDishIds: z.array(z.coerce.number()).optional(),
+    freeDeliveryAreas: z.array(z.string()).optional(),
+    freeDeliveryBannerText: z.string().optional(),
+    freeDeliveryShowBanner: z.boolean().optional(),
   }),
 });

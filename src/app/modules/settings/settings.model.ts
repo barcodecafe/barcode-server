@@ -1,5 +1,7 @@
 import { Schema, model } from 'mongoose';
 
+export type FreeDeliveryScope = 'all' | 'min_amount' | 'dishes' | 'areas';
+
 export interface ISettings {
   logoLight: string;
   logoDark: string;
@@ -11,6 +13,15 @@ export interface ISettings {
   footerFacebook: string;
   footerInstagram: string;
   footerTwitter: string;
+
+  // 🚚 Free Delivery Campaign Settings
+  freeDeliveryEnabled: boolean;
+  freeDeliveryScope: FreeDeliveryScope;
+  freeDeliveryMinOrder: number;
+  freeDeliveryDishIds: number[];
+  freeDeliveryAreas: string[];
+  freeDeliveryBannerText: string;
+  freeDeliveryShowBanner: boolean;
 }
 
 export const DEFAULT_SETTINGS: ISettings = {
@@ -26,6 +37,15 @@ export const DEFAULT_SETTINGS: ISettings = {
   footerFacebook: 'https://facebook.com',
   footerInstagram: 'https://instagram.com',
   footerTwitter: 'https://twitter.com',
+
+  // 🚚 Free Delivery Campaign Defaults
+  freeDeliveryEnabled: false,
+  freeDeliveryScope: 'all',
+  freeDeliveryMinOrder: 0,
+  freeDeliveryDishIds: [],
+  freeDeliveryAreas: [],
+  freeDeliveryBannerText: '🎉 Special Offer: Free Delivery on all orders today!',
+  freeDeliveryShowBanner: true,
 };
 
 const settingsSchema = new Schema<ISettings>(
@@ -40,6 +60,22 @@ const settingsSchema = new Schema<ISettings>(
     footerFacebook: { type: String, default: DEFAULT_SETTINGS.footerFacebook },
     footerInstagram: { type: String, default: DEFAULT_SETTINGS.footerInstagram },
     footerTwitter: { type: String, default: DEFAULT_SETTINGS.footerTwitter },
+
+    // 🚚 Free Delivery Campaign Fields
+    freeDeliveryEnabled: { type: Boolean, default: false },
+    freeDeliveryScope: {
+      type: String,
+      enum: ['all', 'min_amount', 'dishes', 'areas'],
+      default: 'all',
+    },
+    freeDeliveryMinOrder: { type: Number, default: 0, min: 0 },
+    freeDeliveryDishIds: { type: [Number], default: [] },
+    freeDeliveryAreas: { type: [String], default: [] },
+    freeDeliveryBannerText: {
+      type: String,
+      default: DEFAULT_SETTINGS.freeDeliveryBannerText,
+    },
+    freeDeliveryShowBanner: { type: Boolean, default: true },
   },
   {
     timestamps: true,

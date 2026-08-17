@@ -4,6 +4,7 @@ import { Order } from "./order.model";
 import { Food } from "../food/food.model";
 import { User } from "../user/user.model";
 import { Region } from "../region/region.model";
+import { Settings } from "../settings/settings.model";
 import { FoodService } from "../food/food.service";
 import { CouponService } from "../coupon/coupon.service";
 import { chargeFromRegion } from "./delivery.config";
@@ -249,7 +250,40 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     pointsRedeemed = Math.min(requestedPts, available, maxByBill);
   }
 
-  const deliveryCharge = round2(chargeFromRegion(region, deliveryArea));
+  // 🚚 Evaluate Free Delivery Campaign
+  const siteSettings = await Settings.findOne({}).lean();
+  let isFreeDelivery = false;
+
+  if (siteSettings?.freeDeliveryEnabled) {
+    const scope = siteSettings.freeDeliveryScope || "all";
+    if (scope === "all") {
+      const min = Number(siteSettings.freeDeliveryMinOrder) || 0;
+      isFreeDelivery = min > 0 ? subtotal >= min : true;
+    } else if (scope === "min_amount") {
+      const min = Number(siteSettings.freeDeliveryMinOrder) || 0;
+      isFreeDelivery = subtotal >= min;
+    } else if (scope === "dishes") {
+      const targetIds = (siteSettings.freeDeliveryDishIds || []).map(Number);
+      if (targetIds.length > 0) {
+        isFreeDelivery = lineItems.some((item) => targetIds.includes(Number(item.id)));
+      } else {
+        isFreeDelivery = true;
+      }
+    } else if (scope === "areas") {
+      const targetAreas = (siteSettings.freeDeliveryAreas || []).map((a) =>
+        String(a).trim().toLowerCase(),
+      );
+      if (targetAreas.length > 0) {
+        const areaStr = String(deliveryArea || "").trim().toLowerCase();
+        isFreeDelivery = targetAreas.includes(areaStr);
+      } else {
+        isFreeDelivery = true;
+      }
+    }
+  }
+
+  const standardDeliveryCharge = round2(chargeFromRegion(region, deliveryArea));
+  const deliveryCharge = isFreeDelivery ? 0 : standardDeliveryCharge;
   const total = round2(subtotal - discount - pointsRedeemed + deliveryCharge);
 
   const isOnlinePayment = (payload.paymentMethod || "cod") !== "cod";
