@@ -29,8 +29,8 @@ export const riderCommissionFor = (order: {
     const foodCost = Number(order.subtotal) || 0;
     return round2(foodCost * (rate / 100));
   }
-  // Permanent: Area delivery charge
-  return round2(order.deliveryCharge || 0);
+  // Permanent: Salary based employee; hands over 100% of collected cash (Food bill + Delivery charge) to admin
+  return 0;
 };
 
 /**
