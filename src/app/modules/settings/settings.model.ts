@@ -1,6 +1,6 @@
 import { Schema, model } from 'mongoose';
 
-export type FreeDeliveryScope = 'all' | 'min_amount' | 'dishes' | 'areas';
+export type FreeDeliveryScope = 'all' | 'min_amount' | 'categories' | 'dishes' | 'areas';
 
 export interface ISettings {
   logoLight: string;
@@ -18,6 +18,7 @@ export interface ISettings {
   freeDeliveryEnabled: boolean;
   freeDeliveryScope: FreeDeliveryScope;
   freeDeliveryMinOrder: number;
+  freeDeliveryCategories: string[];
   freeDeliveryDishIds: number[];
   freeDeliveryAreas: string[];
   freeDeliveryBannerText: string;
@@ -46,6 +47,7 @@ export const DEFAULT_SETTINGS: ISettings = {
   freeDeliveryEnabled: false,
   freeDeliveryScope: 'all',
   freeDeliveryMinOrder: 0,
+  freeDeliveryCategories: [],
   freeDeliveryDishIds: [],
   freeDeliveryAreas: [],
   freeDeliveryBannerText: '🎉 Special Offer: Free Delivery on all orders today!',
@@ -74,10 +76,11 @@ const settingsSchema = new Schema<ISettings>(
     freeDeliveryEnabled: { type: Boolean, default: false },
     freeDeliveryScope: {
       type: String,
-      enum: ['all', 'min_amount', 'dishes', 'areas'],
+      enum: ['all', 'min_amount', 'categories', 'dishes', 'areas'],
       default: 'all',
     },
     freeDeliveryMinOrder: { type: Number, default: 0, min: 0 },
+    freeDeliveryCategories: { type: [String], default: [] },
     freeDeliveryDishIds: { type: [Number], default: [] },
     freeDeliveryAreas: { type: [String], default: [] },
     freeDeliveryBannerText: {

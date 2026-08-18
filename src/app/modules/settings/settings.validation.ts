@@ -15,8 +15,9 @@ export const updateSettingsValidationSchema = z.object({
 
     // 🚚 Free Delivery Campaign Fields
     freeDeliveryEnabled: z.boolean().optional(),
-    freeDeliveryScope: z.enum(['all', 'min_amount', 'dishes', 'areas']).optional(),
+    freeDeliveryScope: z.enum(['all', 'min_amount', 'categories', 'dishes', 'areas']).optional(),
     freeDeliveryMinOrder: z.coerce.number().nonnegative().optional(),
+    freeDeliveryCategories: z.array(z.string()).optional(),
     freeDeliveryDishIds: z.array(z.coerce.number()).optional(),
     freeDeliveryAreas: z.array(z.string()).optional(),
     freeDeliveryBannerText: z.string().optional(),

@@ -250,34 +250,57 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     pointsRedeemed = Math.min(requestedPts, available, maxByBill);
   }
 
-  // 🚚 Evaluate Free Delivery Campaign
+  // 🚚 Evaluate Free Delivery Campaign (Mandatory Min Order + Scope Check)
   const siteSettings = await Settings.findOne({}).lean();
   let isFreeDelivery = false;
 
   if (siteSettings?.freeDeliveryEnabled) {
-    const scope = siteSettings.freeDeliveryScope || "all";
-    if (scope === "all") {
-      const min = Number(siteSettings.freeDeliveryMinOrder) || 0;
-      isFreeDelivery = min > 0 ? subtotal >= min : true;
-    } else if (scope === "min_amount") {
-      const min = Number(siteSettings.freeDeliveryMinOrder) || 0;
-      isFreeDelivery = subtotal >= min;
-    } else if (scope === "dishes") {
-      const targetIds = (siteSettings.freeDeliveryDishIds || []).map(Number);
-      if (targetIds.length > 0) {
-        isFreeDelivery = lineItems.some((item) => targetIds.includes(Number(item.id)));
-      } else {
+    const min = Number(siteSettings.freeDeliveryMinOrder) || 0;
+    const isMinMet = min > 0 ? subtotal >= min : true;
+
+    if (isMinMet) {
+      const scope = siteSettings.freeDeliveryScope || "all";
+      if (scope === "all" || scope === "min_amount") {
         isFreeDelivery = true;
-      }
-    } else if (scope === "areas") {
-      const targetAreas = (siteSettings.freeDeliveryAreas || []).map((a) =>
-        String(a).trim().toLowerCase(),
-      );
-      if (targetAreas.length > 0) {
-        const areaStr = String(deliveryArea || "").trim().toLowerCase();
-        isFreeDelivery = targetAreas.includes(areaStr);
-      } else {
-        isFreeDelivery = true;
+      } else if (scope === "categories") {
+        const targetCategories = (siteSettings.freeDeliveryCategories || []).map((c: string) =>
+          String(c).trim().toLowerCase(),
+        );
+        if (targetCategories.length > 0) {
+          const foodIds = lineItems.map((item) => item.id);
+          const foodsInOrder = await Food.find({
+            $or: [{ id: { $in: foodIds } }, { _id: { $in: foodIds.filter((id) => isValidObjectId(id)) } }],
+          })
+            .select("id category")
+            .lean();
+          const foodCategories = foodsInOrder.map((f: any) =>
+            String(f.category || "").trim().toLowerCase(),
+          );
+          isFreeDelivery = foodCategories.some((cat: string) =>
+            targetCategories.includes(cat),
+          );
+        } else {
+          isFreeDelivery = true;
+        }
+      } else if (scope === "dishes") {
+        const targetIds = (siteSettings.freeDeliveryDishIds || []).map(Number);
+        if (targetIds.length > 0) {
+          isFreeDelivery = lineItems.some((item) =>
+            targetIds.includes(Number(item.id)),
+          );
+        } else {
+          isFreeDelivery = true;
+        }
+      } else if (scope === "areas") {
+        const targetAreas = (siteSettings.freeDeliveryAreas || []).map((a: string) =>
+          String(a).trim().toLowerCase(),
+        );
+        if (targetAreas.length > 0) {
+          const areaStr = String(deliveryArea || "").trim().toLowerCase();
+          isFreeDelivery = targetAreas.includes(areaStr);
+        } else {
+          isFreeDelivery = true;
+        }
       }
     }
   }
