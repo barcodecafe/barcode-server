@@ -4,6 +4,12 @@ import { CategoryService } from './category.service';
 const getAllCategoriesController = async (_req: Request, res: Response) => {
   try {
     const result = await CategoryService.getAllCategoriesService();
+    
+    // [SORTING-FIX] No-cache headers to prevent browser from serving stale cached list on refresh
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     res.status(200).json({
       success: true,
       message: 'Categories retrieved successfully',

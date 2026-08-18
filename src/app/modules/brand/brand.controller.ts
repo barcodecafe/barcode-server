@@ -11,6 +11,12 @@ const getAllBrandsController = async (req: Request, res: Response) => {
     const isAdmin = (req as any).user?.role === 'admin';
     const includeInactive = isAdmin && req.query.all === 'true';
     const brands = await BrandService.getAllBrandsService({ includeInactive });
+    
+    // [SORTING-FIX] No-cache headers to prevent browser from serving stale cached list on refresh
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     res.status(200).json({ success: true, data: externalizeImagesList(brands as any[], 'brand', publicApiBase(req)) });
   } catch (e: any) {
     res.status(500).json({ success: false, message: e.message });

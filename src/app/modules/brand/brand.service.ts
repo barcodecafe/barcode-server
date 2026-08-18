@@ -126,12 +126,19 @@ const updateBrandService = async (id: string | number, payload: any) => {
 const reorderBrandsService = async (brandIds: (string | number)[]) => {
   if (!Array.isArray(brandIds) || brandIds.length === 0) return null;
 
-  const operations = brandIds.map((id, index) => ({
-    updateOne: {
-      filter: { id: Number(id) },
-      update: { $set: { order: index + 1 } },
-    },
-  }));
+  const operations = brandIds.map((id, index) => {
+    const numId = Number(id);
+    const filter = Number.isFinite(numId) && numId > 0
+      ? { $or: [{ id: numId }, { _id: id }] }
+      : { _id: id };
+
+    return {
+      updateOne: {
+        filter,
+        update: { $set: { order: index + 1 } },
+      },
+    };
+  });
 
   return await Brand.bulkWrite(operations);
 };
