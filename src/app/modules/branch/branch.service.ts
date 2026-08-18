@@ -102,9 +102,15 @@ const reorderBranchesService = async (branchIds: (string | number)[]) => {
 
   const bulkOps = branchIds.map((id, index) => {
     const numId = Number(id);
+    const filter = Number.isFinite(numId)
+      ? { id: numId }
+      : typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)
+      ? { _id: id }
+      : { id: id };
+
     return {
       updateOne: {
-        filter: { id: Number.isFinite(numId) ? numId : id },
+        filter,
         update: { $set: { order: index + 1 } },
       },
     };
