@@ -66,6 +66,9 @@ const approveApplicationService = async (id: string) => {
   if (user) {
     user.role = 'rider';
     user.riderApprovalStatus = 'approved';
+    user.employmentType = 'permanent'; // 🎯 Direct public applications become permanent riders
+    user.commissionRate = 0;
+    user.agencyName = '';
     if (!user.vehicle) user.vehicle = 'Motorbike';
     user.riderStatus = 'Available';
     if (!user.phone && app.phone) user.phone = app.phone;
