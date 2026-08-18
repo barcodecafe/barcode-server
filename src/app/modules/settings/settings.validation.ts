@@ -21,5 +21,9 @@ export const updateSettingsValidationSchema = z.object({
     freeDeliveryAreas: z.array(z.string()).optional(),
     freeDeliveryBannerText: z.string().optional(),
     freeDeliveryShowBanner: z.boolean().optional(),
+
+    // 📢 Global Maintenance / Announcement Ticker Notice
+    maintenanceNoticeEnabled: z.boolean().optional(),
+    maintenanceNoticeText: z.string().optional(),
   }),
 });

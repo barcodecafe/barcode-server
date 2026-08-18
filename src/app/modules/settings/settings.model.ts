@@ -22,6 +22,10 @@ export interface ISettings {
   freeDeliveryAreas: string[];
   freeDeliveryBannerText: string;
   freeDeliveryShowBanner: boolean;
+
+  // 📢 Global Maintenance / Announcement Ticker Notice
+  maintenanceNoticeEnabled: boolean;
+  maintenanceNoticeText: string;
 }
 
 export const DEFAULT_SETTINGS: ISettings = {
@@ -46,6 +50,11 @@ export const DEFAULT_SETTINGS: ISettings = {
   freeDeliveryAreas: [],
   freeDeliveryBannerText: '🎉 Special Offer: Free Delivery on all orders today!',
   freeDeliveryShowBanner: true,
+
+  // 📢 Global Maintenance / Announcement Ticker Notice Defaults
+  maintenanceNoticeEnabled: true,
+  maintenanceNoticeText:
+    '⚠️ Notice: Our displayed products are not for sale (uploaded strictly for experimental purposes). Also, we are updating our server system right now, so some features might be slower than usual!',
 };
 
 const settingsSchema = new Schema<ISettings>(
@@ -76,6 +85,13 @@ const settingsSchema = new Schema<ISettings>(
       default: DEFAULT_SETTINGS.freeDeliveryBannerText,
     },
     freeDeliveryShowBanner: { type: Boolean, default: true },
+
+    // 📢 Global Maintenance / Announcement Ticker Notice
+    maintenanceNoticeEnabled: { type: Boolean, default: true },
+    maintenanceNoticeText: {
+      type: String,
+      default: DEFAULT_SETTINGS.maintenanceNoticeText,
+    },
   },
   {
     timestamps: true,
