@@ -128,9 +128,11 @@ const reorderBrandsService = async (brandIds: (string | number)[]) => {
 
   const operations = brandIds.map((id, index) => {
     const numId = Number(id);
-    const filter = Number.isFinite(numId) && numId > 0
-      ? { $or: [{ id: numId }, { _id: id }] }
-      : { _id: id };
+    const filter = Number.isFinite(numId)
+      ? { id: numId }
+      : typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)
+      ? { _id: id }
+      : { id: id };
 
     return {
       updateOne: {
