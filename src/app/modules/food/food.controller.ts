@@ -67,6 +67,14 @@ const getFoodByIdController = async (req: Request, res: Response) => {
 const createFoodController = async (req: Request, res: Response) => {
   try {
     const food = await FoodService.createFoodService(req.body);
+    
+    // ⚡ Real-time WebSocket broadcast to all connected clients & menus
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('foods_updated', { type: 'create', food });
+      io.emit('categories_updated', { type: 'food_change' });
+    }
+
     res.status(201).json({ success: true, message: 'Food created', data: food });
   } catch (error: any) {
     const isDup = error?.code === 11000;
@@ -85,6 +93,14 @@ const updateFoodController = async (req: Request, res: Response) => {
     stripExternalImageRefs(req.body, 'food');
     const food = await FoodService.updateFoodService(req.params.id, req.body);
     if (!food) return res.status(404).json({ success: false, message: 'Food not found' });
+    
+    // ⚡ Real-time WebSocket broadcast to all connected clients & menus
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('foods_updated', { type: 'update', food });
+      io.emit('categories_updated', { type: 'food_change' });
+    }
+
     res.status(200).json({ success: true, message: 'Food updated', data: externalizeImages(food as any, 'food', publicApiBase(req)) });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -95,6 +111,14 @@ const deleteFoodController = async (req: Request, res: Response) => {
   try {
     const food = await FoodService.deleteFoodService(req.params.id);
     if (!food) return res.status(404).json({ success: false, message: 'Food not found' });
+    
+    // ⚡ Real-time WebSocket broadcast to all connected clients & menus
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('foods_updated', { type: 'delete', foodId: req.params.id });
+      io.emit('categories_updated', { type: 'food_change' });
+    }
+
     res.status(200).json({ success: true, message: 'Food deleted', data: food });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -106,6 +130,13 @@ const reorderFoodsController = async (req: Request, res: Response) => {
   try {
     const { foodIds } = req.body;
     await FoodService.reorderFoodsService(foodIds);
+
+    // ⚡ Real-time WebSocket broadcast to all connected clients & menus
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('foods_updated', { type: 'reorder', foodIds });
+    }
+
     res.status(200).json({ success: true, message: 'Food order updated successfully' });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -116,6 +147,14 @@ const reorderCategoriesController = async (req: Request, res: Response) => {
   try {
     const { categories } = req.body;
     await FoodService.reorderCategoriesService(categories);
+
+    // ⚡ Real-time WebSocket broadcast to all connected clients & menus
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('categories_updated', { type: 'reorder', categories });
+      io.emit('foods_updated', { type: 'categories_reorder' });
+    }
+
     res.status(200).json({ success: true, message: 'Category order updated successfully' });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });

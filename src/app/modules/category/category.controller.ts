@@ -43,6 +43,14 @@ const getCategoryByIdController = async (req: Request, res: Response) => {
 const createCategoryController = async (req: Request, res: Response) => {
   try {
     const result = await CategoryService.createCategoryService(req.body);
+    
+    // ⚡ Real-time WebSocket broadcast
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('categories_updated', { type: 'create', category: result });
+      io.emit('foods_updated', { type: 'category_change' });
+    }
+
     res.status(201).json({
       success: true,
       message: 'Category created successfully',
@@ -66,6 +74,14 @@ const updateCategoryController = async (req: Request, res: Response) => {
         message: 'Category not found',
       });
     }
+
+    // ⚡ Real-time WebSocket broadcast
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('categories_updated', { type: 'update', category: result });
+      io.emit('foods_updated', { type: 'category_change' });
+    }
+
     res.status(200).json({
       success: true,
       message: 'Category updated successfully',
@@ -90,6 +106,14 @@ const deleteCategoryController = async (req: Request, res: Response) => {
         message: 'Category not found',
       });
     }
+
+    // ⚡ Real-time WebSocket broadcast
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('categories_updated', { type: 'delete', categoryId: id });
+      io.emit('foods_updated', { type: 'category_delete' });
+    }
+
     res.status(200).json({
       success: true,
       message: 'Category deleted successfully',
@@ -107,6 +131,14 @@ const reorderCategoriesController = async (req: Request, res: Response) => {
   try {
     const { categories } = req.body;
     const result = await CategoryService.reorderCategoriesService(categories);
+
+    // ⚡ Real-time WebSocket broadcast
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('categories_updated', { type: 'reorder', categories });
+      io.emit('foods_updated', { type: 'category_reorder' });
+    }
+
     res.status(200).json({
       success: true,
       message: 'Categories reordered successfully',

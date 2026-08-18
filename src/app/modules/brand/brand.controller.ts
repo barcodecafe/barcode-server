@@ -73,6 +73,13 @@ const createBrandController = async (req: Request, res: Response) => {
   try {
     stripExternalImageRefs(req.body, 'brand');
     const brand = await BrandService.createBrandService(req.body);
+    
+    // ⚡ Real-time WebSocket broadcast to all connected clients & home pages
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('brands_updated', { type: 'create', brand });
+    }
+
     res.status(201).json({ success: true, message: 'Brand created', data: externalizeImages(brand as any, 'brand', publicApiBase(req)) });
   } catch (e: any) {
     res.status(e.status || 500).json({ success: false, message: e.message });
@@ -84,6 +91,13 @@ const updateBrandController = async (req: Request, res: Response) => {
     stripExternalImageRefs(req.body, 'brand');
     const brand = await BrandService.updateBrandService(req.params.id, req.body);
     if (!brand) return res.status(404).json({ success: false, message: 'Brand not found' });
+    
+    // ⚡ Real-time WebSocket broadcast to all connected clients & home pages
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('brands_updated', { type: 'update', brand });
+    }
+
     res.status(200).json({ success: true, message: 'Brand updated', data: externalizeImages(brand as any, 'brand', publicApiBase(req)) });
   } catch (e: any) {
     res.status(e.status || 500).json({ success: false, message: e.message });
@@ -95,6 +109,13 @@ const reorderBrandsController = async (req: Request, res: Response) => {
   try {
     const { brandIds } = req.body;
     await BrandService.reorderBrandsService(brandIds);
+
+    // ⚡ Real-time WebSocket broadcast to all connected clients & home pages
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('brands_updated', { type: 'reorder', brandIds });
+    }
+
     res.status(200).json({ success: true, message: 'Brand order updated successfully' });
   } catch (e: any) {
     res.status(e.status || 500).json({ success: false, message: e.message });
@@ -105,6 +126,13 @@ const deleteBrandController = async (req: Request, res: Response) => {
   try {
     const brand = await BrandService.deleteBrandService(req.params.id);
     if (!brand) return res.status(404).json({ success: false, message: 'Brand not found' });
+    
+    // ⚡ Real-time WebSocket broadcast to all connected clients & home pages
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('brands_updated', { type: 'delete', brandId: req.params.id });
+    }
+
     res.status(200).json({ success: true, message: 'Brand deleted', data: brand });
   } catch (e: any) {
     res.status(e.status || 500).json({ success: false, message: e.message });

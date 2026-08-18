@@ -53,6 +53,13 @@ const getBranchMenuController = async (req: Request, res: Response) => {
 const createBranchController = async (req: Request, res: Response) => {
   try {
     const branch = await BranchService.createBranchService(req.body);
+    
+    // ⚡ Real-time WebSocket broadcast to all connected clients & home pages
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('branches_updated', { type: 'create', branch });
+    }
+
     res.status(201).json({ success: true, message: 'Branch created', data: branch });
   } catch (error: any) {
     const isDup = error?.code === 11000;
@@ -69,6 +76,13 @@ const updateBranchController = async (req: Request, res: Response) => {
     stripExternalImageRefs(req.body, 'branch');
     const branch = await BranchService.updateBranchService(req.params.id, req.body);
     if (!branch) return res.status(404).json({ success: false, message: 'Branch not found' });
+    
+    // ⚡ Real-time WebSocket broadcast to all connected clients & home pages
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('branches_updated', { type: 'update', branch });
+    }
+
     res.status(200).json({ success: true, message: 'Branch updated', data: branch });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -80,6 +94,13 @@ const reorderBranchesController = async (req: Request, res: Response) => {
   try {
     const { branchIds } = req.body;
     await BranchService.reorderBranchesService(branchIds);
+
+    // ⚡ Real-time WebSocket broadcast to all connected clients & home pages
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('branches_updated', { type: 'reorder', branchIds });
+    }
+
     res.status(200).json({
       success: true,
       message: 'Branches reordered successfully',
@@ -94,6 +115,13 @@ const deleteBranchController = async (req: Request, res: Response) => {
   try {
     const branch = await BranchService.deleteBranchService(req.params.id);
     if (!branch) return res.status(404).json({ success: false, message: 'Branch not found' });
+    
+    // ⚡ Real-time WebSocket broadcast to all connected clients & home pages
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('branches_updated', { type: 'delete', branchId: req.params.id });
+    }
+
     res.status(200).json({ success: true, message: 'Branch deleted', data: branch });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
