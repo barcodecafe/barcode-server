@@ -3,12 +3,41 @@ import mongoose from 'mongoose';
 import { Server as SocketIOServer } from 'socket.io';
 import app from './app';
 import config from './app/config';
+import { Order } from './app/modules/order/order.model';
 import { OrderService } from './app/modules/order/order.service';
 
 // ─── Vercel Serverless: Cache connection ───
 let cached = (global as any).mongoose;
 if (!cached) {
   cached = (global as any).mongoose = { conn: null, promise: null };
+}
+
+async function syncLegacyPaidOrders() {
+  try {
+    const res = await Order.updateMany(
+      {
+        paymentStatus: { $ne: 'Paid' },
+        $or: [
+          {
+            paymentMethod: { $nin: ['cod', 'COD', 'Cash on Delivery', 'cash on delivery'] },
+            status: { $in: ['Delivered', 'Accepted', 'Preparing', 'Ready to Pick', 'Out for Delivery'] },
+          },
+          {
+            transactionId: { $exists: true, $ne: '' },
+          },
+        ],
+      },
+      {
+        $set: { paymentStatus: 'Paid' },
+      },
+    );
+    if (res.modifiedCount > 0) {
+      // eslint-disable-next-line no-console
+      console.log(`✅ Auto-synced ${res.modifiedCount} legacy online orders to PAID`);
+    }
+  } catch (e) {
+    // Non-critical background sync
+  }
 }
 
 async function connectDB() {
@@ -26,9 +55,10 @@ async function connectDB() {
     };
     cached.promise = mongoose
       .connect(config.database_url as string, opts)
-      .then((m) => {
+      .then(async (m) => {
         // eslint-disable-next-line no-console
         console.log('🗄️ Database connected successfully');
+        syncLegacyPaidOrders();
         return m;
       });
   }
