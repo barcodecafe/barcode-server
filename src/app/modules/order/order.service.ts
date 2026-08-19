@@ -512,6 +512,19 @@ const updateOrderStatusService = async (
 
   const newStatus = matchedStatus;
 
+  // 🛡️ Terminal Status Protection: Delivered & Rejected orders are final
+  if (oldStatus === "Delivered" && newStatus !== "Delivered") {
+    const err: any = new Error("Delivered orders are final and cannot be reverted.");
+    err.status = 400;
+    throw err;
+  }
+
+  if (oldStatus === "Rejected" && newStatus !== "Rejected") {
+    const err: any = new Error("Rejected orders are final and cannot be reverted.");
+    err.status = 400;
+    throw err;
+  }
+
   if (newStatus === "Out for Delivery" || newStatus === "Delivered") {
     if (!order.riderId || (order.riderAcceptStatus || "").toLowerCase() !== "accepted") {
       const err: any = new Error(
