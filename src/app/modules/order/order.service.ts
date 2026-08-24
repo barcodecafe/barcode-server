@@ -88,17 +88,24 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     throw err;
   }
 
+  const isPickupOrder = payload.orderType === "pickup";
   const regionId = Number(payload.regionId);
-  if (!regionId || regionId <= 0) {
-    const err: any = new Error("Please select your delivery region.");
-    err.status = 400;
-    throw err;
-  }
-  const region = await Region.findOne({ id: regionId });
-  if (!region) {
-    const err: any = new Error("Selected region is not available.");
-    err.status = 400;
-    throw err;
+  let region: any = null;
+
+  if (!isPickupOrder) {
+    if (!regionId || regionId <= 0) {
+      const err: any = new Error("Please select your delivery region.");
+      err.status = 400;
+      throw err;
+    }
+    region = await Region.findOne({ id: regionId });
+    if (!region) {
+      const err: any = new Error("Selected region is not available.");
+      err.status = 400;
+      throw err;
+    }
+  } else if (regionId > 0) {
+    region = await Region.findOne({ id: regionId });
   }
 
   if (!Array.isArray(payload.items) || payload.items.length === 0) {
@@ -537,7 +544,9 @@ const updateOrderStatusService = async (
     throw err;
   }
 
-  if (newStatus === "Out for Delivery" || newStatus === "Delivered") {
+  const isPickupOrderInUpdate = order.orderType === "pickup" || order.deliveryArea === "Self Pickup" || String(order.user?.address || "").toLowerCase().includes("self pickup");
+
+  if (!isPickupOrderInUpdate && (newStatus === "Out for Delivery" || newStatus === "Delivered")) {
     if (!order.riderId || (order.riderAcceptStatus || "").toLowerCase() !== "accepted") {
       const err: any = new Error(
         "Assign and confirm a rider before marking this order out for delivery or delivered.",
@@ -558,8 +567,8 @@ const updateOrderStatusService = async (
       }
     }
     order.deliveredAt = new Date();
-    order.riderCommission = riderCommissionFor(order);
-    order.cashCollected = cashCollectedFor(order);
+    order.riderCommission = isPickupOrderInUpdate ? 0 : riderCommissionFor(order);
+    order.cashCollected = isPickupOrderInUpdate ? 0 : cashCollectedFor(order);
   }
 
   if (
@@ -599,16 +608,20 @@ const updateOrderStatusService = async (
     text = "Chef is now preparing your delicious food!";
     senderName = "Barcode Kitchen";
   } else if (newStatus === "Ready to Pick") {
-    text = "Food is ready and waiting for pickup!";
+    text = isPickupOrderInUpdate
+      ? "Your order is ready for pickup! Please collect it from the branch counter."
+      : "Food is ready and waiting for courier pickup!";
     senderName = "Barcode Kitchen";
   } else if (newStatus === "Out for Delivery") {
     text = `${riderName} has picked up your food and is on the way!`;
     sender = "rider";
     senderName = riderName;
   } else if (newStatus === "Delivered") {
-    text = "Your order has been delivered. Enjoy your meal!";
-    sender = "rider";
-    senderName = riderName;
+    text = isPickupOrderInUpdate
+      ? "Order handed over to customer at branch counter. Enjoy your meal!"
+      : "Your order has been delivered. Enjoy your meal!";
+    sender = isPickupOrderInUpdate ? "admin" : "rider";
+    senderName = isPickupOrderInUpdate ? "Barcode Counter" : riderName;
   }
 
   order.chatHistory.push({
