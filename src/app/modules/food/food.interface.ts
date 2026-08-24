@@ -43,6 +43,8 @@ export interface IFood {
   discountEndDate?: Date | string | null;
 
   branchPrices: Record<string, number>; // per-branch দাম সমন্বয়
+  isAvailable?: boolean; // 🎯 International Restaurant Standard: Sold Out / In Stock (default true)
+  isActive?: boolean; // 🎯 International Restaurant Standard: Active / Draft (default true)
   variantLabel: string; // variant-এর ধরন লেবেল — "Size" | "Weight" | "Portion"
   variations: IVariation[]; // size/weight অপশন (প্রতিটার আলাদা দাম)
   addons?: IAddon[]; // 🎯 কাস্টমাইজেশন / এড-অন অপশনসমূহ (যেমন: Extra Cheese, Extra Patty)

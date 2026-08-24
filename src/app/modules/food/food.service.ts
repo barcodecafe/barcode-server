@@ -2,10 +2,13 @@ import { Food } from './food.model';
 import { Order } from '../order/order.model';
 import { getNextId } from '../../utils/counter';
 
-// 💡 ── টাইমার এক্সপায়ার চেক করার হেলপার ফাংশন ──
 const applyExpirationCheck = (doc: any) => {
   if (!doc) return doc;
   const food = doc.toObject ? doc.toObject() : doc;
+  
+  // Ensure defaults for older documents
+  if (food.isAvailable === undefined) food.isAvailable = true;
+  if (food.isActive === undefined) food.isActive = true;
   
   const now = new Date();
   
@@ -22,6 +25,16 @@ const applyExpirationCheck = (doc: any) => {
   return food;
 };
 
+// 🎯 Sold Out ডিশগুলোকে ক্যাটাগরির নিচে সর্ট করে পাঠানোর হেলপার ফাংশন
+const sortFoodsByAvailability = (list: any[]) => {
+  return [...list].sort((a, b) => {
+    const availA = a.isAvailable !== false ? 1 : 0;
+    const availB = b.isAvailable !== false ? 1 : 0;
+    if (availA !== availB) return availB - availA; // Available (1) before Sold Out (0)
+    return 0;
+  });
+};
+
 // GET /api/foods  (+ ?category=Mains)
 // 🎯 categoryOrder: 1, order: 1 এবং id: 1 দিয়ে সর্ট করা হয়েছে
 const getAllFoodsService = async (category?: string) => {
@@ -31,7 +44,8 @@ const getAllFoodsService = async (category?: string) => {
   } else {
     foods = await Food.find({}).sort({ categoryOrder: 1, order: 1, id: 1 });
   }
-  return foods.map(applyExpirationCheck);
+  const processed = foods.map(applyExpirationCheck);
+  return sortFoodsByAvailability(processed);
 };
 
 // GET /api/foods/:id

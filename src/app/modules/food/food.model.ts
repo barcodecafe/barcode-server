@@ -56,6 +56,8 @@ const foodSchema = new Schema<IFood>(
     discountEndDate: { type: Date, default: null },
 
     branchPrices: { type: Map, of: Number, default: () => ({}) },
+    isAvailable: { type: Boolean, default: true }, // 🎯 Sold Out vs In Stock
+    isActive: { type: Boolean, default: true }, // 🎯 Published vs Draft
     variantLabel: { type: String, default: 'Size' }, // "Size" | "Weight" | "Portion"
     variations: { type: [variationSchema], default: [] },
     addons: { type: [addonSchema], default: [] }, // 🎯 এড-অনস / এক্সট্রাস
