@@ -211,81 +211,84 @@ const createFoodService = async (payload: any) => {
 
 const updateFoodService = async (id: string | number, payload: any) => {
   const n = Number(id);
-  let food = null;
-  if (Number.isFinite(n)) {
-    food = await Food.findOne({ id: n });
+  const filter =
+    Number.isFinite(n) && n > 0
+      ? { id: n }
+      : typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)
+      ? { _id: id }
+      : { $or: [{ id: id }, { _id: id }] };
+
+  let existing = null;
+  if (Number.isFinite(n) && n > 0) {
+    existing = await Food.findOne({ id: n });
   }
-  if (!food && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
-    food = await Food.findById(id);
+  if (!existing && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+    existing = await Food.findById(id);
   }
-  if (!food) {
-    food = await Food.findOne({ $or: [{ id: id }, { _id: id }] }).catch(() => null);
+  if (!existing) {
+    existing = await Food.findOne({ $or: [{ id: id }, { _id: id }] }).catch(() => null);
   }
-  if (!food) return null;
+  if (!existing) return null;
+
+  const updateFields: any = {};
 
   const scalar = [
-    'name', 'category', 'image', 'description', 'popular', 'isAdminFeatured', 'featuredOrder', 'offerType', 'isAvailable', 'isActive'
+    'name', 'category', 'image', 'description', 'popular', 'isAdminFeatured', 'featuredOrder', 'offerType'
   ];
   for (const k of scalar) {
     if (payload[k] !== undefined) {
-      food.set(k, payload[k]);
-      food.markModified(k);
+      updateFields[k] = payload[k];
     }
   }
 
-  // 🎯 Ensure guaranteed MongoDB persistence for boolean stock/active toggles
+  // 🎯 Clean boolean updates for Stock & Active
   if (payload.isAvailable !== undefined) {
-    const isAvail = payload.isAvailable !== false;
-    food.isAvailable = isAvail;
-    food.markModified('isAvailable');
-    await Food.updateOne({ _id: food._id }, { $set: { isAvailable: isAvail } }).catch(() => {});
+    updateFields.isAvailable = payload.isAvailable !== false;
   }
   if (payload.isActive !== undefined) {
-    const isAct = payload.isActive !== false;
-    food.isActive = isAct;
-    food.markModified('isActive');
-    await Food.updateOne({ _id: food._id }, { $set: { isActive: isAct } }).catch(() => {});
+    updateFields.isActive = payload.isActive !== false;
   }
-  if (payload.price !== undefined) food.price = Number(payload.price) || 0;
-  if (payload.rating !== undefined) food.rating = Number(payload.rating) || 0;
+
+  if (payload.price !== undefined) updateFields.price = Number(payload.price) || 0;
+  if (payload.rating !== undefined) updateFields.rating = Number(payload.rating) || 0;
   
-  // 🎯 প্রমোশনাল কুপন কোড আপডেট করা হলো
   if (payload.promoCode !== undefined) {
-    food.promoCode = payload.promoCode ? payload.promoCode.trim().toUpperCase() : '';
+    updateFields.promoCode = payload.promoCode ? payload.promoCode.trim().toUpperCase() : '';
   }
   
   const discountTouched =
     payload.discountType !== undefined || payload.discountPct !== undefined || payload.discountAmount !== undefined;
-  if (payload.discountType !== undefined) food.discountType = payload.discountType === 'flat' ? 'flat' : 'percent';
-  if (payload.discountPct !== undefined) food.discountPct = Number(payload.discountPct) || 0;
-  if (payload.discountAmount !== undefined) food.discountAmount = Number(payload.discountAmount) || 0;
+  if (payload.discountType !== undefined) updateFields.discountType = payload.discountType === 'flat' ? 'flat' : 'percent';
+  if (payload.discountPct !== undefined) updateFields.discountPct = Number(payload.discountPct) || 0;
+  if (payload.discountAmount !== undefined) updateFields.discountAmount = Number(payload.discountAmount) || 0;
   if (discountTouched) {
-    if (food.discountType === 'flat') food.discountPct = 0;
-    else food.discountAmount = 0;
+    if (updateFields.discountType === 'flat' || payload.discountType === 'flat') {
+      updateFields.discountPct = 0;
+    } else {
+      updateFields.discountAmount = 0;
+    }
   }
 
-  // 🎯 ডিসকাউন্ট টাইমার ফিল্ডসমূহ আপডেট করা হলো
   if (payload.discountStartDate !== undefined) {
-    food.discountStartDate = payload.discountStartDate ? new Date(payload.discountStartDate) : null;
+    updateFields.discountStartDate = payload.discountStartDate ? new Date(payload.discountStartDate) : null;
   }
   if (payload.discountEndDate !== undefined) {
-    food.discountEndDate = payload.discountEndDate ? new Date(payload.discountEndDate) : null;
+    updateFields.discountEndDate = payload.discountEndDate ? new Date(payload.discountEndDate) : null;
   }
   
   if (payload.branchIds !== undefined) {
-    food.branchIds = payload.branchIds;
+    updateFields.branchIds = payload.branchIds;
   } else if (Array.isArray(payload.branches) && payload.branches.length > 0) {
-    food.branchIds = payload.branches;
+    updateFields.branchIds = payload.branches;
   }
   if (payload.branchPrices !== undefined) {
-    food.set('branchPrices', payload.branchPrices);
-    food.markModified('branchPrices');
+    updateFields.branchPrices = payload.branchPrices;
   }
-  if (payload.variantLabel !== undefined) food.variantLabel = payload.variantLabel || 'Size';
+  if (payload.variantLabel !== undefined) updateFields.variantLabel = payload.variantLabel || 'Size';
   if (payload.variations !== undefined) {
     if (Array.isArray(payload.variations)) {
-      const existingVariations = Array.isArray(food.variations) ? food.variations : [];
-      food.variations = payload.variations.map((v: any, idx: number) => {
+      const existingVariations = Array.isArray(existing.variations) ? existing.variations : [];
+      updateFields.variations = payload.variations.map((v: any, idx: number) => {
         let img = v.image;
         if (img === undefined || (typeof img === 'string' && img.includes('/api/images/'))) {
           const match = existingVariations.find((ex: any) => ex.name === v.name) || existingVariations[idx];
@@ -298,14 +301,13 @@ const updateFoodService = async (id: string | number, payload: any) => {
         };
       });
     } else {
-      food.variations = [];
+      updateFields.variations = [];
     }
-    food.markModified('variations');
   }
   if (payload.addons !== undefined) {
     if (Array.isArray(payload.addons)) {
-      const existingAddons = Array.isArray(food.addons) ? food.addons : [];
-      food.addons = payload.addons.map((a: any, idx: number) => {
+      const existingAddons = Array.isArray(existing.addons) ? existing.addons : [];
+      updateFields.addons = payload.addons.map((a: any, idx: number) => {
         let img = a.image;
         if (img === undefined || (typeof img === 'string' && img.includes('/api/images/'))) {
           const match = existingAddons.find((ex: any) => ex.name === a.name) || existingAddons[idx];
@@ -319,13 +321,12 @@ const updateFoodService = async (id: string | number, payload: any) => {
         };
       });
     } else {
-      food.addons = [];
+      updateFields.addons = [];
     }
-    food.markModified('addons');
   }
 
-  await food.save();
-  return applyExpirationCheck(food);
+  const updatedFood = await Food.findOneAndUpdate(filter, { $set: updateFields }, { new: true });
+  return updatedFood ? applyExpirationCheck(updatedFood) : null;
 };
 
 // 🎯 ── Admin Drag & Drop Reorder Services ──
