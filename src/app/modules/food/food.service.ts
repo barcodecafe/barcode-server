@@ -40,9 +40,9 @@ const sortFoodsByAvailability = (list: any[]) => {
 const getAllFoodsService = async (category?: string) => {
   let foods;
   if (category && category !== 'All') {
-    foods = await Food.find({ category }).sort({ order: 1, id: 1 });
+    foods = await Food.find({ category }).sort({ order: 1, id: 1 }).lean();
   } else {
-    foods = await Food.find({}).sort({ categoryOrder: 1, order: 1, id: 1 });
+    foods = await Food.find({}).sort({ categoryOrder: 1, order: 1, id: 1 }).lean();
   }
   const processed = foods.map(applyExpirationCheck);
   return sortFoodsByAvailability(processed);
@@ -52,14 +52,14 @@ const getAllFoodsService = async (category?: string) => {
 const getFoodByIdService = async (id: string | number) => {
   const n = Number(id);
   let food = null;
-  if (Number.isFinite(n)) {
-    food = await Food.findOne({ id: n });
+  if (Number.isFinite(n) && n > 0) {
+    food = await Food.findOne({ id: n }).lean();
   }
   if (!food && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
-    food = await Food.findById(id);
+    food = await Food.findById(id).lean();
   }
   if (!food) {
-    food = await Food.findOne({ $or: [{ id: id }, { _id: id }] }).catch(() => null);
+    food = await Food.findOne({ $or: [{ id: id }, { _id: id }] }).lean().catch(() => null);
   }
   return food ? applyExpirationCheck(food) : null;
 };
@@ -67,7 +67,7 @@ const getFoodByIdService = async (id: string | number) => {
 // GET /api/foods/popular?limit=6
 const getPopularFoodsService = async (limit = 6) => {
   const [rawFoods, sales] = await Promise.all([
-    Food.find({}),
+    Food.find({}).lean(),
     Order.aggregate([
       { $match: { status: { $nin: ['Rejected', 'Awaiting Payment'] } } },
       { $unwind: '$items' },
@@ -91,7 +91,7 @@ const getPopularFoodsService = async (limit = 6) => {
 
 // GET /api/foods/featured?limit=6
 const getFeaturedFoodsService = async (limit = 6) => {
-  const foods = await Food.find({ isAdminFeatured: true });
+  const foods = await Food.find({ isAdminFeatured: true }).lean();
   return foods
     .map(applyExpirationCheck)
     .sort((a, b) => (a.featuredOrder ?? Number.MAX_SAFE_INTEGER) - (b.featuredOrder ?? Number.MAX_SAFE_INTEGER))
@@ -107,7 +107,7 @@ const searchFoodsService = async (query: string) => {
     const rx = new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     return { $or: [{ name: rx }, { description: rx }, { category: rx }] };
   });
-  const foods = await Food.find({ $and: and }).sort({ categoryOrder: 1, order: 1, id: 1 });
+  const foods = await Food.find({ $and: and }).sort({ categoryOrder: 1, order: 1, id: 1 }).lean();
   return foods.map(applyExpirationCheck);
 };
 
@@ -116,9 +116,9 @@ const getFoodsByBranchService = async (branchId: string | number) => {
   const bid = Number(branchId);
   let foods;
   if (!bid || bid === 0) {
-    foods = await Food.find({}).sort({ categoryOrder: 1, order: 1, id: 1 });
+    foods = await Food.find({}).sort({ categoryOrder: 1, order: 1, id: 1 }).lean();
   } else {
-    foods = await Food.find({ $or: [{ branchIds: { $size: 0 } }, { branchIds: bid }] }).sort({ categoryOrder: 1, order: 1, id: 1 });
+    foods = await Food.find({ $or: [{ branchIds: { $size: 0 } }, { branchIds: bid }] }).sort({ categoryOrder: 1, order: 1, id: 1 }).lean();
   }
   return foods.map(applyExpirationCheck);
 };
