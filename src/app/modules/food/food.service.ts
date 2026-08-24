@@ -25,11 +25,14 @@ const applyExpirationCheck = (doc: any) => {
   return food;
 };
 
+const isAvailableVal = (val: any) => val !== false && val !== 'false';
+const isActiveVal = (val: any) => val !== false && val !== 'false';
+
 // 🎯 Sold Out ডিশগুলোকে ক্যাটাগরির নিচে সর্ট করে পাঠানোর হেলপার ফাংশন
 const sortFoodsByAvailability = (list: any[]) => {
   return [...list].sort((a, b) => {
-    const availA = a.isAvailable !== false ? 1 : 0;
-    const availB = b.isAvailable !== false ? 1 : 0;
+    const availA = isAvailableVal(a?.isAvailable) ? 1 : 0;
+    const availB = isAvailableVal(b?.isAvailable) ? 1 : 0;
     if (availA !== availB) return availB - availA; // Available (1) before Sold Out (0)
     return 0;
   });
@@ -198,8 +201,8 @@ const createFoodService = async (payload: any) => {
     discountEndDate: payload.discountEndDate ? new Date(payload.discountEndDate) : null,
 
     // 🎯 International Restaurant Standard status fields (isAvailable: In Stock, isActive: Published)
-    isAvailable: payload.isAvailable !== undefined ? !!payload.isAvailable : true,
-    isActive: payload.isActive !== undefined ? !!payload.isActive : true,
+    isAvailable: payload.isAvailable !== undefined ? isAvailableVal(payload.isAvailable) : true,
+    isActive: payload.isActive !== undefined ? isActiveVal(payload.isActive) : true,
 
     branchPrices: payload.branchPrices || {},
     variantLabel: payload.variantLabel || 'Size',
@@ -243,10 +246,10 @@ const updateFoodService = async (id: string | number, payload: any) => {
 
   // 🎯 Clean boolean updates for Stock & Active
   if (payload.isAvailable !== undefined) {
-    updateFields.isAvailable = payload.isAvailable !== false;
+    updateFields.isAvailable = isAvailableVal(payload.isAvailable);
   }
   if (payload.isActive !== undefined) {
-    updateFields.isActive = payload.isActive !== false;
+    updateFields.isActive = isActiveVal(payload.isActive);
   }
 
   if (payload.price !== undefined) updateFields.price = Number(payload.price) || 0;
