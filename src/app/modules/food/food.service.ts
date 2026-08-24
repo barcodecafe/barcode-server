@@ -197,6 +197,10 @@ const createFoodService = async (payload: any) => {
     discountStartDate: payload.discountStartDate ? new Date(payload.discountStartDate) : null,
     discountEndDate: payload.discountEndDate ? new Date(payload.discountEndDate) : null,
 
+    // 🎯 International Restaurant Standard status fields (isAvailable: In Stock, isActive: Published)
+    isAvailable: payload.isAvailable !== undefined ? !!payload.isAvailable : true,
+    isActive: payload.isActive !== undefined ? !!payload.isActive : true,
+
     branchPrices: payload.branchPrices || {},
     variantLabel: payload.variantLabel || 'Size',
     variations: payload.variations || [],
@@ -220,7 +224,7 @@ const updateFoodService = async (id: string | number, payload: any) => {
   if (!food) return null;
 
   const scalar = [
-    'name', 'category', 'image', 'description', 'popular', 'isAdminFeatured', 'featuredOrder', 'offerType'
+    'name', 'category', 'image', 'description', 'popular', 'isAdminFeatured', 'featuredOrder', 'offerType', 'isAvailable', 'isActive'
   ];
   for (const k of scalar) if (payload[k] !== undefined) (food as any)[k] = payload[k];
   if (payload.price !== undefined) food.price = Number(payload.price) || 0;
