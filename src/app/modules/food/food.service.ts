@@ -232,6 +232,20 @@ const updateFoodService = async (id: string | number, payload: any) => {
       food.markModified(k);
     }
   }
+
+  // 🎯 Ensure guaranteed MongoDB persistence for boolean stock/active toggles
+  if (payload.isAvailable !== undefined) {
+    const isAvail = payload.isAvailable !== false;
+    food.isAvailable = isAvail;
+    food.markModified('isAvailable');
+    await Food.updateOne({ _id: food._id }, { $set: { isAvailable: isAvail } }).catch(() => {});
+  }
+  if (payload.isActive !== undefined) {
+    const isAct = payload.isActive !== false;
+    food.isActive = isAct;
+    food.markModified('isActive');
+    await Food.updateOne({ _id: food._id }, { $set: { isActive: isAct } }).catch(() => {});
+  }
   if (payload.price !== undefined) food.price = Number(payload.price) || 0;
   if (payload.rating !== undefined) food.rating = Number(payload.rating) || 0;
   

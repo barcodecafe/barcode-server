@@ -94,14 +94,14 @@ const updateFoodController = async (req: Request, res: Response) => {
     const food = await FoodService.updateFoodService(req.params.id, req.body);
     if (!food) return res.status(404).json({ success: false, message: 'Food not found' });
     
-    // ⚡ Real-time WebSocket broadcast to all connected clients & menus
+    const externalizedFood = externalizeImages(food as any, 'food', publicApiBase(req));
     const io = req.app.get('io');
     if (io) {
-      io.emit('foods_updated', { type: 'update', food });
+      io.emit('foods_updated', { type: 'update', food: externalizedFood });
       io.emit('categories_updated', { type: 'food_change' });
     }
 
-    res.status(200).json({ success: true, message: 'Food updated', data: externalizeImages(food as any, 'food', publicApiBase(req)) });
+    res.status(200).json({ success: true, message: 'Food updated', data: externalizedFood });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });
   }
