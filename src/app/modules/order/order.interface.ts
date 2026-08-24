@@ -94,6 +94,10 @@ export interface IOrder {
   total: number;
   couponCode?: string;
   status: OrderStatus;
+  orderType?: 'delivery' | 'pickup';
+  expectedPickupTime?: string;
+  pickupBranchId?: number;
+  pickupBranchName?: string;
   regionId?: number; // ordering region (delivery is region-based now)
   branchId?: number; // optional — kept for legacy orders / future branch routing
   paymentMethod: string;

@@ -76,6 +76,10 @@ const orderSchema = new Schema<IOrder>(
       ], 
       default: 'Placed' 
     },
+    orderType: { type: String, enum: ['delivery', 'pickup'], default: 'delivery' },
+    expectedPickupTime: { type: String, default: '' },
+    pickupBranchId: { type: Number, default: null },
+    pickupBranchName: { type: String, default: '' },
     regionId: { type: Number, default: null }, // ordering region (region-based delivery)
     branchId: { type: Number, default: null }, // optional — legacy / future branch routing
     paymentMethod: { type: String, default: 'cod' },

@@ -60,6 +60,10 @@ type CreatePayload = {
   regionId: number;
   branchId?: number;
   paymentMethod?: string;
+  orderType?: 'delivery' | 'pickup';
+  expectedPickupTime?: string;
+  pickupBranchId?: number;
+  pickupBranchName?: string;
 };
 
 // লয়্যালটি — বিলের ৳100 এ 5 পয়েন্ট
@@ -305,8 +309,9 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     }
   }
 
-  const standardDeliveryCharge = round2(chargeFromRegion(region, deliveryArea));
-  const deliveryCharge = isFreeDelivery ? 0 : standardDeliveryCharge;
+  const isPickup = payload.orderType === "pickup";
+  const standardDeliveryCharge = isPickup ? 0 : round2(chargeFromRegion(region, deliveryArea));
+  const deliveryCharge = (isFreeDelivery || isPickup) ? 0 : standardDeliveryCharge;
   const total = round2(subtotal - discount - pointsRedeemed + deliveryCharge);
 
   const isOnlinePayment = (payload.paymentMethod || "cod") !== "cod";
@@ -316,6 +321,8 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     senderName: "Barcode Admin",
     text: isOnlinePayment
       ? "We are holding your order. It will be confirmed as soon as your online payment goes through."
+      : isPickup
+      ? "Thank you for your pickup order! We are reviewing it and will notify you when it's ready for collection."
       : "Thank you for your order! We are reviewing it and will begin preparation shortly.",
     timestamp: new Date(),
   };
@@ -326,21 +333,25 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       name: user.name,
       email: user.email,
       phone: deliveryPhone,
-      pickArea: deliveryArea,
-      address: deliveryAddress,
+      pickArea: isPickup ? (payload.pickupBranchName || "Self Pickup") : deliveryArea,
+      address: isPickup ? `Self Pickup at ${payload.pickupBranchName || "Selected Branch"}` : deliveryAddress,
     },
     items: lineItems,
     subtotal,
     discount,
     pointsRedeemed,
     pointsEarned: 0,
-    deliveryArea,
+    deliveryArea: isPickup ? (payload.pickupBranchName || "Self Pickup") : deliveryArea,
     deliveryCharge,
     total,
     couponCode,
     status: "Placed",
+    orderType: isPickup ? "pickup" : "delivery",
+    expectedPickupTime: payload.expectedPickupTime || "",
+    pickupBranchId: Number(payload.pickupBranchId) || null,
+    pickupBranchName: payload.pickupBranchName || "",
     regionId,
-    branchId: Number(payload.branchId) > 0 ? Number(payload.branchId) : null,
+    branchId: Number(payload.branchId) > 0 ? Number(payload.branchId) : (Number(payload.pickupBranchId) > 0 ? Number(payload.pickupBranchId) : null),
     paymentMethod: payload.paymentMethod || "cod",
     paymentStatus: "Pending",
     transactionId: "",
