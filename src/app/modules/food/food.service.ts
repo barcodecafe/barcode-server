@@ -226,7 +226,12 @@ const updateFoodService = async (id: string | number, payload: any) => {
   const scalar = [
     'name', 'category', 'image', 'description', 'popular', 'isAdminFeatured', 'featuredOrder', 'offerType', 'isAvailable', 'isActive'
   ];
-  for (const k of scalar) if (payload[k] !== undefined) (food as any)[k] = payload[k];
+  for (const k of scalar) {
+    if (payload[k] !== undefined) {
+      food.set(k, payload[k]);
+      food.markModified(k);
+    }
+  }
   if (payload.price !== undefined) food.price = Number(payload.price) || 0;
   if (payload.rating !== undefined) food.rating = Number(payload.rating) || 0;
   
