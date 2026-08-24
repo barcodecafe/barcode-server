@@ -57,6 +57,9 @@ const getFoodByIdController = async (req: Request, res: Response) => {
     if (!food) {
       return res.status(404).json({ success: false, message: 'Food not found' });
     }
+    // Prevent browser from caching stale dish detail data
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
     res.status(200).json({ success: true, data: externalizeImages(food as any, 'food', publicApiBase(req)) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
