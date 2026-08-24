@@ -66,7 +66,6 @@ const foodSchema = new Schema<IFood>(
     timestamps: true,
     toJSON: {
       transform(_doc, ret: any) {
-        delete ret._id;
         delete ret.__v;
         
         // 🎯 Map অবজেক্টকে প্লেন অবজেক্টে কনভার্ট করার আপডেট (কোনো এক্সিস্টিং লজিক পরিবর্তন করা হয়নি)
