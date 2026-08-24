@@ -436,6 +436,7 @@ const getOrdersForRiderService = async (
   page: number = 1,
 ) => {
   const filter: any = {
+    orderType: { $ne: 'pickup' },
     $or: [
       { riderId: riderId },
       { riderId: isValidObjectId(riderId) ? riderId : null }
