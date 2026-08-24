@@ -69,9 +69,10 @@ const userSchema = new Schema<IUser>(
     
     membershipQr: { type: String, default: '' },
 
-    // 🔑 🔑 🔑 Password Reset / OTP Field (এটি যুক্ত করা ছিল না) 🔑 🔑 🔑
+    // 🔑 🔑 🔑 Password Reset / OTP Field 🔑 🔑 🔑
     resetOtp: { type: String, default: null },
     resetOtpExpires: { type: Date, default: null },
+    resetOtpAttempts: { type: Number, default: 0 },
 
     isDeleted: { type: Boolean, default: false },
   },
@@ -87,6 +88,7 @@ const userSchema = new Schema<IUser>(
         delete ret.isDeleted;
         delete ret.resetOtp;        // Security: API রেসপন্সে যেন OTP না দেখায়
         delete ret.resetOtpExpires; // Security: API রেসপন্সে যেন Expire time না দেখায়
+        delete ret.resetOtpAttempts;
         if (ret.role !== 'rider' && ret.riderApprovalStatus === 'none') {
           delete ret.vehicle;
           delete ret.riderStatus;
@@ -99,7 +101,7 @@ const userSchema = new Schema<IUser>(
 );
 
 // 🎯 পাসওয়ার্ড হ্যাশিং — সেভের আগে (bcrypt)
-userSchema.pre('save', async function (next) {
+userSchema.pre('save', async function (this: any, next) {
   if (this.isModified('password') && this.password) {
     const rounds = Number(config.bcrypt_salt_rounds) || 12;
     this.password = await bcrypt.hash(this.password, rounds);

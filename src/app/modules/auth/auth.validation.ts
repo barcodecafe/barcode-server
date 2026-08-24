@@ -39,21 +39,29 @@ const requiredPhoneSchema = z
 
 // 🎯 ১. সাইনআপ ভ্যালিডেশন
 export const registerValidationSchema = z.object({
-  body: z.object({
-    name: z.string().min(1, "Name is required"),
-    email: optionalEmailSchema,
-    password: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .regex(/[a-z]/, "Password must contain a lowercase letter")
-      .regex(/[A-Z]/, "Password must contain an uppercase letter")
-      .regex(/[0-9]/, "Password must contain a number"),
-    phone: optionalPhoneSchema,
-    mobile: optionalPhoneSchema, // ফ্রন্টএন্ড mobile পাঠালেও সাপোর্ট করবে
-    role: z.string().optional(),
-    pickArea: z.string().optional(),
-    address: z.string().optional(),
-  }),
+  body: z
+    .object({
+      name: z.string().min(1, "Name is required"),
+      email: optionalEmailSchema,
+      password: z
+        .string()
+        .min(8, "Password must be at least 8 characters")
+        .regex(/[a-z]/, "Password must contain a lowercase letter")
+        .regex(/[A-Z]/, "Password must contain an uppercase letter")
+        .regex(/[0-9]/, "Password must contain a number"),
+      phone: optionalPhoneSchema,
+      mobile: optionalPhoneSchema, // ফ্রন্টএন্ড mobile পাঠালেও সাপোর্ট করবে
+      role: z.string().optional(),
+      pickArea: z.string().optional(),
+      address: z.string().optional(),
+    })
+    .refine(
+      (data) => !!(data.phone || data.mobile || (data.email && data.email !== "")),
+      {
+        message: "Please provide a valid mobile number or email address for registration",
+        path: ["phone"],
+      }
+    ),
 });
 
 // 🎯 ২. লগইন ভ্যালিডেশন (Phone অথবা Email যেকোনো একটি বাধ্যতামূলক)

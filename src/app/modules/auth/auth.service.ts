@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/modules/auth/auth.service.ts
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
@@ -197,18 +198,18 @@ const requestEmailOtp = async (phone: string) => {
     throw err;
   }
 
-  // 6-digit OTP জেনারেট
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  // Cryptographically secure 6-digit OTP generation
+  const otp = crypto.randomInt(100000, 1000000).toString();
   
-  // 💡 20 Minutes Validity (Timestamp safe calculation)
+  // 💡 20 Minutes Validity
   const expiresAt = new Date(Date.now() + 20 * 60 * 1000);
 
-  // MongoDB User ডকুমেন্টে OTP ও মেয়াদের টাইমস্ট্যাম্প সেভ করা
+  // Reset OTP metadata
   (user as any).resetOtp = String(otp);
   (user as any).resetOtpExpires = expiresAt;
+  (user as any).resetOtpAttempts = 0;
   await user.save();
 
-  // 💡 Spam এড়ানো: FROM এড্রেস জিমেইলের সাথে মিল রাখা হয়েছে
   const senderEmail = process.env.SMTP_USER || "barcode.bd@gmail.com";
 
   await transporter.sendMail({
@@ -255,7 +256,6 @@ const resetPasswordWithOtp = async (payload: { phone: string; otp: string; newPa
 
   const normalizedPhone = normalizeBdPhone(phone);
   
-  // 💡 .select('+password') যুক্ত করা হয়েছে যাতে pre('save') হুকে Mongoose হ্যাশিং সঠিকভাবে করতে পারে
   const user = await User.findOne({
     isDeleted: false,
     $or: [{ phone: normalizedPhone }, { phone: phone.trim() }],
@@ -269,27 +269,46 @@ const resetPasswordWithOtp = async (payload: { phone: string; otp: string; newPa
 
   const storedOtp = (user as any).resetOtp ? String((user as any).resetOtp).trim() : null;
   const otpExpires = (user as any).resetOtpExpires;
+  const attempts = Number((user as any).resetOtpAttempts || 0);
+
+  // Maximum 5 failed attempts limit to prevent brute force
+  if (attempts >= 5) {
+    (user as any).resetOtp = null;
+    (user as any).resetOtpExpires = null;
+    (user as any).resetOtpAttempts = 0;
+    await user.save();
+    const err: any = new Error("Too many invalid OTP attempts. For your security, this OTP code has been invalidated. Please request a new OTP.");
+    err.status = 429;
+    throw err;
+  }
 
   const inputOtp = String(otp).trim();
   const currentTime = Date.now();
   const expiryTime = otpExpires ? new Date(otpExpires).getTime() : 0;
 
   if (!storedOtp || storedOtp !== inputOtp) {
-    const err: any = new Error("Invalid OTP code.");
+    (user as any).resetOtpAttempts = attempts + 1;
+    await user.save();
+    const err: any = new Error(`Invalid OTP code. (${4 - attempts} attempts remaining)`);
     err.status = 400;
     throw err;
   }
 
   if (currentTime > expiryTime) {
+    (user as any).resetOtp = null;
+    (user as any).resetOtpExpires = null;
+    (user as any).resetOtpAttempts = 0;
+    await user.save();
     const err: any = new Error("OTP code has expired. Please request a new one.");
     err.status = 400;
     throw err;
   }
 
-  // 💡 পাসওয়ার্ড আপডেট ও OTP ফিল্ড সম্পূর্ণ ক্লিয়ার করা
+  // Update password and clear OTP fields
   user.password = newPassword;
   (user as any).resetOtp = null;
   (user as any).resetOtpExpires = null;
+  (user as any).resetOtpAttempts = 0;
   
   await user.save();
 

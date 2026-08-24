@@ -44,6 +44,13 @@ const getAllRidersService = async () => {
   return riders.map((r: any) => toRiderShape(r, activeByRider.get(String(r._id)) || 0));
 };
 
+const normalizeBdPhone = (raw?: string): string => {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (/^01[3-9]\d{8}$/.test(digits)) return `+88${digits}`;
+  if (/^8801[3-9]\d{8}$/.test(digits)) return `+${digits}`;
+  return String(raw || "").trim();
+};
+
 // 🎯 Dedicated Admin Manual Rider Creation (Directly active & approved)
 const createRiderManualService = async (payload: {
   name: string;
@@ -58,9 +65,10 @@ const createRiderManualService = async (payload: {
   address?: string;
 }) => {
   const name = String(payload.name || '').trim();
-  const phone = String(payload.phone || '').trim();
+  const rawPhone = String(payload.phone || '').trim();
+  const phone = normalizeBdPhone(rawPhone);
   const email = payload.email ? String(payload.email).trim().toLowerCase() : undefined;
-  const password = payload.password || phone.slice(-6) || '123456';
+  const password = payload.password || rawPhone.slice(-6) || '123456';
   const vehicle = String(payload.vehicle || 'Motorbike').trim();
   const employmentType = payload.employmentType === 'freelance' ? 'freelance' : 'permanent';
   const commissionRate =
@@ -109,23 +117,31 @@ const registerRiderService = async (
   licenseFilename: string
 ) => {
   const email = String(payload.email || '').trim().toLowerCase();
-  const exists = await User.findOne({ email });
-  if (exists) {
-    const err: any = new Error('An account with this email already exists.');
-    err.status = 409;
-    throw err;
+  const phone = normalizeBdPhone(payload.phone);
+
+  const query: any[] = [];
+  if (email) query.push({ email });
+  if (phone) query.push({ phone });
+
+  if (query.length > 0) {
+    const exists = await User.findOne({ $or: query, isDeleted: { $ne: true } });
+    if (exists) {
+      const err: any = new Error('An account with this phone or email already exists.');
+      err.status = 409;
+      throw err;
+    }
   }
 
   const user = await User.create({
     name: String(payload.name || '').trim(),
-    email,
+    email: email || undefined,
     password: payload.password,
     role: 'user', // শুরুতে রোল অবশ্যই 'user' থাকবে
     riderApprovalStatus: 'pending',
     riderStatus: 'Available',
     employmentType: 'permanent',
     vehicle: String(payload.vehicle || '').trim() || 'Motorbike',
-    phone: String(payload.phone || '').trim(),
+    phone,
     pickArea: String(payload.pickArea || '').trim(),
     address: String(payload.address || '').trim(),
   });

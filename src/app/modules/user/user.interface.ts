@@ -28,6 +28,7 @@ export interface IUser {
   // 🔑 Password Reset & OTP Fields
   resetOtp?: string | null;
   resetOtpExpires?: Date | null;
+  resetOtpAttempts?: number;
 
   isDeleted?: boolean;
   createdAt?: Date;

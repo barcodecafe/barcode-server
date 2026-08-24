@@ -210,7 +210,10 @@ const updateMeService = async (userId: string, payload: any) => {
   const user = await User.findOne({ _id: userId, isDeleted: false });
   if (!user) return null;
   if (payload.name !== undefined && String(payload.name).trim()) user.name = String(payload.name).trim();
-  if (payload.phone !== undefined) user.phone = String(payload.phone).trim();
+  if (payload.phone !== undefined && String(payload.phone).trim()) {
+    const rawDigits = String(payload.phone).replace(/\D/g, "");
+    user.phone = /^01[3-9]\d{8}$/.test(rawDigits) ? `+88${rawDigits}` : String(payload.phone).trim();
+  }
   if (payload.pickArea !== undefined) user.pickArea = String(payload.pickArea).trim();
   if (payload.address !== undefined) user.address = String(payload.address).trim();
   await user.save();
