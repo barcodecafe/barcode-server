@@ -1,11 +1,20 @@
 import { HeroSlide } from './hero.model';
 import { getNextId } from '../../utils/counter';
+import { getCache, setCache, clearCachePattern } from '../../utils/redis';
 
-const getAllSlidesService = async () => HeroSlide.find({}).sort({ id: 1 });
+const getAllSlidesService = async () => {
+  const cacheKey = 'hero:slides:all';
+  const cached = await getCache<any[]>(cacheKey);
+  if (cached) return cached;
+
+  const slides = await HeroSlide.find({}).sort({ id: 1 }).lean();
+  await setCache(cacheKey, slides, 300);
+  return slides;
+};
 
 const createSlideService = async (payload: any) => {
   const id = await getNextId('hero'); // atomic (Phase 4 QA fix)
-  return HeroSlide.create({
+  const created = await HeroSlide.create({
     id,
     type: payload.type || 'promo',
     title: payload.title || '',
@@ -15,6 +24,8 @@ const createSlideService = async (payload: any) => {
     featuredFoodId: payload.featuredFoodId ? Number(payload.featuredFoodId) : null,
     offerText: payload.offerText ?? null,
   });
+  await clearCachePattern('hero:*');
+  return created;
 };
 
 const updateSlideService = async (id: string | number, payload: any) => {
@@ -38,6 +49,7 @@ const updateSlideService = async (id: string | number, payload: any) => {
     slide.featuredFoodId = payload.featuredFoodId ? Number(payload.featuredFoodId) : null;
   }
   await slide.save();
+  await clearCachePattern('hero:*');
   return slide;
 };
 
@@ -53,6 +65,7 @@ const deleteSlideService = async (id: string | number) => {
   if (!slide) {
     slide = await HeroSlide.findOneAndDelete({ $or: [{ id: id }, { _id: id }] }).catch(() => null);
   }
+  await clearCachePattern('hero:*');
   return slide;
 };
 
