@@ -51,7 +51,8 @@ async function connectDB() {
       serverSelectionTimeoutMS: 10000,
       connectTimeoutMS: 10000,
       socketTimeoutMS: 45000,
-      maxPoolSize: 20,
+      maxPoolSize: 50,
+      minPoolSize: 10,
       maxIdleTimeMS: 60000,
     };
     cached.promise = mongoose
