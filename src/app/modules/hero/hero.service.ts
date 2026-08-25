@@ -1,7 +1,7 @@
 import { HeroSlide } from './hero.model';
 import { getNextId } from '../../utils/counter';
 import { getCache, setCache, clearCachePattern } from '../../utils/redis';
-import { uploadToCloudinary } from '../../utils/cloudinary';
+import { uploadToCloudinary, deleteFromCloudinary } from '../../utils/cloudinary';
 
 const getAllSlidesService = async () => {
   const slides = await HeroSlide.find({}).sort({ id: 1, createdAt: 1 }).lean();
@@ -59,7 +59,11 @@ const updateSlideService = async (id: string | number, payload: any) => {
   if (!slide) return null;
 
   if (payload.image !== undefined) {
-    slide.image = payload.image ? await uploadToCloudinary(payload.image, 'barcode/hero') : '';
+    const newImg = payload.image ? await uploadToCloudinary(payload.image, 'barcode/hero') : '';
+    if (slide.image && slide.image !== newImg) {
+      await deleteFromCloudinary(slide.image);
+    }
+    slide.image = newImg;
   }
 
   for (const k of ['type', 'title', 'subtitle', 'cta', 'offerText']) {
@@ -100,6 +104,9 @@ const deleteSlideService = async (id: string | number) => {
         ],
       });
     } catch {}
+  }
+  if (slide?.image) {
+    await deleteFromCloudinary(slide.image);
   }
   return slide;
 };

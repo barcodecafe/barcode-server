@@ -2,7 +2,7 @@ import { Food } from './food.model';
 import { Order } from '../order/order.model';
 import { getNextId } from '../../utils/counter';
 import { getCache, setCache, clearCachePattern } from '../../utils/redis';
-import { uploadToCloudinary } from '../../utils/cloudinary';
+import { uploadToCloudinary, deleteFromCloudinary } from '../../utils/cloudinary';
 
 const applyExpirationCheck = (doc: any) => {
   if (!doc) return doc;
@@ -250,7 +250,11 @@ const updateFoodService = async (id: string | number, payload: any) => {
   const updateFields: any = {};
 
   if (payload.image !== undefined) {
-    updateFields.image = payload.image ? await uploadToCloudinary(payload.image, 'barcode/foods') : '';
+    const newImg = payload.image ? await uploadToCloudinary(payload.image, 'barcode/foods') : '';
+    if (existing.image && existing.image !== newImg) {
+      await deleteFromCloudinary(existing.image);
+    }
+    updateFields.image = newImg;
   }
 
   const scalar = [
@@ -402,6 +406,19 @@ const deleteFoodService = async (id: string | number) => {
   }
   if (!food) {
     food = await Food.findOneAndDelete({ $or: [{ id: id }, { _id: id }] }).catch(() => null);
+  }
+  if (food) {
+    if (food.image) await deleteFromCloudinary(food.image);
+    if (Array.isArray(food.variations)) {
+      for (const v of food.variations) {
+        if (v?.image) await deleteFromCloudinary(v.image);
+      }
+    }
+    if (Array.isArray(food.addons)) {
+      for (const a of food.addons) {
+        if (a?.image) await deleteFromCloudinary(a.image);
+      }
+    }
   }
   await clearCachePattern('foods:*');
   return food;

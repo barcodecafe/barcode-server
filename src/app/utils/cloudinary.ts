@@ -18,6 +18,18 @@ if (isConfigured) {
 export const isDataUrl = (val: any): val is string =>
   typeof val === 'string' && val.startsWith('data:image/');
 
+export const extractPublicId = (url: string): string | null => {
+  if (!url || typeof url !== 'string' || !url.includes('cloudinary.com')) {
+    return null;
+  }
+  try {
+    const match = url.match(/\/upload\/(?:v\d+\/)?([^\.]+)/);
+    return match && match[1] ? match[1] : null;
+  } catch {
+    return null;
+  }
+};
+
 export const uploadToCloudinary = async (
   base64Str: string,
   folder = 'barcode'
@@ -35,5 +47,23 @@ export const uploadToCloudinary = async (
   } catch (err: any) {
     console.error('⚠️ Cloudinary Realtime Upload Error:', err?.message || err);
     return base64Str;
+  }
+};
+
+export const deleteFromCloudinary = async (imageUrlOrPublicId: string): Promise<boolean> => {
+  if (!isConfigured || !imageUrlOrPublicId) return false;
+
+  const publicId = imageUrlOrPublicId.includes('http')
+    ? extractPublicId(imageUrlOrPublicId)
+    : imageUrlOrPublicId;
+
+  if (!publicId) return false;
+
+  try {
+    const res = await cloudinary.uploader.destroy(publicId);
+    return res?.result === 'ok';
+  } catch (err: any) {
+    console.error('⚠️ Cloudinary Destroy Error:', err?.message || err);
+    return false;
   }
 };
