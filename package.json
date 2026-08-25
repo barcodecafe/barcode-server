@@ -12,7 +12,8 @@
     "prettier": "prettier --write \"./src/**/*.+(js|ts|json)\"",
     "seed:admin": "ts-node src/scripts/seedAdmin.ts",
     "seed:data": "ts-node src/scripts/seedData.ts",
-    "migrate:images": "ts-node src/scripts/migrateImagesToCloudinary.ts"
+    "migrate:images": "ts-node src/scripts/migrateImagesToCloudinary.ts",
+    "start:cluster": "pm2-runtime start ecosystem.config.js"
   },
   "keywords": [],
   "author": "",
@@ -32,6 +33,7 @@
     "multer": "^2.1.1",
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^9.0.3",
+    "pm2": "^5.4.3",
     "qrcode": "^1.5.4",
     "socket.io": "^4.8.3",
     "zod": "^3.22.4"
