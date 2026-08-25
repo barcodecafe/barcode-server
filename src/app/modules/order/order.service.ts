@@ -161,13 +161,24 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     let unitPrice = baseUnitPrice;
     let computedDiscountAmount = 0;
 
+    const now = new Date();
+    const isExpired = (food as any).discountEndDate && new Date((food as any).discountEndDate) < now;
+    const isNotStarted = (food as any).discountStartDate && new Date((food as any).discountStartDate) > now;
+    const isDiscountActive = !isExpired && !isNotStarted;
+
+    if (!isDiscountActive) {
+      foodOfferType = "none";
+    }
+
     if (
+      isDiscountActive &&
       (food as any).discountType === "flat" &&
       Number((food as any).discountAmount) > 0
     ) {
       computedDiscountAmount = Number((food as any).discountAmount);
       unitPrice = Math.max(0, foodOriginalPrice - computedDiscountAmount);
     } else if (
+      isDiscountActive &&
       (food as any).discountType === "percent" &&
       Number((food as any).discountPct) > 0
     ) {
@@ -177,7 +188,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       unitPrice = Math.max(0, foodOriginalPrice - computedDiscountAmount);
     } else {
       unitPrice = baseUnitPrice;
-      if (baseUnitPrice < foodOriginalPrice) {
+      if (isDiscountActive && baseUnitPrice < foodOriginalPrice) {
         computedDiscountAmount = round2(foodOriginalPrice - unitPrice);
       } else {
         foodOriginalPrice = baseUnitPrice;
