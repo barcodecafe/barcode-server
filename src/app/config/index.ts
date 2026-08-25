@@ -47,6 +47,9 @@ export default {
     api_secret: process.env.CLOUDINARY_API_SECRET,
   },
 
+  // Redis Cache
+  redis_url: process.env.REDIS_URL,
+
   // SSLCommerz
   sslcommerz: {
     store_id: process.env.SSLCOMMERZ_STORE_ID,

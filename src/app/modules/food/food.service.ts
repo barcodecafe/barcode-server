@@ -1,6 +1,7 @@
 import { Food } from './food.model';
 import { Order } from '../order/order.model';
 import { getNextId } from '../../utils/counter';
+import { getCache, setCache, clearCachePattern } from '../../utils/redis';
 
 const applyExpirationCheck = (doc: any) => {
   if (!doc) return doc;
@@ -41,6 +42,10 @@ const sortFoodsByAvailability = (list: any[]) => {
 // GET /api/foods  (+ ?category=Mains)
 // 🎯 categoryOrder: 1, order: 1 এবং id: 1 দিয়ে সর্ট করা হয়েছে
 const getAllFoodsService = async (category?: string) => {
+  const cacheKey = `foods:${category || 'all'}`;
+  const cached = await getCache<any[]>(cacheKey);
+  if (cached) return cached;
+
   let foods;
   if (category && category !== 'All') {
     foods = await Food.find({ category }).sort({ order: 1, id: 1 }).lean();
@@ -48,7 +53,9 @@ const getAllFoodsService = async (category?: string) => {
     foods = await Food.find({}).sort({ categoryOrder: 1, order: 1, id: 1 }).lean();
   }
   const processed = foods.map(applyExpirationCheck);
-  return sortFoodsByAvailability(processed);
+  const result = sortFoodsByAvailability(processed);
+  await setCache(cacheKey, result, 300);
+  return result;
 };
 
 // GET /api/foods/:id
@@ -209,6 +216,7 @@ const createFoodService = async (payload: any) => {
     variations: payload.variations || [],
     addons: payload.addons || [],
   });
+  await clearCachePattern('foods:*');
   return applyExpirationCheck(food);
 };
 
@@ -329,6 +337,7 @@ const updateFoodService = async (id: string | number, payload: any) => {
   }
 
   const updatedFood = await Food.findOneAndUpdate(filter, { $set: updateFields }, { new: true });
+  await clearCachePattern('foods:*');
   return updatedFood ? applyExpirationCheck(updatedFood) : null;
 };
 
@@ -353,6 +362,7 @@ const reorderFoodsService = async (foodIds: (string | number)[]) => {
   });
 
   await Food.bulkWrite(bulkOps);
+  await clearCachePattern('foods:*');
 };
 
 // 🎯 Categories Reorder Service: ডাটাবেজের ফুডগুলোতে categoryOrder আপডেট করা হলো
@@ -367,6 +377,7 @@ const reorderCategoriesService = async (categories: string[]) => {
   }));
 
   await Food.bulkWrite(bulkOps);
+  await clearCachePattern('foods:*');
   return categories;
 };
 
@@ -382,6 +393,7 @@ const deleteFoodService = async (id: string | number) => {
   if (!food) {
     food = await Food.findOneAndDelete({ $or: [{ id: id }, { _id: id }] }).catch(() => null);
   }
+  await clearCachePattern('foods:*');
   return food;
 };
 
