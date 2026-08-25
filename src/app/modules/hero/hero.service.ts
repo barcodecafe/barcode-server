@@ -2,15 +2,7 @@ import { HeroSlide } from './hero.model';
 import { getNextId } from '../../utils/counter';
 import { getCache, setCache, clearCachePattern } from '../../utils/redis';
 
-const getAllSlidesService = async () => {
-  const cacheKey = 'hero:slides:all';
-  const cached = await getCache<any[]>(cacheKey);
-  if (cached) return cached;
-
-  const slides = await HeroSlide.find({}).sort({ id: 1 }).lean();
-  await setCache(cacheKey, slides, 300);
-  return slides;
-};
+const getAllSlidesService = async () => HeroSlide.find({}).sort({ id: 1 }).lean();
 
 const createSlideService = async (payload: any) => {
   const id = await getNextId('hero'); // atomic (Phase 4 QA fix)
