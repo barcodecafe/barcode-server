@@ -22,6 +22,8 @@ const createSlideService = async (payload: any) => {
     cta: payload.cta ?? null,
     featuredFoodId: payload.featuredFoodId ? Number(payload.featuredFoodId) : null,
     offerText: payload.offerText ?? null,
+    startDate: payload.startDate ? new Date(payload.startDate) : (payload.discountStartDate ? new Date(payload.discountStartDate) : null),
+    endDate: payload.endDate ? new Date(payload.endDate) : (payload.discountEndDate ? new Date(payload.discountEndDate) : null),
   });
   return created;
 };
@@ -54,6 +56,14 @@ const updateSlideService = async (id: string | number, payload: any) => {
   }
   if (payload.featuredFoodId !== undefined) {
     slide.featuredFoodId = payload.featuredFoodId ? Number(payload.featuredFoodId) : null;
+  }
+  if (payload.startDate !== undefined || payload.discountStartDate !== undefined) {
+    const sDate = payload.startDate ?? payload.discountStartDate;
+    slide.startDate = sDate ? new Date(sDate) : null;
+  }
+  if (payload.endDate !== undefined || payload.discountEndDate !== undefined) {
+    const eDate = payload.endDate ?? payload.discountEndDate;
+    slide.endDate = eDate ? new Date(eDate) : null;
   }
   await slide.save();
   return slide;

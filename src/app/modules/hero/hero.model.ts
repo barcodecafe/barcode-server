@@ -9,6 +9,8 @@ export interface IHeroSlide {
   cta: string | null;
   featuredFoodId: number | null;
   offerText: string | null;
+  startDate?: Date | null;
+  endDate?: Date | null;
 }
 
 const heroSchema = new Schema<IHeroSlide>(
@@ -21,6 +23,8 @@ const heroSchema = new Schema<IHeroSlide>(
     cta: { type: String, default: null },
     featuredFoodId: { type: Number, default: null },
     offerText: { type: String, default: null },
+    startDate: { type: Date, default: null },
+    endDate: { type: Date, default: null },
   },
   {
     timestamps: true,
