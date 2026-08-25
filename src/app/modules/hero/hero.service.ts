@@ -19,9 +19,18 @@ const createSlideService = async (payload: any) => {
 
 const updateSlideService = async (id: string | number, payload: any) => {
   const n = Number(id);
-  if (!Number.isFinite(n)) return null;
-  const slide = await HeroSlide.findOne({ id: n });
+  let slide = null;
+  if (Number.isFinite(n) && n > 0) {
+    slide = await HeroSlide.findOne({ id: n });
+  }
+  if (!slide && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+    slide = await HeroSlide.findById(id);
+  }
+  if (!slide) {
+    slide = await HeroSlide.findOne({ $or: [{ id: id }, { _id: id }] }).catch(() => null);
+  }
   if (!slide) return null;
+
   for (const k of ['type', 'title', 'subtitle', 'image', 'cta', 'offerText']) {
     if (payload[k] !== undefined) (slide as any)[k] = payload[k];
   }
@@ -34,8 +43,17 @@ const updateSlideService = async (id: string | number, payload: any) => {
 
 const deleteSlideService = async (id: string | number) => {
   const n = Number(id);
-  if (!Number.isFinite(n)) return null;
-  return HeroSlide.findOneAndDelete({ id: n });
+  let slide = null;
+  if (Number.isFinite(n) && n > 0) {
+    slide = await HeroSlide.findOneAndDelete({ id: n });
+  }
+  if (!slide && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+    slide = await HeroSlide.findByIdAndDelete(id);
+  }
+  if (!slide) {
+    slide = await HeroSlide.findOneAndDelete({ $or: [{ id: id }, { _id: id }] }).catch(() => null);
+  }
+  return slide;
 };
 
 export const HeroService = {
