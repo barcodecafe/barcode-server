@@ -2,6 +2,7 @@ import { Food } from './food.model';
 import { Order } from '../order/order.model';
 import { getNextId } from '../../utils/counter';
 import { getCache, setCache, clearCachePattern } from '../../utils/redis';
+import { uploadToCloudinary } from '../../utils/cloudinary';
 
 const applyExpirationCheck = (doc: any) => {
   if (!doc) return doc;
@@ -178,13 +179,18 @@ const createFoodService = async (payload: any) => {
   const highestOrderFood = await Food.findOne({}).sort({ order: -1 });
   const newOrder = highestOrderFood && typeof highestOrderFood.order === 'number' ? highestOrderFood.order + 1 : 1;
 
+  let finalImage = payload.image || '';
+  if (finalImage) {
+    finalImage = await uploadToCloudinary(finalImage, 'barcode/foods');
+  }
+
   const food = await Food.create({
     id,
     order: newOrder,
     name: payload.name,
     category: payload.category,
     price: Number(payload.price) || 0,
-    image: payload.image || '',
+    image: finalImage,
     rating: Number(payload.rating) || 4.5,
     adminBaseRating: Number(payload.rating) || 4.5,
     reviewCount: 0,
@@ -243,8 +249,12 @@ const updateFoodService = async (id: string | number, payload: any) => {
 
   const updateFields: any = {};
 
+  if (payload.image !== undefined) {
+    updateFields.image = payload.image ? await uploadToCloudinary(payload.image, 'barcode/foods') : '';
+  }
+
   const scalar = [
-    'name', 'category', 'image', 'description', 'popular', 'isAdminFeatured', 'featuredOrder', 'offerType'
+    'name', 'category', 'description', 'popular', 'isAdminFeatured', 'featuredOrder', 'offerType'
   ];
   for (const k of scalar) {
     if (payload[k] !== undefined) {

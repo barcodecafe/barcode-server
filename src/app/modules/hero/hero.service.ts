@@ -1,6 +1,7 @@
 import { HeroSlide } from './hero.model';
 import { getNextId } from '../../utils/counter';
 import { getCache, setCache, clearCachePattern } from '../../utils/redis';
+import { uploadToCloudinary } from '../../utils/cloudinary';
 
 const getAllSlidesService = async () => {
   const slides = await HeroSlide.find({}).sort({ id: 1, createdAt: 1 }).lean();
@@ -13,12 +14,18 @@ const getAllSlidesService = async () => {
 
 const createSlideService = async (payload: any) => {
   const id = await getNextId('hero'); // atomic (Phase 4 QA fix)
+
+  let finalImage = payload.image || '';
+  if (finalImage) {
+    finalImage = await uploadToCloudinary(finalImage, 'barcode/hero');
+  }
+
   const created = await HeroSlide.create({
     id,
     type: payload.type || 'promo',
     title: payload.title || '',
     subtitle: payload.subtitle || '',
-    image: payload.image || '',
+    image: finalImage,
     cta: payload.cta ?? null,
     featuredFoodId: payload.featuredFoodId ? Number(payload.featuredFoodId) : null,
     offerText: payload.offerText ?? null,
@@ -51,7 +58,11 @@ const updateSlideService = async (id: string | number, payload: any) => {
   }
   if (!slide) return null;
 
-  for (const k of ['type', 'title', 'subtitle', 'image', 'cta', 'offerText']) {
+  if (payload.image !== undefined) {
+    slide.image = payload.image ? await uploadToCloudinary(payload.image, 'barcode/hero') : '';
+  }
+
+  for (const k of ['type', 'title', 'subtitle', 'cta', 'offerText']) {
     if (payload[k] !== undefined) (slide as any)[k] = payload[k];
   }
   if (payload.featuredFoodId !== undefined) {
