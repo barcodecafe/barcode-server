@@ -1,6 +1,7 @@
 import http from 'http';
 import mongoose from 'mongoose';
 import { Server as SocketIOServer } from 'socket.io';
+import jwt from 'jsonwebtoken';
 import app from './app';
 import config from './app/config';
 import { Order } from './app/modules/order/order.model';
@@ -85,8 +86,51 @@ export const io = new SocketIOServer(server, {
 
 app.set('io', io);
 
+// 🔒 Socket.io Authentication Handshake Middleware
+io.use((socket, next) => {
+  try {
+    const rawToken = socket.handshake.auth?.token || socket.handshake.headers?.authorization;
+    if (rawToken) {
+      const token = String(rawToken).startsWith('Bearer ')
+        ? String(rawToken).split(' ')[1]
+        : String(rawToken);
+      const decoded = jwt.verify(token, config.jwt.access_secret) as {
+        _id: string;
+        role: string;
+        email?: string;
+      };
+      socket.data.user = decoded;
+    } else {
+      socket.data.user = null;
+    }
+  } catch {
+    socket.data.user = null;
+  }
+  next();
+});
+
 // ⚡ Socket Connections & Real-time Events Listener
 io.on('connection', (socket) => {
+  const user = socket.data.user;
+  const role = String(user?.role || '').toLowerCase();
+  const userId = String(user?._id || '').trim();
+
+  // Room partitioning by role and identity
+  if (['admin', 'super_admin', 'superadmin'].includes(role)) {
+    socket.join('admins');
+  }
+  if (role === 'rider' && userId) {
+    socket.join(`rider:${userId}`);
+  }
+  if (userId) {
+    socket.join(`user:${userId}`);
+  }
+
+  socket.on('join_order_room', (orderId: string) => {
+    if (orderId && typeof orderId === 'string') {
+      socket.join(`order:${orderId}`);
+    }
+  });
 
   // 🔔 0. ক্লায়েন্ট/এডমিন কানেক্ট হলে ইনস্ট্যান্ট পেন্ডিং কাউন্ট রিকোয়েস্ট হ্যান্ডলার
   socket.on('get_pending_count', async () => {
@@ -102,15 +146,20 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 🛒 1. নতুন অর্ডার প্লেস হলে
+  // 🛒 1. নতুন অর্ডার প্লেস হলে (Targeted & Broadcast)
   socket.on('create_order', async (newOrder) => {
-    io.emit('order_created', newOrder);
-    io.emit('admin_new_order', newOrder);
-    io.emit('rider_new_delivery', newOrder);
+    io.to('admins').emit('order_created', newOrder);
+    io.to('admins').emit('admin_new_order', newOrder);
+    if (newOrder?.riderId) {
+      io.to(`rider:${newOrder.riderId}`).emit('rider_new_delivery', newOrder);
+    }
+    if (newOrder?.user?.id) {
+      io.to(`user:${newOrder.user.id}`).emit('order_created', newOrder);
+    }
 
     try {
       const pendingCount = await OrderService.getPendingCountService();
-      io.emit('pending_count_updated', { 
+      io.to('admins').emit('pending_count_updated', { 
         count: pendingCount, 
         pendingCount, 
         data: pendingCount 
@@ -122,25 +171,43 @@ io.on('connection', (socket) => {
 
   // 🚴 2. রাইডার অ্যাসাইন
   socket.on('rider_order_assigned', (data) => {
-    io.emit('rider_order_assigned', data);
-    io.emit('order_assigned', data);
-    io.emit('order_updated', data);
+    io.to('admins').emit('rider_order_assigned', data);
+    io.to('admins').emit('order_assigned', data);
+    if (data?.riderId) {
+      io.to(`rider:${data.riderId}`).emit('rider_order_assigned', data);
+      io.to(`rider:${data.riderId}`).emit('order_assigned', data);
+    }
+    if (data?.orderId || data?.id) {
+      io.to(`order:${data.orderId || data.id}`).emit('order_updated', data);
+    }
   });
 
   socket.on('order_assigned', (data) => {
-    io.emit('order_assigned', data);
-    io.emit('rider_order_assigned', data);
-    io.emit('order_updated', data);
+    io.to('admins').emit('order_assigned', data);
+    if (data?.riderId) {
+      io.to(`rider:${data.riderId}`).emit('order_assigned', data);
+    }
+    if (data?.orderId || data?.id) {
+      io.to(`order:${data.orderId || data.id}`).emit('order_updated', data);
+    }
   });
 
   // 🔄 3. অর্ডারের স্ট্যাটাস চেঞ্জ
   socket.on('order_status_updated', async (data) => {
-    io.emit('order_status_updated', data);
-    io.emit('order_updated', data);
+    io.to('admins').emit('order_status_updated', data);
+    if (data?.order?.riderId) {
+      io.to(`rider:${data.order.riderId}`).emit('order_status_updated', data);
+    }
+    if (data?.order?.user?.id) {
+      io.to(`user:${data.order.user.id}`).emit('order_status_updated', data);
+    }
+    if (data?.orderId || data?.order?._id) {
+      io.to(`order:${data.orderId || data.order._id}`).emit('order_status_updated', data);
+    }
 
     try {
       const pendingCount = await OrderService.getPendingCountService();
-      io.emit('pending_count_updated', { 
+      io.to('admins').emit('pending_count_updated', { 
         count: pendingCount, 
         pendingCount, 
         data: pendingCount 
@@ -150,33 +217,53 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 📝 4. ডাটা আপডেট (এডমিন ও রাইডার স্ট্যাটাস ওভাররাইডের জন্য)
+  // 📝 4. ডাটা আপডেট
   socket.on('order_updated', (data) => {
-    io.emit('order_updated', data);
-    io.emit('rider_order_updated', data);
+    io.to('admins').emit('order_updated', data);
+    if (data?.riderId) {
+      io.to(`rider:${data.riderId}`).emit('order_updated', data);
+    }
+    if (data?.user?.id) {
+      io.to(`user:${data.user.id}`).emit('order_updated', data);
+    }
+    if (data?._id || data?.id) {
+      io.to(`order:${data._id || data.id}`).emit('order_updated', data);
+    }
   });
 
   // 🚴 5. রাইডার অর্ডারের স্ট্যাটাস আপডেট ব্রডকাস্ট
   socket.on('rider_order_updated', (data) => {
-    io.emit('rider_order_updated', data);
-    io.emit('order_updated', data);
+    io.to('admins').emit('rider_order_updated', data);
+    if (data?.riderId) {
+      io.to(`rider:${data.riderId}`).emit('rider_order_updated', data);
+    }
+    if (data?._id || data?.id) {
+      io.to(`order:${data._id || data.id}`).emit('order_updated', data);
+    }
   });
 
-  // 💬 6. চ্যাট মেসেজ
+  // 💬 6. চ্যাট মেসেজ (Only to order room and admins)
   socket.on('send_message', (data) => {
-    io.emit('new_chat_message', data);
+    io.to('admins').emit('new_chat_message', data);
+    if (data?.orderId) {
+      io.to(`order:${data.orderId}`).emit('new_chat_message', data);
+    }
   });
 
-  // 💰 7. রাইডার ক্যাশ সেটেলমেন্ট সাবমিট (Admin Notification)
+  // 💰 7. রাইডার ক্যাশ সেটেলমেন্ট সাবমিট
   socket.on('rider_cash_submitted', (data) => {
-    io.emit('rider_cash_submitted', data);
-    io.emit('order_updated', data);
+    io.to('admins').emit('rider_cash_submitted', data);
+    if (data?.riderId) {
+      io.to(`rider:${data.riderId}`).emit('order_updated', data);
+    }
   });
 
-  // 💰 8. এডমিন ক্যাশ সেটেলমেন্ট কনফার্ম (Rider Notification)
+  // 💰 8. এডমিন ক্যাশ সেটেলমেন্ট কনফার্ম
   socket.on('rider_cash_settled', (data) => {
-    io.emit('rider_cash_settled', data);
-    io.emit('order_updated', data);
+    io.to('admins').emit('rider_cash_settled', data);
+    if (data?.riderId) {
+      io.to(`rider:${data.riderId}`).emit('rider_cash_settled', data);
+    }
   });
 
   socket.on('disconnect', () => {

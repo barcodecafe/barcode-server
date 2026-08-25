@@ -51,9 +51,7 @@ const allowedOrigins: (string | RegExp)[] = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:3000',
-  // 'https://barcoderestaurantgroup.com',
   'https://www.barcoderestaurantgroup.com',
-  /\.vercel\.app$/,
 ];
 // Production frontend URL(s) from env — comma-separated, e.g. CLIENT_URL=https://app.example.com,https://www.example.com
 if (config.client_url) {

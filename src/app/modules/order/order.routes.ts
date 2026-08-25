@@ -41,6 +41,9 @@ router.patch(
   OrderController.updateStatusController
 );
 
+// ৪.৫ নির্দিষ্ট অর্ডারের চ্যাট মেসেজ রিটার্ন করা
+router.get('/:id/messages', authMiddleware, OrderController.getOrderMessagesController);
+
 // ৬. লাইভ চ্যাট মেসেজ পাঠানো
 router.post(
   '/:id/messages', 

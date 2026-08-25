@@ -379,6 +379,20 @@ const settlementSummaryController = async (req: Request, res: Response) => {
   }
 };
 
+// GET /api/orders/:id/messages — Auth + ownership check
+const getOrderMessagesController = async (req: Request, res: Response) => {
+  try {
+    const actor = (req as any).user;
+    if (!actor) {
+      return res.status(401).json({ success: false, message: 'Unauthorized. Please login first.' });
+    }
+    const messages = await OrderService.getOrderMessagesService(req.params.id, actor);
+    res.status(200).json({ success: true, data: messages });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
 export const OrderController = {
   submitDailyCashController,
   confirmCashSettlementController,
@@ -386,6 +400,7 @@ export const OrderController = {
   createOrderController,
   getOrdersController,
   getOrderByIdController,
+  getOrderMessagesController,
   updateStatusController,
   addMessageController,
   assignRiderController,

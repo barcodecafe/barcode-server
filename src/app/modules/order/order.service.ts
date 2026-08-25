@@ -146,17 +146,13 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       throw err;
     }
 
-    const frontendPrice = Number(raw.price);
     const baseUnitPrice = round2(
-      !isNaN(frontendPrice) && frontendPrice > 0 
-        ? frontendPrice 
-        : FoodService.getUnitPrice(food, payload.branchId, raw.selectedSize)
+      FoodService.getUnitPrice(food, payload.branchId, raw.selectedSize)
     );
 
-    let foodOfferType = raw.offerType || (food as any).offerType || "none";
+    let foodOfferType = (food as any).offerType || "none";
 
     let foodOriginalPrice =
-      Number(raw.originalPrice) ||
       Number((food as any).originalPrice) ||
       Number((food as any).oldPrice) ||
       Number(food.price) ||
@@ -167,15 +163,13 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
 
     if (
       (food as any).discountType === "flat" &&
-      Number((food as any).discountAmount) > 0 &&
-      isNaN(frontendPrice)
+      Number((food as any).discountAmount) > 0
     ) {
       computedDiscountAmount = Number((food as any).discountAmount);
       unitPrice = Math.max(0, foodOriginalPrice - computedDiscountAmount);
     } else if (
       (food as any).discountType === "percent" &&
-      Number((food as any).discountPct) > 0 &&
-      isNaN(frontendPrice)
+      Number((food as any).discountPct) > 0
     ) {
       computedDiscountAmount = round2(
         (foodOriginalPrice * Number((food as any).discountPct)) / 100,
@@ -1021,6 +1015,29 @@ const recheckPaymentService = async (id: string) => {
   return order;
 };
 
+const getOrderMessagesService = async (id: string, actor: { _id: string; role: string }) => {
+  if (!isValidObjectId(id)) {
+    const err: any = new Error("Order not found");
+    err.status = 404;
+    throw err;
+  }
+  const order = await Order.findById(id).select("chatHistory user riderId status").lean();
+  if (!order) {
+    const err: any = new Error("Order not found");
+    err.status = 404;
+    throw err;
+  }
+  const isAdmin = ["admin", "super_admin", "superadmin"].includes(actor.role);
+  const isOwner = order.user?.id === actor._id;
+  const isRider = String(order.riderId || "") === String(actor._id);
+  if (!isAdmin && !isOwner && !isRider) {
+    const err: any = new Error("Not allowed to view messages for this order.");
+    err.status = 403;
+    throw err;
+  }
+  return order.chatHistory || [];
+};
+
 export const OrderService = {
   getPendingCountService,
   submitRiderDailyCashService,
@@ -1032,6 +1049,7 @@ export const OrderService = {
   getOrdersForUserService,
   getOrdersForRiderService,
   getOrderByIdService,
+  getOrderMessagesService,
   updateOrderStatusService,
   addChatMessageService,
   assignRiderToOrderService,
