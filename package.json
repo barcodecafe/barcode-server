@@ -11,7 +11,8 @@
     "lint": "eslint src --ext .ts",
     "prettier": "prettier --write \"./src/**/*.+(js|ts|json)\"",
     "seed:admin": "ts-node src/scripts/seedAdmin.ts",
-    "seed:data": "ts-node src/scripts/seedData.ts"
+    "seed:data": "ts-node src/scripts/seedData.ts",
+    "migrate:images": "ts-node src/scripts/migrateImagesToCloudinary.ts"
   },
   "keywords": [],
   "author": "",
