@@ -4,8 +4,8 @@ import { IReview } from './review.interface';
 const reviewSchema = new Schema<IReview>(
   {
     id: { type: Number, required: true, unique: true, index: true },
-    foodId: { type: Number, required: true, index: true },
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    foodId: { type: Schema.Types.Mixed, required: true, index: true },
+    userId: { type: Schema.Types.Mixed, required: true, index: true },
     userName: { type: String, required: true, trim: true },
     userEmail: { type: String, default: '', trim: true },
     rating: { type: Number, required: true, min: 1, max: 5 },

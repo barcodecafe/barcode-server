@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 export const createReviewValidationSchema = z.object({
   body: z.object({
-    foodId: z.coerce.number().int().positive('Valid foodId is required'),
+    foodId: z.union([
+      z.coerce.number().positive(),
+      z.string().min(1, 'Valid foodId is required'),
+    ]),
     rating: z.coerce
       .number()
       .min(1, 'Rating must be at least 1')

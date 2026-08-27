@@ -4,11 +4,11 @@ import { User } from '../user/user.model';
 import { getNextId } from '../../utils/counter';
 
 /** Helper to recalculate and sync food rating with reviews */
-const syncFoodRatingStats = async (foodId: number | string) => {
+const syncFoodRatingStats = async (foodId: number | string, foodDocId?: any) => {
   const n = Number(foodId);
   const matchFilter = Number.isFinite(n)
-    ? { $or: [{ foodId: n }, { foodId: String(foodId) }] }
-    : { foodId: String(foodId) };
+    ? { $or: [{ foodId: n }, { foodId: String(foodId) }, ...(foodDocId ? [{ foodId: foodDocId }, { foodId: String(foodDocId) }] : [])] }
+    : { $or: [{ foodId: String(foodId) }, ...(foodDocId ? [{ foodId: foodDocId }, { foodId: String(foodDocId) }] : [])] };
 
   const stats = await Review.aggregate([
     { $match: matchFilter },
@@ -21,29 +21,24 @@ const syncFoodRatingStats = async (foodId: number | string) => {
     },
   ]);
 
-  let food = null;
-  if (Number.isFinite(n)) {
-    food = await Food.findOne({ id: n });
-  }
-  if (!food && typeof foodId === 'string' && foodId.match(/^[0-9a-fA-F]{24}$/)) {
-    food = await Food.findById(foodId);
-  }
-  if (!food) {
-    food = await Food.findOne({ $or: [{ id: foodId }, { _id: foodId }] }).catch(() => null);
-  }
-  if (!food) return;
+  const count = stats.length > 0 ? stats[0].count : 0;
+  const avg = stats.length > 0 && count > 0 ? Math.round(stats[0].avgRating * 10) / 10 : 4.5;
 
-  if (stats.length > 0 && stats[0].count > 0) {
-    const roundedAvg = Math.round(stats[0].avgRating * 10) / 10;
-    food.rating = roundedAvg;
-    food.reviewCount = stats[0].count;
-  } else {
-    // 🌟 কোনো রিভিউ না থাকলে অ্যাডমিনের দেওয়া বেস রেটিং-এ ফলব্যাক হবে
-    food.rating = food.adminBaseRating || 4.5;
-    food.reviewCount = 0;
-  }
+  const targetQuery = foodDocId
+    ? { _id: foodDocId }
+    : Number.isFinite(n)
+    ? { $or: [{ id: n }, { _id: foodId }] }
+    : { _id: foodId };
 
-  await food.save();
+  await Food.updateOne(
+    targetQuery,
+    {
+      $set: {
+        rating: avg,
+        reviewCount: count,
+      },
+    }
+  ).catch(() => {});
 };
 
 /** Create or update a customer review for a food item */
@@ -56,7 +51,7 @@ const createOrUpdateReviewService = async (payload: {
   const { foodId, userId, rating, comment = '' } = payload;
   const n = Number(foodId);
 
-  let food = null;
+  let food: any = null;
   if (Number.isFinite(n)) {
     food = await Food.findOne({ id: n });
   }
@@ -64,46 +59,53 @@ const createOrUpdateReviewService = async (payload: {
     food = await Food.findById(foodId);
   }
   if (!food) {
-    food = await Food.findOne({ $or: [{ id: foodId }, { _id: foodId }] }).catch(() => null);
+    food = await Food.findOne({
+      $or: [
+        { id: foodId },
+        { _id: foodId },
+        { name: new RegExp(`^${String(foodId).replace(/-/g, ' ')}$`, 'i') },
+      ],
+    }).catch(() => null);
   }
   if (!food) {
     throw new Error('Food item not found');
   }
 
-  const user = await User.findById(userId);
-  if (!user) {
-    throw new Error('User not found');
-  }
+  const user = await User.findById(userId).catch(() => null);
+  const userName = user?.name || (user as any)?.email?.split('@')[0] || 'Valued Customer';
+  const userEmail = user?.email || '';
 
-  const foodIdVal = food.id || food._id;
+  const numericFoodId = Number.isFinite(Number(food.id)) ? Number(food.id) : food.id || food._id;
+  const foodLookupIds = [food.id, food._id, n, foodId, String(foodId)].filter(Boolean);
 
   // Check if this user already reviewed this food item
   let review = await Review.findOne({
-    $or: [{ foodId: foodIdVal }, { foodId: n }],
-    userId,
+    foodId: { $in: foodLookupIds },
+    userId: { $in: [userId, user?._id].filter(Boolean) },
   });
 
   if (review) {
     review.rating = rating;
     review.comment = comment.trim();
-    review.userName = user.name || 'Anonymous Customer';
-    review.userEmail = user.email || '';
+    review.userName = userName;
+    review.userEmail = userEmail;
+    review.foodId = numericFoodId;
     await review.save();
   } else {
     const id = await getNextId('review');
     review = await Review.create({
       id,
-      foodId: foodIdVal,
-      userId,
-      userName: user.name || 'Anonymous Customer',
-      userEmail: user.email || '',
+      foodId: numericFoodId,
+      userId: user?._id || userId,
+      userName,
+      userEmail,
       rating,
       comment: comment.trim(),
     });
   }
 
   // Sync Food rating and count automatically
-  await syncFoodRatingStats(foodIdVal);
+  await syncFoodRatingStats(numericFoodId, food._id);
 
   return review;
 };

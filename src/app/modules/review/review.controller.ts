@@ -4,14 +4,14 @@ import { isAdminRole } from '../../middlewares/auth';
 
 const submitReviewController = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?._id;
+    const userId = (req as any).user?._id || (req as any).user?.id || (req as any).user?.userId;
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Please log in to submit a review' });
     }
 
     const { foodId, rating, comment } = req.body;
     const review = await ReviewService.createOrUpdateReviewService({
-      foodId: Number(foodId),
+      foodId: Number.isFinite(Number(foodId)) ? Number(foodId) : foodId,
       userId,
       rating: Number(rating),
       comment,
@@ -36,10 +36,11 @@ const submitReviewController = async (req: Request, res: Response) => {
 
 const getFoodReviewsController = async (req: Request, res: Response) => {
   try {
-    const foodId = Number(req.params.foodId);
-    if (!Number.isFinite(foodId)) {
+    const rawFoodId = req.params.foodId;
+    if (!rawFoodId) {
       return res.status(400).json({ success: false, message: 'Invalid food ID' });
     }
+    const foodId = Number.isFinite(Number(rawFoodId)) ? Number(rawFoodId) : rawFoodId;
 
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
