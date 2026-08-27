@@ -61,8 +61,10 @@ const allowedOrigins: (string | RegExp)[] = [
 // Production frontend URL(s) from env — comma-separated, e.g. CLIENT_URL=https://app.example.com,https://www.example.com
 if (config.client_url) {
   config.client_url.split(',').forEach((o) => {
-    const trimmed = o.trim();
-    if (trimmed) allowedOrigins.push(trimmed);
+    const trimmed = o.trim().replace(/\/+$/, '');
+    if (trimmed && !allowedOrigins.includes(trimmed)) {
+      allowedOrigins.push(trimmed);
+    }
   });
 }
 const corsOptions: CorsOptions = {

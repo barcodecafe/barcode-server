@@ -1,3 +1,4 @@
+import { isValidObjectId } from 'mongoose';
 import { Food } from './food.model';
 import { Order } from '../order/order.model';
 import { getNextId } from '../../utils/counter';
@@ -62,17 +63,15 @@ const getAllFoodsService = async (category?: string) => {
 // GET /api/foods/:id
 const getFoodByIdService = async (id: string | number) => {
   const n = Number(id);
-  let food = null;
   if (Number.isFinite(n) && n > 0) {
-    food = await Food.findOne({ id: n }).lean();
+    const food = await Food.findOne({ id: n }).lean();
+    if (food) return applyExpirationCheck(food);
   }
-  if (!food && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
-    food = await Food.findById(id).lean();
+  if (typeof id === 'string' && isValidObjectId(id)) {
+    const food = await Food.findById(id).lean();
+    if (food) return applyExpirationCheck(food);
   }
-  if (!food) {
-    food = await Food.findOne({ $or: [{ id: id }, { _id: id }] }).lean().catch(() => null);
-  }
-  return food ? applyExpirationCheck(food) : null;
+  return null;
 };
 
 // GET /api/foods/popular?limit=6
@@ -228,24 +227,18 @@ const createFoodService = async (payload: any) => {
 
 const updateFoodService = async (id: string | number, payload: any) => {
   const n = Number(id);
-  const filter =
-    Number.isFinite(n) && n > 0
-      ? { id: n }
-      : typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)
-      ? { _id: id }
-      : { $or: [{ id: id }, { _id: id }] };
-
   let existing = null;
+  let filter: any = null;
+
   if (Number.isFinite(n) && n > 0) {
-    existing = await Food.findOne({ id: n });
-  }
-  if (!existing && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+    filter = { id: n };
+    existing = await Food.findOne(filter);
+  } else if (typeof id === 'string' && isValidObjectId(id)) {
+    filter = { _id: id };
     existing = await Food.findById(id);
   }
-  if (!existing) {
-    existing = await Food.findOne({ $or: [{ id: id }, { _id: id }] }).catch(() => null);
-  }
-  if (!existing) return null;
+
+  if (!existing || !filter) return null;
 
   const updateFields: any = {};
 
@@ -398,14 +391,10 @@ const reorderCategoriesService = async (categories: string[]) => {
 const deleteFoodService = async (id: string | number) => {
   const n = Number(id);
   let food = null;
-  if (Number.isFinite(n)) {
+  if (Number.isFinite(n) && n > 0) {
     food = await Food.findOneAndDelete({ id: n });
-  }
-  if (!food && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+  } else if (typeof id === 'string' && isValidObjectId(id)) {
     food = await Food.findByIdAndDelete(id);
-  }
-  if (!food) {
-    food = await Food.findOneAndDelete({ $or: [{ id: id }, { _id: id }] }).catch(() => null);
   }
   if (food) {
     if (food.image) await deleteFromCloudinary(food.image);
