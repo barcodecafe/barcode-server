@@ -30,6 +30,7 @@ import { ReviewRoutes } from './app/modules/review/review.routes';
 import { FeedbackRoutes } from './app/modules/feedback/feedback.routes';
 import { AddonRoutes } from './app/modules/addon/addon.routes';
 import { CategoryRoutes } from './app/modules/category/category.routes';
+import { SwaggerRoutes } from './app/docs/swagger.routes';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
 
 const app: Application = express();
@@ -89,7 +90,7 @@ app.use(cors(corsOptions));
 // untouched; anything else is assumed to be an API call missing its prefix.
 // `/health` is listed so load-balancer probes don't get rewritten into
 // `/api/health`, 404, and burn a slot in the rate limiter below.
-const PROXY_PASSTHROUGH_PREFIXES = ['/api', '/uploads', '/health', '/favicon.ico'];
+const PROXY_PASSTHROUGH_PREFIXES = ['/api', '/uploads', '/health', '/favicon.ico', '/api-docs'];
 app.use((req: Request, _res: Response, next: NextFunction) => {
   const isRoot = req.url === '/' || req.url.startsWith('/?');
   const isPassthrough = PROXY_PASSTHROUGH_PREFIXES.some(
@@ -270,6 +271,10 @@ app.use('/api/reviews', ReviewRoutes);
 app.use('/api/feedbacks', FeedbackRoutes);
 app.use('/api/addons', AddonRoutes);
 app.use('/api/categories', CategoryRoutes);
+
+// 📚 Interactive Swagger / OpenAPI Documentation
+app.use('/api-docs', SwaggerRoutes);
+app.use('/api/api-docs', SwaggerRoutes);
 
 // Health check
 app.get('/', (req: Request, res: Response) => {
