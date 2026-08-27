@@ -120,6 +120,20 @@ const aboutSchema = new Schema(
     visionTitle: { type: String, default: 'Our Vision' },
     vision: { type: String, default: '' },
     valuesTitle: { type: String, default: 'Core Values' },
+    coreValues: {
+      type: [
+        {
+          title: { type: String, default: '' },
+          desc: { type: String, default: '' },
+        },
+      ],
+      default: [
+        { title: 'Guest First', desc: 'Prioritizing customer delight & heartfelt hospitality' },
+        { title: 'Integrity', desc: 'Operating with transparency, ethics & accountability' },
+        { title: 'Excellence', desc: 'Uncompromising food safety, hygiene & culinary quality' },
+        { title: 'Respect', desc: 'Deep care and dignity for our guests, team & community' },
+      ],
+    },
     values: {
       type: [String],
       default: [
