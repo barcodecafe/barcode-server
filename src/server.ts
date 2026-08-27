@@ -90,8 +90,26 @@ export const io = new SocketIOServer(server, {
 // ⚡ Multi-core Cluster Adapter for Socket.IO when Redis is configured
 if (config.redis_url) {
   try {
-    const pubClient = new Redis(config.redis_url);
+    const redisOptions: any = {
+      maxRetriesPerRequest: 1,
+      connectTimeout: 3000,
+      lazyConnect: false,
+      retryStrategy: (times: number) => {
+        if (times > 3) return null; // Stop retrying if Redis is unreachable
+        return Math.min(times * 150, 1500);
+      },
+    };
+
+    const pubClient = new Redis(config.redis_url, redisOptions);
+    pubClient.on('error', (err) => {
+      console.warn('⚠️ Redis pubClient warning:', err?.message || err);
+    });
+
     const subClient = pubClient.duplicate();
+    subClient.on('error', (err) => {
+      console.warn('⚠️ Redis subClient warning:', err?.message || err);
+    });
+
     io.adapter(createAdapter(pubClient, subClient));
   } catch (err: any) {
     console.warn('⚠️ Socket.IO Redis adapter failed to attach:', err?.message || err);
