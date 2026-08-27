@@ -114,11 +114,21 @@ const aboutSchema = new Schema(
     storyImageCaption: { type: String, default: 'Inside a Barcode restaurant branch' },
     timeline: { type: [timelineSchema], default: [] },
 
-    // 3. Mission & Vision Section
+    // 3. Mission, Vision & Core Values Section
     missionTitle: { type: String, default: 'Our Mission' },
     mission: { type: String, default: '' },
     visionTitle: { type: String, default: 'Our Vision' },
     vision: { type: String, default: '' },
+    valuesTitle: { type: String, default: 'Core Values' },
+    values: {
+      type: [String],
+      default: [
+        'Guest First — Delivering heartfelt hospitality',
+        'Integrity — Transparency, ethics & accountability',
+        'Excellence — Uncompromising culinary quality',
+        'Respect — Valuing our customers, team & community',
+      ],
+    },
     stats: {
       founded: { type: String, default: '2022' },
       foundedLabel: { type: String, default: 'Founded' },
