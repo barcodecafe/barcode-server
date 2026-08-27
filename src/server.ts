@@ -1,6 +1,8 @@
 import http from 'http';
 import mongoose from 'mongoose';
 import { Server as SocketIOServer } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
+import Redis from 'ioredis';
 import jwt from 'jsonwebtoken';
 import app from './app';
 import config from './app/config';
@@ -84,6 +86,17 @@ export const io = new SocketIOServer(server, {
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
   },
 });
+
+// ⚡ Multi-core Cluster Adapter for Socket.IO when Redis is configured
+if (config.redis_url) {
+  try {
+    const pubClient = new Redis(config.redis_url);
+    const subClient = pubClient.duplicate();
+    io.adapter(createAdapter(pubClient, subClient));
+  } catch (err: any) {
+    console.warn('⚠️ Socket.IO Redis adapter failed to attach:', err?.message || err);
+  }
+}
 
 app.set('io', io);
 
