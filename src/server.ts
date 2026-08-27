@@ -8,6 +8,7 @@ import app from './app';
 import config from './app/config';
 import { Order } from './app/modules/order/order.model';
 import { OrderService } from './app/modules/order/order.service';
+import { startPaymentReconciliationCron } from './app/modules/payment/paymentReconciliation.worker';
 
 // ─── Vercel Serverless: Cache connection ───
 let cached = (global as any).mongoose;
@@ -311,6 +312,8 @@ async function startServer() {
     server.listen(PORT, () => {
       // eslint-disable-next-line no-console
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
+      // 🔄 Start background payment reconciliation worker (every 10 min)
+      startPaymentReconciliationCron(10);
     });
   } catch (error) {
     // eslint-disable-next-line no-console

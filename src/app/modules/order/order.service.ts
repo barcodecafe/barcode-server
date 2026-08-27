@@ -70,6 +70,19 @@ type CreatePayload = {
 const pointsForSubtotal = (subtotal: number) =>
   Math.floor((Number(subtotal) || 0) / 100) * 5;
 
+// 🎯 Restock helper when order fails or is rejected
+export const restockOrderItems = async (items: any[]) => {
+  if (!Array.isArray(items)) return;
+  for (const item of items) {
+    if (item?.id) {
+      await Food.updateOne(
+        { id: Number(item.id), stock: { $ne: null } },
+        { $inc: { stock: Number(item.quantity) || 1 }, $set: { isAvailable: true } }
+      ).catch(() => {});
+    }
+  }
+};
+
 // 🎯 পেন্ডিং কাউন্ট সার্ভিস
 const getPendingCountService = async () => {
   return Order.countDocuments({
@@ -130,21 +143,48 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
   const foodDocs = await Food.find({ id: { $in: foodIds } });
   const foodById = new Map(foodDocs.map((f) => [f.id, f]));
 
-  const lineItems: any[] = [];
-  let subtotal = 0;
-  for (const raw of payload.items) {
-    const qty = Number(raw.quantity);
-    if (!qty || qty < 1) {
-      const err: any = new Error("Invalid item quantity.");
-      err.status = 400;
-      throw err;
-    }
-    const food = foodById.get(Number(raw.id));
-    if (!food) {
-      const err: any = new Error(`Food not found (id ${raw.id}).`);
-      err.status = 400;
-      throw err;
-    }
+  const reservedStocks: Array<{ id: number; qty: number }> = [];
+
+  try {
+    const lineItems: any[] = [];
+    let subtotal = 0;
+    for (const raw of payload.items) {
+      const qty = Number(raw.quantity);
+      if (!qty || qty < 1) {
+        const err: any = new Error("Invalid item quantity.");
+        err.status = 400;
+        throw err;
+      }
+      const food = foodById.get(Number(raw.id));
+      if (!food) {
+        const err: any = new Error(`Food not found (id ${raw.id}).`);
+        err.status = 400;
+        throw err;
+      }
+
+      if (food.isAvailable === false) {
+        const err: any = new Error(`"${food.name}" is currently unavailable or sold out.`);
+        err.status = 400;
+        throw err;
+      }
+
+      // 🔒 Atomic stock verification & deduction for flash sales / limited inventory
+      if ((food as any).stock !== undefined && (food as any).stock !== null) {
+        const updatedFood = await Food.findOneAndUpdate(
+          { id: food.id, isAvailable: true, $or: [{ stock: null }, { stock: { $gte: qty } }] },
+          { $inc: { stock: -qty } },
+          { new: true }
+        );
+        if (!updatedFood) {
+          const err: any = new Error(`Sorry, "${food.name}" does not have enough stock available.`);
+          err.status = 400;
+          throw err;
+        }
+        if (updatedFood.stock !== null && updatedFood.stock !== undefined && updatedFood.stock <= 0) {
+          await Food.updateOne({ id: food.id }, { $set: { isAvailable: false, stock: 0 } });
+        }
+        reservedStocks.push({ id: food.id, qty });
+      }
 
     const baseUnitPrice = round2(
       FoodService.getUnitPrice(food, payload.branchId, raw.selectedSize)
@@ -406,7 +446,17 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     await User.updateOne({ _id: user._id }, { $set: profileFill });
   }
 
-  return order;
+    return order;
+  } catch (err) {
+    // 🔄 Rollback any reserved stock if order fails to create
+    for (const res of reservedStocks) {
+      await Food.updateOne(
+        { id: res.id, stock: { $ne: null } },
+        { $inc: { stock: res.qty }, $set: { isAvailable: true } }
+      ).catch(() => {});
+    }
+    throw err;
+  }
 };
 
 // ── GET /orders (Admin) ──
@@ -603,6 +653,7 @@ const updateOrderStatusService = async (
     newStatus === "Rejected" &&
     oldStatus !== "Rejected"
   ) {
+    await restockOrderItems(order.items);
     if ((order.pointsRedeemed || 0) > 0) {
       await User.findByIdAndUpdate(order.user.id, {
         $inc: { points: order.pointsRedeemed },

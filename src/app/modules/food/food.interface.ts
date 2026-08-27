@@ -43,6 +43,7 @@ export interface IFood {
   discountEndDate?: Date | string | null;
 
   branchPrices: Record<string, number>; // per-branch দাম সমন্বয়
+  stock?: number | null; // 🎯 Atomic Inventory Management: null = unlimited, 0+ = limited
   isAvailable?: boolean; // 🎯 International Restaurant Standard: Sold Out / In Stock (default true)
   isActive?: boolean; // 🎯 International Restaurant Standard: Active / Draft (default true)
   variantLabel: string; // variant-এর ধরন লেবেল — "Size" | "Weight" | "Portion"

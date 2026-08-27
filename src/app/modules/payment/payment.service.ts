@@ -5,6 +5,7 @@ import { Order } from '../order/order.model';
 import { User } from '../user/user.model';
 import { CouponService } from '../coupon/coupon.service';
 import { AWAITING_PAYMENT } from '../order/order.interface';
+import { restockOrderItems } from '../order/order.service';
 import { SslcommerzService, isDemoMode } from './sslcommerz.service';
 
 // 🔒 demo mode (free payments) production-এ চলতে দেওয়া যাবে না (QA §2.2)
@@ -226,6 +227,9 @@ const handleGatewayFailureService = async (body: any, outcome: 'Failed' | 'Cance
       console.error('Failed to rollback coupon usage:', cErr);
     }
   }
+
+  // 🔄 Restock inventory on failed/cancelled online payment
+  await restockOrderItems(updated.items);
 
   return { updated: true, orderId: String(order._id) };
 };
