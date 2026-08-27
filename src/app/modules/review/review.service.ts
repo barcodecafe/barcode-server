@@ -111,23 +111,33 @@ const createOrUpdateReviewService = async (payload: {
 /** Get reviews for a food item with star breakdown */
 const getFoodReviewsService = async (foodId: number | string) => {
   const n = Number(foodId);
-  const matchFilter = Number.isFinite(n)
-    ? { $or: [{ foodId: n }, { foodId: String(foodId) }] }
-    : { foodId: String(foodId) };
 
-  let foodPromise: Promise<any>;
+  let food: any = null;
   if (Number.isFinite(n)) {
-    foodPromise = Food.findOne({ id: n });
+    food = await Food.findOne({ id: n });
   } else if (typeof foodId === 'string' && foodId.match(/^[0-9a-fA-F]{24}$/)) {
-    foodPromise = Food.findById(foodId);
-  } else {
-    foodPromise = Food.findOne({ $or: [{ id: foodId }, { _id: foodId }] }).catch(() => null);
+    food = await Food.findById(foodId);
+  }
+  if (!food) {
+    food = await Food.findOne({
+      $or: [
+        { id: foodId },
+        { _id: foodId },
+        { name: new RegExp(`^${String(foodId).replace(/-/g, ' ')}$`, 'i') },
+      ],
+    }).catch(() => null);
   }
 
-  const [reviews, food] = await Promise.all([
-    Review.find(matchFilter).sort({ createdAt: -1 }),
-    foodPromise,
-  ]);
+  const idsToMatch: any[] = [];
+  if (Number.isFinite(n)) idsToMatch.push(n);
+  if (foodId) idsToMatch.push(foodId, String(foodId));
+  if (food?.id) idsToMatch.push(food.id, Number(food.id), String(food.id));
+  if (food?._id) idsToMatch.push(food._id, String(food?._id));
+
+  const uniqueIds = Array.from(new Set(idsToMatch));
+  const matchFilter = { foodId: { $in: uniqueIds } };
+
+  const reviews = await Review.find(matchFilter).sort({ createdAt: -1 });
 
   const totalReviews = reviews.length;
   const ratingCounts: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
