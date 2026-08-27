@@ -54,7 +54,6 @@ const getPublicMembershipController = async (req: Request, res: Response) => {
   }
 };
 
-// PATCH /api/users/me — update own profile (name, phone, pickArea, address)
 // PATCH /api/users/me — update own profile
 const updateMeController = async (req: Request, res: Response) => {
   try {
@@ -68,7 +67,25 @@ const updateMeController = async (req: Request, res: Response) => {
     
     res.status(200).json({ success: true, message: 'Profile updated', data: user });
   } catch (error: any) {
-    // 🎯 ফোন নম্বর বা ইমেল ডুপ্লিকেট চেকিং (প্রোফাইল আপডেটের সময়)
+    const isDup = error?.code === 11000;
+    const status = error.status || (isDup ? 409 : 500);
+    const message = isDup
+      ? 'An account with this phone number or email already exists.'
+      : error.message;
+
+    res.status(status).json({ success: false, message });
+  }
+};
+
+// PATCH /api/users/:id — admin update customer details & password
+const adminUpdateUserController = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const user = await UserService.adminUpdateUserService(id, req.body);
+    if (!user) return res.status(404).json({ success: false, message: 'Customer not found' });
+
+    res.status(200).json({ success: true, message: 'Customer updated successfully', data: user });
+  } catch (error: any) {
     const isDup = error?.code === 11000;
     const status = error.status || (isDup ? 409 : 500);
     const message = isDup
@@ -85,4 +102,5 @@ export const UserController = {
   posLookupController,
   getPublicMembershipController,
   updateMeController,
+  adminUpdateUserController,
 };

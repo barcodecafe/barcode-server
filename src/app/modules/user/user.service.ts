@@ -221,10 +221,52 @@ const updateMeService = async (userId: string, payload: any) => {
   return user;
 };
 
+// admin update user profile, email, phone, password, address, points
+const adminUpdateUserService = async (userId: string, payload: any) => {
+  if (!isValidObjectId(userId)) return null;
+  const user = await User.findOne({ _id: userId, isDeleted: false });
+  if (!user) return null;
+
+  if (payload.name !== undefined && String(payload.name).trim()) {
+    user.name = String(payload.name).trim();
+  }
+
+  if (payload.email !== undefined) {
+    const trimmedEmail = String(payload.email).trim().toLowerCase();
+    user.email = trimmedEmail === '' ? undefined : trimmedEmail;
+  }
+
+  if (payload.phone !== undefined && String(payload.phone).trim()) {
+    const rawDigits = String(payload.phone).replace(/\D/g, "");
+    user.phone = /^01[3-9]\d{8}$/.test(rawDigits) ? `+88${rawDigits}` : String(payload.phone).trim();
+  }
+
+  if (payload.password !== undefined && String(payload.password).trim()) {
+    user.password = String(payload.password).trim();
+  }
+
+  if (payload.pickArea !== undefined) {
+    user.pickArea = String(payload.pickArea).trim();
+  }
+
+  if (payload.address !== undefined) {
+    user.address = String(payload.address).trim();
+  }
+
+  if (payload.points !== undefined && !isNaN(Number(payload.points))) {
+    user.points = Math.max(0, Number(payload.points));
+  }
+
+  await user.save();
+  await ensureMembership(user);
+  return user;
+};
+
 export const UserService = {
   getAllUsersService,
   getUserByIdService,
   posLookupService,
   getPublicMembershipService,
   updateMeService,
+  adminUpdateUserService,
 };

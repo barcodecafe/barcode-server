@@ -27,4 +27,7 @@ router.get('/', ...adminOnly, UserController.getAllUsersController);
 // একজন ইউজার (Admin only) — GET /api/users/:id
 router.get('/:id', ...adminOnly, UserController.getUserByIdController);
 
+// একজন ইউজার আপডেট (Admin only) — PATCH /api/users/:id
+router.patch('/:id', ...adminOnly, UserController.adminUpdateUserController);
+
 export const UserRoutes = router;
