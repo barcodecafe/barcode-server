@@ -1,11 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import { captureServerException } from '../utils/sentry';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function globalErrorHandler(err: any, req: Request, res: Response, next: NextFunction) {
   // eslint-disable-next-line no-console
   console.error(err);
+
+  captureServerException(err, {
+    path: req.path,
+    method: req.method,
+    user: (req as any).user,
+  });
 
   const response: any = {
     success: false,
