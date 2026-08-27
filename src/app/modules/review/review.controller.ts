@@ -17,6 +17,13 @@ const submitReviewController = async (req: Request, res: Response) => {
       comment,
     });
 
+    // ⚡ Real-Time WebSocket broadcast for zero-refresh instant updates
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('review_updated', { foodId: review.foodId, review });
+      io.emit('foods_updated', { type: 'review_updated', foodId: review.foodId });
+    }
+
     res.status(201).json({
       success: true,
       message: 'Review submitted successfully',
@@ -53,6 +60,13 @@ const deleteReviewController = async (req: Request, res: Response) => {
     const deleted = await ReviewService.deleteReviewService(reviewId, userId, isAdmin);
     if (!deleted) {
       return res.status(404).json({ success: false, message: 'Review not found or unauthorized' });
+    }
+
+    // ⚡ Real-Time WebSocket broadcast
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('review_updated', { foodId: deleted.foodId, reviewId });
+      io.emit('foods_updated', { type: 'review_deleted', foodId: deleted.foodId });
     }
 
     res.status(200).json({ success: true, message: 'Review deleted successfully', data: deleted });

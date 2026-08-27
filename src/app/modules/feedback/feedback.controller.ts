@@ -11,6 +11,13 @@ const submitFeedbackController = async (req: Request, res: Response) => {
     };
 
     const result = await FeedbackService.submitFeedbackService(feedbackData);
+
+    // ⚡ Real-Time WebSocket broadcast to Admin dashboard & customer profiles
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('feedback_updated', { type: 'create', feedback: result });
+    }
+
     res.status(201).json({
       success: true,
       message: 'Thank you for your valuable feedback!',
@@ -50,6 +57,13 @@ const deleteFeedbackController = async (req: Request, res: Response) => {
     if (!deleted) {
       return res.status(404).json({ success: false, message: 'Feedback not found' });
     }
+
+    // ⚡ Real-Time WebSocket broadcast
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('feedback_updated', { type: 'delete', id: req.params.id });
+    }
+
     res.status(200).json({ success: true, message: 'Feedback deleted successfully' });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
