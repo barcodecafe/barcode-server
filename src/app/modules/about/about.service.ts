@@ -28,7 +28,7 @@ const DEFAULT_ABOUT = {
     'Barcode started as one restaurant with a clear point of view: dining out should feel considered, not complicated. That same standard now travels across every branch we open.',
   storyImage:
     'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=80',
-  storyImageCaption: 'Inside a Barcode restaurant branch',
+  storyImageCaption: '',
   timeline: [
     { year: '2022', title: 'One Kitchen, One Idea', desc: 'Barcode opened its first location with a simple premise: fine-dining quality food, served without the stiffness of fine dining.' },
     { year: '2023', title: 'A Second Address', desc: 'Demand for the original menu and atmosphere led to a second branch, proving the concept could travel without losing its character.' },
