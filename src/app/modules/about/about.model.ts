@@ -116,9 +116,17 @@ const aboutSchema = new Schema(
 
     // 3. Mission, Vision & Core Values Section
     missionTitle: { type: String, default: 'Our Mission' },
-    mission: { type: String, default: '' },
+    mission: {
+      type: String,
+      default:
+        'At Barcode Restaurant Group, we are committed to:\n• Delivering unforgettable dining experiences through outstanding food, exceptional service, and a welcoming atmosphere.\n• Ensuring uncompromising standards of food safety, hygiene, quality, and consistency across every outlet.\n• Driving innovation by embracing modern food trends, technology, and operational excellence.\n• Conducting business with integrity, transparency, accountability, and respect for all.',
+    },
     visionTitle: { type: String, default: 'Our Vision' },
-    vision: { type: String, default: '' },
+    vision: {
+      type: String,
+      default:
+        "To redefine hospitality by creating exceptional dining destinations where food excellence, heartfelt service and innovation inspire enduring memories while becoming Bangladesh's most trusted and admired restaurant group.",
+    },
     valuesTitle: { type: String, default: 'Core Values' },
     coreValues: {
       type: [
@@ -132,6 +140,10 @@ const aboutSchema = new Schema(
         { title: 'Integrity', desc: 'Operating with transparency, ethics & accountability' },
         { title: 'Excellence', desc: 'Uncompromising food safety, hygiene & culinary quality' },
         { title: 'Respect', desc: 'Deep care and dignity for our guests, team & community' },
+        { title: 'Teamwork', desc: 'Collaborative passion & unity across every kitchen and outlet' },
+        { title: 'Innovation', desc: 'Embracing modern culinary trends, technology & creativity' },
+        { title: 'Accountability', desc: 'Taking full ownership and responsibility in every interaction' },
+        { title: 'Sustainability', desc: 'Responsible sourcing, waste reduction & eco-friendly growth' },
       ],
     },
     values: {
