@@ -110,11 +110,12 @@ const getFeaturedFoodsService = async (limit = 6) => {
 
 // GET /api/foods/search?q=
 const searchFoodsService = async (query: string) => {
-  const q = (query || '').trim();
+  const q = (query || '').trim().slice(0, 100);
   if (!q) return [];
-  const tokens = q.split(/\s+/).filter(Boolean);
+  const tokens = q.split(/\s+/).filter(Boolean).slice(0, 5);
   const and = tokens.map((t) => {
-    const rx = new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const safe = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rx = new RegExp(safe, 'i');
     return { $or: [{ name: rx }, { description: rx }, { category: rx }] };
   });
   const foods = await Food.find({ $and: and }).sort({ categoryOrder: 1, order: 1, id: 1 }).lean();

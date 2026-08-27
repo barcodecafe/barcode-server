@@ -20,15 +20,16 @@ const getBranchByIdService = async (id: string | number) => {
 
 // GET /api/branches/search?q=
 const searchBranchesService = async (query: string) => {
-  const q = (query || '').trim();
+  const q = (query || '').trim().slice(0, 100);
   if (!q) return [];
-  // Token-based: each word must match name or location (so "mezzan agrabad" works).
-  const tokens = q.split(/\s+/).filter(Boolean);
+  // Token-based: each word must match name or location (e.g. "mezzan agrabad")
+  const tokens = q.split(/\s+/).filter(Boolean).slice(0, 5);
   const and = tokens.map((t) => {
-    const rx = new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const safe = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rx = new RegExp(safe, 'i');
     return { $or: [{ name: rx }, { location: rx }] };
   });
-  return Branch.find({ $and: and }).sort({ order: 1, id: 1 });
+  return Branch.find({ $and: and }).sort({ order: 1, id: 1 }).lean();
 };
 
 // ── Admin CRUD ──

@@ -1,4 +1,4 @@
-﻿import { v2 as cloudinary } from 'cloudinary';
+import { v2 as cloudinary } from 'cloudinary';
 import config from '../config';
 
 const isConfigured = Boolean(
@@ -41,7 +41,12 @@ export const uploadToCloudinary = async (
   try {
     const res = await cloudinary.uploader.upload(base64Str, {
       folder,
-      resource_type: 'auto',
+      resource_type: 'image',
+      format: 'webp',
+      transformation: [
+        { quality: 'auto:good', fetch_format: 'auto' },
+        { width: 1400, crop: 'limit' },
+      ],
     });
     return res.secure_url;
   } catch (err: any) {
