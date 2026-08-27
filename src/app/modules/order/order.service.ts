@@ -202,7 +202,18 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       paidQty = Math.ceil(qty / 3);
     }
 
-    subtotal += unitPrice * paidQty;
+    // 🎯 এড-অনস প্রাইস হিসাব করা হলো
+    const addonsTotal = Array.isArray(raw.selectedAddons)
+      ? raw.selectedAddons.reduce(
+          (sum: number, a: any) => sum + (Number(a?.price) || 0),
+          0
+        )
+      : 0;
+
+    const effectiveUnitPrice = round2(unitPrice + addonsTotal);
+    const effectiveOriginalPrice = round2(foodOriginalPrice + addonsTotal);
+
+    subtotal += effectiveUnitPrice * paidQty;
 
     const hasDiscount =
       computedDiscountAmount > 0 || (foodOfferType && foodOfferType !== "none");
@@ -211,14 +222,14 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
       id: food.id,
       name: food.name,
       category: food.category,
-      price: unitPrice,
+      price: effectiveUnitPrice,
       quantity: qty,
       image: food.image,
       selectedSize: raw.selectedSize || null,
       selectedAddons: Array.isArray(raw.selectedAddons) ? raw.selectedAddons : [],
       offerType: foodOfferType && foodOfferType !== "none" ? foodOfferType : null,
       promoCode: raw.promoCode || (food as any).promoCode || null,
-      originalPrice: foodOriginalPrice,
+      originalPrice: effectiveOriginalPrice,
       discountPct: hasDiscount
         ? Number(raw.discountPct) ||
           Number((food as any).discountPct) ||
@@ -590,12 +601,23 @@ const updateOrderStatusService = async (
 
   if (
     newStatus === "Rejected" &&
-    oldStatus !== "Rejected" &&
-    (order.pointsRedeemed || 0) > 0
+    oldStatus !== "Rejected"
   ) {
-    await User.findByIdAndUpdate(order.user.id, {
-      $inc: { points: order.pointsRedeemed },
-    });
+    if ((order.pointsRedeemed || 0) > 0) {
+      await User.findByIdAndUpdate(order.user.id, {
+        $inc: { points: order.pointsRedeemed },
+      });
+    }
+    if (order.couponCode) {
+      try {
+        await CouponService.rollbackCouponUsageService(
+          order.couponCode,
+          order.user?.phone
+        );
+      } catch (err) {
+        console.error("Failed to rollback coupon on order cancellation:", err);
+      }
+    }
   }
 
   const riderName = order.riderName || "Your rider";

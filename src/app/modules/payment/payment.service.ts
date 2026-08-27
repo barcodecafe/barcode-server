@@ -3,6 +3,7 @@ import { isValidObjectId } from 'mongoose';
 import config from '../../config';
 import { Order } from '../order/order.model';
 import { User } from '../user/user.model';
+import { CouponService } from '../coupon/coupon.service';
 import { AWAITING_PAYMENT } from '../order/order.interface';
 import { SslcommerzService, isDemoMode } from './sslcommerz.service';
 
@@ -216,6 +217,14 @@ const handleGatewayFailureService = async (body: any, outcome: 'Failed' | 'Cance
   // one caller ever reaches this line for a given order.
   if ((updated.pointsRedeemed || 0) > 0) {
     await User.findByIdAndUpdate(updated.user.id, { $inc: { points: updated.pointsRedeemed } });
+  }
+
+  if (updated.couponCode) {
+    try {
+      await CouponService.rollbackCouponUsageService(updated.couponCode, updated.user?.phone);
+    } catch (cErr) {
+      console.error('Failed to rollback coupon usage:', cErr);
+    }
   }
 
   return { updated: true, orderId: String(order._id) };

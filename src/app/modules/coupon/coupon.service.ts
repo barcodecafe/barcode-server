@@ -211,10 +211,28 @@ const markCouponAsUsedService = async (codeOrId: string, customerPhone?: string)
   );
 };
 
+// 💡 কুপন ব্যবহার রোলব্যাক করার সার্ভিস (পেমেন্ট ফেইল্ড, ক্যান্সেল বা রিজেক্টের ক্ষেত্রে)
+const rollbackCouponUsageService = async (codeOrId: string, customerPhone?: string) => {
+  if (!codeOrId) return null;
+  const cleaned = extractCodeFromInput(codeOrId);
+  const updateQuery: any = { isUsed: false };
+
+  if (customerPhone && customerPhone.trim()) {
+    updateQuery.$pull = { usedByPhones: customerPhone.trim() };
+  }
+
+  return Coupon.findOneAndUpdate(
+    { $or: [{ code: cleaned }, { couponId: cleaned }] },
+    updateQuery,
+    { new: true }
+  );
+};
+
 export const CouponService = {
   getAllCouponsService,
   createCouponService,
   deleteCouponService,
   validateCouponService,
   markCouponAsUsedService,
+  rollbackCouponUsageService,
 };

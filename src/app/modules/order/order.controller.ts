@@ -41,12 +41,17 @@ const createOrderController = async (req: Request, res: Response) => {
 
     const order = await OrderService.createOrderService(userId, req.body);
 
-    // ⚡ Socket Notification (Real-time Broadcast)
+    // ⚡ Socket Notification (Scoped to Admins, Rider and User Rooms)
     const io = req.app.get('io');
     if (io) {
-      io.emit('order_created', order);
-      io.emit('admin_new_order', order);
-      io.emit('rider_new_delivery', order);
+      io.to('admins').emit('order_created', order);
+      io.to('admins').emit('admin_new_order', order);
+      if (order.riderId) {
+        io.to(`rider:${order.riderId}`).emit('rider_new_delivery', order);
+      }
+      if (order.user?.id) {
+        io.to(`user:${order.user.id}`).emit('order_created', order);
+      }
     }
 
     res.status(201).json({ success: true, message: 'Order placed', data: order });
@@ -181,12 +186,22 @@ const updateStatusController = async (req: Request, res: Response) => {
       riderAcceptStatus
     );
 
-    // ⚡ Socket Notification: Status Changed
+    // ⚡ Socket Notification: Status Changed (Scoped to Rooms)
     const io = req.app.get('io');
     if (io) {
-      io.emit('order_status_updated', { orderId: req.params.id, status: rawStatus, order });
-      io.emit('order_updated', order);
-      io.emit('rider_order_updated', order);
+      const payload = { orderId: req.params.id, status: rawStatus, order };
+      io.to('admins').emit('order_status_updated', payload);
+      io.to('admins').emit('order_updated', order);
+      io.to(`order:${req.params.id}`).emit('order_status_updated', payload);
+      io.to(`order:${req.params.id}`).emit('order_updated', order);
+      if (order.riderId) {
+        io.to(`rider:${order.riderId}`).emit('order_status_updated', payload);
+        io.to(`rider:${order.riderId}`).emit('rider_order_updated', order);
+      }
+      if (order.user?.id) {
+        io.to(`user:${order.user.id}`).emit('order_status_updated', payload);
+        io.to(`user:${order.user.id}`).emit('order_updated', order);
+      }
     }
 
     res.status(200).json({ success: true, message: 'Status updated', data: order });
@@ -232,14 +247,17 @@ const addMessageController = async (req: Request, res: Response) => {
       text: req.body.text,
     });
 
-    // ⚡ Socket Notification: Live Chat Message
+    // ⚡ Socket Notification: Live Chat Message (Scoped to Admins and Specific Order Room)
     const io = req.app.get('io');
     if (io) {
-      io.emit('new_chat_message', {
+      const msgPayload = {
         orderId: req.params.id,
         message: { sender, senderName, text: req.body.text },
-      });
-      io.emit('order_updated', updated);
+      };
+      io.to('admins').emit('new_chat_message', msgPayload);
+      io.to(`order:${req.params.id}`).emit('new_chat_message', msgPayload);
+      io.to('admins').emit('order_updated', updated);
+      io.to(`order:${req.params.id}`).emit('order_updated', updated);
     }
 
     res.status(201).json({ success: true, message: 'Message sent', data: updated });
@@ -262,9 +280,15 @@ const assignRiderController = async (req: Request, res: Response) => {
         riderName: order?.riderName,
         order,
       };
-      io.emit('rider_order_assigned', payload);
-      io.emit('order_assigned', payload);
-      io.emit('order_updated', order);
+      io.to('admins').emit('rider_order_assigned', payload);
+      io.to('admins').emit('order_assigned', payload);
+      io.to('admins').emit('order_updated', order);
+      if (req.body.riderId) {
+        io.to(`rider:${req.body.riderId}`).emit('rider_order_assigned', payload);
+        io.to(`rider:${req.body.riderId}`).emit('order_assigned', payload);
+        io.to(`rider:${req.body.riderId}`).emit('rider_new_delivery', order);
+      }
+      io.to(`order:${req.params.id}`).emit('order_updated', order);
     }
 
     res.status(200).json({ success: true, message: 'Rider assigned', data: order });
@@ -280,13 +304,18 @@ const acceptRiderController = async (req: Request, res: Response) => {
 
     const io = req.app.get('io');
     if (io) {
-      io.emit('order_status_updated', {
+      const payload = {
         orderId: req.params.id,
         status: order?.status || 'Preparing',
         order,
-      });
-      io.emit('order_updated', order);
-      io.emit('rider_order_updated', order);
+      };
+      io.to('admins').emit('order_status_updated', payload);
+      io.to('admins').emit('order_updated', order);
+      io.to(`order:${req.params.id}`).emit('order_status_updated', payload);
+      io.to(`order:${req.params.id}`).emit('order_updated', order);
+      if (order?.riderId) {
+        io.to(`rider:${order.riderId}`).emit('rider_order_updated', order);
+      }
     }
 
     res.status(200).json({ success: true, message: 'Delivery accepted', data: order });
@@ -302,13 +331,18 @@ const rejectRiderController = async (req: Request, res: Response) => {
 
     const io = req.app.get('io');
     if (io) {
-      io.emit('order_status_updated', {
+      const payload = {
         orderId: req.params.id,
         status: order?.status,
         order,
-      });
-      io.emit('order_updated', order);
-      io.emit('rider_order_updated', order);
+      };
+      io.to('admins').emit('order_status_updated', payload);
+      io.to('admins').emit('order_updated', order);
+      io.to(`order:${req.params.id}`).emit('order_status_updated', payload);
+      io.to(`order:${req.params.id}`).emit('order_updated', order);
+      if (order?.riderId) {
+        io.to(`rider:${order.riderId}`).emit('rider_order_updated', order);
+      }
     }
 
     res.status(200).json({ success: true, message: 'Delivery rejected', data: order });
@@ -326,13 +360,15 @@ const submitDailyCashController = async (req: Request, res: Response) => {
     const riderName = riderUser?.name || req.body?.riderName || 'Rider';
     const io = req.app.get('io');
     if (io) {
-      io.emit('rider_cash_submitted', {
+      const payload = {
         riderId,
         riderName,
         date: req.body?.date,
         data,
-      });
-      io.emit('order_updated', { type: 'cash_submitted', riderId, riderName, date: req.body?.date });
+      };
+      io.to('admins').emit('rider_cash_submitted', payload);
+      io.to('admins').emit('order_updated', { type: 'cash_submitted', riderId, riderName, date: req.body?.date });
+      io.to(`rider:${riderId}`).emit('order_updated', { type: 'cash_submitted', riderId, riderName, date: req.body?.date });
     }
     res.status(200).json({ success: true, message: 'Cash submitted to admin for confirmation', data });
   } catch (error: any) {
@@ -350,11 +386,16 @@ const confirmCashSettlementController = async (req: Request, res: Response) => {
     );
     const io = req.app.get('io');
     if (io) {
-      io.emit('rider_cash_settled', {
+      const payload = {
         riderId: req.body?.riderId,
         date: req.body?.date,
-      });
-      io.emit('order_updated', { type: 'cash_settled', riderId: req.body?.riderId, date: req.body?.date });
+      };
+      io.to('admins').emit('rider_cash_settled', payload);
+      io.to('admins').emit('order_updated', { type: 'cash_settled', riderId: req.body?.riderId, date: req.body?.date });
+      if (req.body?.riderId) {
+        io.to(`rider:${req.body.riderId}`).emit('rider_cash_settled', payload);
+        io.to(`rider:${req.body.riderId}`).emit('order_updated', { type: 'cash_settled', riderId: req.body?.riderId, date: req.body?.date });
+      }
     }
     res.status(200).json({ success: true, message: 'Cash settlement confirmed', data });
   } catch (error: any) {
