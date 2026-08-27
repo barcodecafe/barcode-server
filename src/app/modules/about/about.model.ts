@@ -108,11 +108,45 @@ const aboutSchema = new Schema(
     storyDescription: {
       type: String,
       default:
-        'Barcode started as one restaurant with a clear point of view: dining out should feel considered, not complicated. That same standard now travels across every branch we open.',
+        'On a fine afternoon in 2013, our journey began with a simple dream: a place where friends could relax over freshly brewed coffee and exceptional food. Today, Barcode Restaurant Group has evolved into a beloved multi-brand culinary family, honoring traditional heritage while pioneering modern dining across Bangladesh.',
     },
     storyImage: { type: String, default: '' },
-    storyImageCaption: { type: String, default: 'Inside a Barcode restaurant branch' },
-    timeline: { type: [timelineSchema], default: [] },
+    storyImageCaption: { type: String, default: 'Inside Barcode Cafe & Restaurant Group' },
+    timeline: {
+      type: [timelineSchema],
+      default: [
+        {
+          year: '2013',
+          title: 'The Inception — Barcode Cafe',
+          desc: 'Started on 9th July 2013 at Nasirabad, Chittagong. Born from a desire to create a welcoming haven for freshly brewed coffee, warm conversations, and quality dining.',
+        },
+        {
+          year: '2015',
+          title: 'Burgwich Town Fusion Cafe',
+          desc: 'Pioneered hygienic oriental and occidental street food fusion—serving Italian Pizza-Pasta, American Burgers and Arabian Shawarma alongside authentic Deshi Chatpati & Fuchka.',
+        },
+        {
+          year: '2016',
+          title: 'Mezzan Haile Aaiun',
+          desc: 'Honoring Chittagong’s iconic culinary tradition by making authentic Mezbani Khabar accessible every day, expanding into 6 vibrant outlets across Chittagong and Dhaka.',
+        },
+        {
+          year: '2016',
+          title: 'Bir Chattala — Heritage Biyebari',
+          desc: 'Bringing the rich flavors of Bangladeshi wedding feasts (Kacchi Biriyani, Shahi Jarda) and authentic Bangla Khabar in a nostalgic rural household ambiance with Bela Biscuit.',
+        },
+        {
+          year: '2020',
+          title: 'Barcode Food Junction & Marina Capella',
+          desc: 'Launched a grand open festive hub at Muradpur bringing all ventures under one roof, along with scenic riverside seafood at Karnafuli bank, Ek Cup Garam Cha, and Premium Kabab.',
+        },
+        {
+          year: 'Present',
+          title: 'Barcode Catering & Growing Legacy',
+          desc: 'Offering full-scale indoor and outdoor catering across Bangladesh, bringing our signature culinary excellence and heartfelt hospitality to every celebration.',
+        },
+      ],
+    },
 
     // 3. Mission, Vision & Core Values Section
     missionTitle: { type: String, default: 'Our Mission' },
