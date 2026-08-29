@@ -14,16 +14,22 @@ const syncBranchRatingStats = async (branchId: any, branchName?: string) => {
   const branchQuery: any[] = [];
   if (isNum) branchQuery.push({ id: numId });
   if (isObjectId) branchQuery.push({ _id: branchId });
-  if (branchName) branchQuery.push({ name: branchName });
+  if (branchName && !['general / online delivery', 'general / delivery', 'general'].includes(branchName.trim().toLowerCase())) {
+    branchQuery.push({ name: branchName });
+  }
 
   const targetBranch = branchQuery.length > 0 ? await Branch.findOne({ $or: branchQuery }) : null;
 
   // 2. Gather all feedback conditions
   const feedbackConditions: any[] = [];
-  if (branchId) feedbackConditions.push({ branchId: String(branchId) });
-  if (isNum) feedbackConditions.push({ branchId: numId });
-  if (isObjectId) feedbackConditions.push({ branchId });
-  if (branchName) feedbackConditions.push({ branchName });
+  if (branchId) {
+    feedbackConditions.push({ branchId: String(branchId) });
+    if (isNum) feedbackConditions.push({ branchId: numId });
+    if (isObjectId) feedbackConditions.push({ branchId });
+  }
+  if (branchName && !['general / online delivery', 'general / delivery', 'general'].includes(branchName.trim().toLowerCase())) {
+    feedbackConditions.push({ branchName });
+  }
 
   if (targetBranch) {
     feedbackConditions.push({ branchName: targetBranch.name });
@@ -34,6 +40,8 @@ const syncBranchRatingStats = async (branchId: any, branchName?: string) => {
       feedbackConditions.push({ branchId: String(targetBranch._id) });
     }
   }
+
+  if (feedbackConditions.length === 0) return;
 
   const feedbacks = await Feedback.find({ $or: feedbackConditions });
 
@@ -60,8 +68,32 @@ const syncBranchRatingStats = async (branchId: any, branchName?: string) => {
 };
 
 const submitFeedbackService = async (payload: Partial<IFeedback>) => {
+  // 🎯 Auto-resolve and sanitize branch details before saving
+  if (payload.branchId) {
+    const numId = Number(payload.branchId);
+    const b = await Branch.findOne({
+      $or: [
+        ...(Number.isFinite(numId) ? [{ id: numId }] : []),
+        ...(typeof payload.branchId === 'string' && payload.branchId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: payload.branchId }] : []),
+      ],
+    });
+    if (b) {
+      payload.branchId = b.id;
+      payload.branchName = b.name;
+    }
+  } else if (
+    payload.branchName &&
+    !['general / online delivery', 'general / delivery', 'general', ''].includes(payload.branchName.trim().toLowerCase())
+  ) {
+    const b = await Branch.findOne({ name: payload.branchName });
+    if (b) {
+      payload.branchId = b.id;
+      payload.branchName = b.name;
+    }
+  }
+
   const newFeedback = await Feedback.create(payload);
-  if (payload.branchId || payload.branchName) {
+  if (payload.branchId || (payload.branchName && !['general / online delivery', 'general / delivery', 'general'].includes(payload.branchName.trim().toLowerCase()))) {
     await syncBranchRatingStats(payload.branchId, payload.branchName).catch(() => {});
   }
   return newFeedback;
