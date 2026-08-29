@@ -204,18 +204,37 @@ const getPublicMembershipService = async (rawQuery: string) => {
   };
 };
 
-// self profile update — only these fields; never role/email/password here
+// self profile update — customer can update name, email, pickArea, address; phone & role are locked to loyalty ID
 const updateMeService = async (userId: string, payload: any) => {
   if (!isValidObjectId(userId)) return null;
   const user = await User.findOne({ _id: userId, isDeleted: false });
   if (!user) return null;
-  if (payload.name !== undefined && String(payload.name).trim()) user.name = String(payload.name).trim();
-  if (payload.phone !== undefined && String(payload.phone).trim()) {
-    const rawDigits = String(payload.phone).replace(/\D/g, "");
-    user.phone = /^01[3-9]\d{8}$/.test(rawDigits) ? `+88${rawDigits}` : String(payload.phone).trim();
+
+  if (payload.name !== undefined && String(payload.name).trim()) {
+    user.name = String(payload.name).trim();
   }
+
+  if (payload.email !== undefined) {
+    const trimmedEmail = String(payload.email).trim().toLowerCase();
+    if (trimmedEmail && trimmedEmail !== user.email) {
+      // Check if email already exists for another active account
+      const existingUser = await User.findOne({
+        email: trimmedEmail,
+        _id: { $ne: userId },
+        isDeleted: false,
+      });
+      if (existingUser) {
+        const error: any = new Error('This email address is already registered to another account.');
+        error.status = 409;
+        throw error;
+      }
+      user.email = trimmedEmail;
+    }
+  }
+
   if (payload.pickArea !== undefined) user.pickArea = String(payload.pickArea).trim();
   if (payload.address !== undefined) user.address = String(payload.address).trim();
+
   await user.save();
   await ensureMembership(user);
   return user;
