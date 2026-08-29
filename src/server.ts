@@ -20,17 +20,6 @@ if (!cached) {
 
 async function syncBranchRatings() {
   try {
-    // 🎯 Auto-map recent unassigned customer feedbacks from phone to Muradpur branch if requested
-    await Feedback.updateMany(
-      {
-        phone: { $regex: '1571354254' },
-        $or: [{ branchId: null }, { branchId: '' }, { branchName: 'General / Online Delivery' }],
-      },
-      {
-        $set: { branchId: 3, branchName: 'Barcode Food Junction Muradpur' },
-      }
-    );
-
     const branches = await Branch.find({});
     for (const b of branches) {
       const numId = Number(b.id);
