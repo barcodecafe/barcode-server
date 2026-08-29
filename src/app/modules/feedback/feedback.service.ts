@@ -15,7 +15,8 @@ const syncBranchRatingStats = async (branchId: any, branchName?: string) => {
   if (isNum) branchQuery.push({ id: numId });
   if (isObjectId) branchQuery.push({ _id: branchId });
   if (branchName && !['general / online delivery', 'general / delivery', 'general'].includes(branchName.trim().toLowerCase())) {
-    branchQuery.push({ name: branchName });
+    const safe = branchName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    branchQuery.push({ name: new RegExp(`^${safe}$`, 'i') });
   }
 
   const targetBranch = branchQuery.length > 0 ? await Branch.findOne({ $or: branchQuery }) : null;
@@ -28,11 +29,13 @@ const syncBranchRatingStats = async (branchId: any, branchName?: string) => {
     if (isObjectId) feedbackConditions.push({ branchId });
   }
   if (branchName && !['general / online delivery', 'general / delivery', 'general'].includes(branchName.trim().toLowerCase())) {
-    feedbackConditions.push({ branchName });
+    const safe = branchName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    feedbackConditions.push({ branchName: new RegExp(`^${safe}$`, 'i') });
   }
 
   if (targetBranch) {
-    feedbackConditions.push({ branchName: targetBranch.name });
+    const safeTargetName = targetBranch.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    feedbackConditions.push({ branchName: new RegExp(`^${safeTargetName}$`, 'i') });
     if (targetBranch.id !== undefined) {
       feedbackConditions.push({ branchId: targetBranch.id }, { branchId: String(targetBranch.id) });
     }
@@ -85,7 +88,8 @@ const submitFeedbackService = async (payload: Partial<IFeedback>) => {
     payload.branchName &&
     !['general / online delivery', 'general / delivery', 'general', ''].includes(payload.branchName.trim().toLowerCase())
   ) {
-    const b = await Branch.findOne({ name: payload.branchName });
+    const safe = payload.branchName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const b = await Branch.findOne({ name: new RegExp(`^${safe}$`, 'i') });
     if (b) {
       payload.branchId = b.id;
       payload.branchName = b.name;
