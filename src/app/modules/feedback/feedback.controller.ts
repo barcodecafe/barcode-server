@@ -16,6 +16,7 @@ const submitFeedbackController = async (req: Request, res: Response) => {
     const io = req.app.get('io');
     if (io) {
       io.emit('feedback_updated', { type: 'create', feedback: result });
+      io.emit('branches_updated', { type: 'rating_change', branchId: feedbackData.branchId });
     }
 
     res.status(201).json({
@@ -62,6 +63,7 @@ const deleteFeedbackController = async (req: Request, res: Response) => {
     const io = req.app.get('io');
     if (io) {
       io.emit('feedback_updated', { type: 'delete', id: req.params.id });
+      io.emit('branches_updated', { type: 'rating_change' });
     }
 
     res.status(200).json({ success: true, message: 'Feedback deleted successfully' });
