@@ -115,27 +115,72 @@ const addTimelineItemService = async (item: any) => {
   const doc = await getAboutService();
   doc.timeline.push({ year: item.year || '', title: item.title || '', desc: item.desc || '' });
   doc.timeline.sort((a: any, b: any) => Number(a.year) - Number(b.year));
+  doc.markModified('timeline');
   await doc.save();
   return doc;
 };
 
 const updateTimelineItemService = async (itemId: string, item: any) => {
   const doc = await getAboutService();
-  const sub = (doc.timeline as any).id(itemId);
-  if (!sub) return null;
-  if (item.year !== undefined) sub.year = item.year;
-  if (item.title !== undefined) sub.title = item.title;
-  if (item.desc !== undefined) sub.desc = item.desc;
+  let target: any = null;
+
+  if ((doc.timeline as any).id && typeof (doc.timeline as any).id === 'function') {
+    try {
+      target = (doc.timeline as any).id(itemId);
+    } catch {}
+  }
+
+  if (!target) {
+    const isNum = !isNaN(Number(itemId)) && Number(itemId) >= 0 && Number(itemId) < doc.timeline.length;
+    target = doc.timeline.find((t: any, idx: number) => {
+      const idStr = t._id ? t._id.toString() : t.id ? t.id.toString() : '';
+      if (idStr && idStr === itemId) return true;
+      if (isNum && idx === Number(itemId)) return true;
+      return false;
+    });
+  }
+
+  if (!target) return null;
+  if (item.year !== undefined) target.year = item.year;
+  if (item.title !== undefined) target.title = item.title;
+  if (item.desc !== undefined) target.desc = item.desc;
   doc.timeline.sort((a: any, b: any) => Number(a.year) - Number(b.year));
+  doc.markModified('timeline');
   await doc.save();
   return doc;
 };
 
 const deleteTimelineItemService = async (itemId: string) => {
   const doc = await getAboutService();
-  const sub = (doc.timeline as any).id(itemId);
-  if (!sub) return null;
-  sub.deleteOne();
+  const initialLength = doc.timeline.length;
+  let deleted = false;
+
+  if ((doc.timeline as any).id && typeof (doc.timeline as any).id === 'function') {
+    try {
+      const sub = (doc.timeline as any).id(itemId);
+      if (sub) {
+        if (typeof sub.deleteOne === 'function') {
+          sub.deleteOne();
+          deleted = true;
+        } else if (typeof (doc.timeline as any).pull === 'function') {
+          (doc.timeline as any).pull({ _id: itemId });
+          deleted = true;
+        }
+      }
+    } catch {}
+  }
+
+  if (!deleted || doc.timeline.length === initialLength) {
+    const isNum = !isNaN(Number(itemId)) && Number(itemId) >= 0 && Number(itemId) < doc.timeline.length;
+    doc.timeline = doc.timeline.filter((item: any, idx: number) => {
+      const idStr = item._id ? item._id.toString() : item.id ? item.id.toString() : '';
+      if (idStr && idStr === itemId) return false;
+      if (isNum && idx === Number(itemId)) return false;
+      return true;
+    });
+  }
+
+  doc.markModified('timeline');
   await doc.save();
   return doc;
 };
@@ -149,24 +194,71 @@ const addLeadershipMemberService = async (member: any) => {
     image: member.image || '',
     bio: member.bio || '',
   });
+  doc.markModified('leadership');
   await doc.save();
   return doc;
 };
 
 const updateLeadershipMemberService = async (itemId: string, member: any) => {
   const doc = await getAboutService();
-  const sub = (doc.leadership as any).id(itemId);
-  if (!sub) return null;
-  for (const k of ['name', 'role', 'image', 'bio']) if (member[k] !== undefined) sub[k] = member[k];
+  let target: any = null;
+
+  if ((doc.leadership as any).id && typeof (doc.leadership as any).id === 'function') {
+    try {
+      target = (doc.leadership as any).id(itemId);
+    } catch {}
+  }
+
+  if (!target) {
+    const isNum = !isNaN(Number(itemId)) && Number(itemId) >= 0 && Number(itemId) < doc.leadership.length;
+    target = doc.leadership.find((l: any, idx: number) => {
+      const idStr = l._id ? l._id.toString() : l.id ? l.id.toString() : '';
+      if (idStr && idStr === itemId) return true;
+      if (isNum && idx === Number(itemId)) return true;
+      return false;
+    });
+  }
+
+  if (!target) return null;
+  for (const k of ['name', 'role', 'image', 'bio']) {
+    if (member[k] !== undefined) target[k] = member[k];
+  }
+  doc.markModified('leadership');
   await doc.save();
   return doc;
 };
 
 const deleteLeadershipMemberService = async (itemId: string) => {
   const doc = await getAboutService();
-  const sub = (doc.leadership as any).id(itemId);
-  if (!sub) return null;
-  sub.deleteOne();
+  const initialLength = doc.leadership.length;
+  let deleted = false;
+
+  if ((doc.leadership as any).id && typeof (doc.leadership as any).id === 'function') {
+    try {
+      const sub = (doc.leadership as any).id(itemId);
+      if (sub) {
+        if (typeof sub.deleteOne === 'function') {
+          sub.deleteOne();
+          deleted = true;
+        } else if (typeof (doc.leadership as any).pull === 'function') {
+          (doc.leadership as any).pull({ _id: itemId });
+          deleted = true;
+        }
+      }
+    } catch {}
+  }
+
+  if (!deleted || doc.leadership.length === initialLength) {
+    const isNum = !isNaN(Number(itemId)) && Number(itemId) >= 0 && Number(itemId) < doc.leadership.length;
+    doc.leadership = doc.leadership.filter((item: any, idx: number) => {
+      const idStr = item._id ? item._id.toString() : item.id ? item.id.toString() : '';
+      if (idStr && idStr === itemId) return false;
+      if (isNum && idx === Number(itemId)) return false;
+      return true;
+    });
+  }
+
+  doc.markModified('leadership');
   await doc.save();
   return doc;
 };
