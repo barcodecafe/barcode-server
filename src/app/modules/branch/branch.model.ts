@@ -18,7 +18,7 @@ const branchSchema = new Schema<IBranch>(
     contact: { type: String, default: '' },
     image: { type: String, default: '' },
     hours: { type: String, default: '' },
-    rating: { type: Number, default: 0 },
+    rating: { type: Number, default: 4.5 },
     manager: { type: String, default: 'Branch Manager' },
     capacity: { type: Number, default: 120 },
     features: { type: [String], default: [] },

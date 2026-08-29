@@ -8,12 +8,39 @@ import app from './app';
 import config from './app/config';
 import { Order } from './app/modules/order/order.model';
 import { OrderService } from './app/modules/order/order.service';
+import { Branch } from './app/modules/branch/branch.model';
+import { Feedback } from './app/modules/feedback/feedback.model';
 import { startPaymentReconciliationCron } from './app/modules/payment/paymentReconciliation.worker';
 
 // ─── Vercel Serverless: Cache connection ───
 let cached = (global as any).mongoose;
 if (!cached) {
   cached = (global as any).mongoose = { conn: null, promise: null };
+}
+
+async function syncBranchRatings() {
+  try {
+    const branches = await Branch.find({});
+    for (const b of branches) {
+      const numId = Number(b.id);
+      const conditions: any[] = [{ branchId: String(b.id) }];
+      if (Number.isFinite(numId)) conditions.push({ branchId: numId });
+      if (b._id) conditions.push({ branchId: String(b._id) });
+
+      const feedbacks = await Feedback.find({ $or: conditions });
+      if (feedbacks && feedbacks.length > 0) {
+        const total = feedbacks.reduce((sum, f) => {
+          return sum + ((f.foodQuality || 5) + (f.serviceSpeed || 5) + (f.staffBehavior || 5)) / 3;
+        }, 0);
+        b.rating = Math.round((total / feedbacks.length) * 10) / 10;
+      } else {
+        b.rating = 4.5;
+      }
+      await b.save();
+    }
+  } catch (e) {
+    // Non-critical background sync
+  }
 }
 
 async function syncLegacyPaidOrders() {
@@ -64,6 +91,7 @@ async function connectDB() {
         // eslint-disable-next-line no-console
         console.log('🗄️ Database connected successfully');
         syncLegacyPaidOrders();
+        syncBranchRatings();
         return m;
       });
   }
