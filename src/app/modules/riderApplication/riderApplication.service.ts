@@ -1,7 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import fs from 'fs';
+import path from 'path';
 import { isValidObjectId } from 'mongoose';
 import { RiderApplication } from './riderApplication.model';
 import { User } from '../user/user.model';
+import { RIDER_DIR } from '../../config/localUpload';
 
 const submitApplicationService = async (
   userId: string,
@@ -94,10 +97,82 @@ const rejectApplicationService = async (id: string) => {
   return app;
 };
 
+const updateApplicationService = async (id: string, payload: any) => {
+  if (!isValidObjectId(id)) return null;
+  const app = await RiderApplication.findById(id);
+  if (!app) return null;
+
+  if (payload.name !== undefined) app.name = payload.name;
+  if (payload.email !== undefined) app.email = payload.email;
+  if (payload.phone !== undefined) app.phone = payload.phone;
+  if (payload.nid !== undefined) app.nid = payload.nid;
+  if (payload.experience !== undefined) app.experience = payload.experience;
+  if (payload.expYears !== undefined) app.expYears = Number(payload.expYears) || 0;
+
+  if (payload.status && ['pending', 'approved', 'rejected'].includes(payload.status)) {
+    const oldStatus = app.status;
+    app.status = payload.status;
+
+    if (payload.status === 'approved' && oldStatus !== 'approved') {
+      const user = await User.findById(app.userId);
+      if (user) {
+        user.role = 'rider';
+        user.riderApprovalStatus = 'approved';
+        user.employmentType = 'permanent';
+        user.commissionRate = 0;
+        user.agencyName = '';
+        if (!user.vehicle) user.vehicle = 'Motorbike';
+        user.riderStatus = 'Available';
+        if (!user.phone && app.phone) user.phone = app.phone;
+        await user.save();
+      }
+    } else if (payload.status === 'rejected' && oldStatus !== 'rejected') {
+      const user = await User.findById(app.userId);
+      if (user) {
+        user.riderApprovalStatus = 'rejected';
+        await user.save();
+      }
+    } else if (payload.status === 'pending' && oldStatus !== 'pending') {
+      const user = await User.findById(app.userId);
+      if (user) {
+        user.riderApprovalStatus = 'pending';
+        await user.save();
+      }
+    }
+  }
+
+  await app.save();
+  return app;
+};
+
+const deleteApplicationService = async (id: string) => {
+  if (!isValidObjectId(id)) return null;
+  const app = await RiderApplication.findById(id);
+  if (!app) return null;
+
+  if (app.photoUrl) {
+    try {
+      const p = path.join(RIDER_DIR, path.basename(app.photoUrl));
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    } catch {}
+  }
+  if (app.licenseUrl) {
+    try {
+      const p = path.join(RIDER_DIR, path.basename(app.licenseUrl));
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    } catch {}
+  }
+
+  await RiderApplication.findByIdAndDelete(id);
+  return app;
+};
+
 export const RiderApplicationService = {
   submitApplicationService,
   getAllApplicationsService,
   getApplicationByIdService,
   approveApplicationService,
   rejectApplicationService,
+  updateApplicationService,
+  deleteApplicationService,
 };

@@ -114,11 +114,45 @@ const downloadController = async (req: Request, res: Response) => {
   }
 };
 
+const updateController = async (req: Request, res: Response) => {
+  try {
+    const app = await RiderApplicationService.updateApplicationService(req.params.id, req.body);
+    if (!app) return res.status(404).json({ success: false, message: 'Application not found' });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('rider_application_status_changed', { id: app.id, status: app.status, userId: app.userId });
+    }
+
+    res.status(200).json({ success: true, message: 'Application updated successfully', data: app });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
+const deleteController = async (req: Request, res: Response) => {
+  try {
+    const app = await RiderApplicationService.deleteApplicationService(req.params.id);
+    if (!app) return res.status(404).json({ success: false, message: 'Application not found' });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('rider_application_deleted', { id: req.params.id });
+    }
+
+    res.status(200).json({ success: true, message: 'Application deleted successfully', data: app });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
 export const RiderApplicationController = {
   submitController,
   listController,
   approveController,
   rejectController,
+  updateController,
+  deleteController,
   documentsController,
   downloadController,
 };

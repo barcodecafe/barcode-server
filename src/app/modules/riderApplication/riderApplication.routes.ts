@@ -13,6 +13,9 @@ router.post('/', authMiddleware, uploadRiderDocs, RiderApplicationController.sub
 router.get('/', ...adminOnly, RiderApplicationController.listController);
 router.post('/:id/approve', ...adminOnly, RiderApplicationController.approveController);
 router.post('/:id/reject', ...adminOnly, RiderApplicationController.rejectController);
+router.patch('/:id', ...adminOnly, RiderApplicationController.updateController);
+router.put('/:id', ...adminOnly, RiderApplicationController.updateController);
+router.delete('/:id', ...adminOnly, RiderApplicationController.deleteController);
 router.get('/:id/documents', ...adminOnly, RiderApplicationController.documentsController);
 router.get('/:id/documents/:type', ...adminOnly, RiderApplicationController.downloadController);
 
