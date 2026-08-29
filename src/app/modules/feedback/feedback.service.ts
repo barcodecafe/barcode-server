@@ -3,27 +3,56 @@ import { IFeedback } from './feedback.interface';
 import { Branch } from '../branch/branch.model';
 
 /** Helper to recalculate and sync Branch rating from customer feedbacks */
-const syncBranchRatingStats = async (branchId: any) => {
-  if (!branchId) return;
+const syncBranchRatingStats = async (branchId: any, branchName?: string) => {
+  if (!branchId && !branchName) return;
+
   const numId = Number(branchId);
-  const conditions: any[] = [{ branchId: String(branchId) }];
-  if (Number.isFinite(numId)) {
-    conditions.push({ branchId: numId });
+  const isNum = Number.isFinite(numId);
+  const isObjectId = typeof branchId === 'string' && branchId.match(/^[0-9a-fA-F]{24}$/);
+
+  // 1. Find target branch record
+  const branchQuery: any[] = [];
+  if (isNum) branchQuery.push({ id: numId });
+  if (isObjectId) branchQuery.push({ _id: branchId });
+  if (branchName) branchQuery.push({ name: branchName });
+
+  const targetBranch = branchQuery.length > 0 ? await Branch.findOne({ $or: branchQuery }) : null;
+
+  // 2. Gather all feedback conditions
+  const feedbackConditions: any[] = [];
+  if (branchId) feedbackConditions.push({ branchId: String(branchId) });
+  if (isNum) feedbackConditions.push({ branchId: numId });
+  if (isObjectId) feedbackConditions.push({ branchId });
+  if (branchName) feedbackConditions.push({ branchName });
+
+  if (targetBranch) {
+    feedbackConditions.push({ branchName: targetBranch.name });
+    if (targetBranch.id !== undefined) {
+      feedbackConditions.push({ branchId: targetBranch.id }, { branchId: String(targetBranch.id) });
+    }
+    if (targetBranch._id) {
+      feedbackConditions.push({ branchId: String(targetBranch._id) });
+    }
   }
 
-  const feedbacks = await Feedback.find({ $or: conditions });
-  if (!feedbacks || feedbacks.length === 0) return;
+  const feedbacks = await Feedback.find({ $or: feedbackConditions });
 
-  const totalScore = feedbacks.reduce((sum, f) => {
-    const score = ((f.foodQuality || 5) + (f.serviceSpeed || 5) + (f.staffBehavior || 5)) / 3;
-    return sum + score;
-  }, 0);
-
-  const avgRating = Math.round((totalScore / feedbacks.length) * 10) / 10;
+  let avgRating = 4.5;
+  if (feedbacks && feedbacks.length > 0) {
+    const totalScore = feedbacks.reduce((sum, f) => {
+      const score = ((f.foodQuality || 5) + (f.serviceSpeed || 5) + (f.staffBehavior || 5)) / 3;
+      return sum + score;
+    }, 0);
+    avgRating = Math.round((totalScore / feedbacks.length) * 10) / 10;
+  }
 
   const branchFilter: any[] = [];
-  if (Number.isFinite(numId)) branchFilter.push({ id: numId });
-  if (typeof branchId === 'string' && branchId.match(/^[0-9a-fA-F]{24}$/)) branchFilter.push({ _id: branchId });
+  if (targetBranch) {
+    if (targetBranch._id) branchFilter.push({ _id: targetBranch._id });
+    if (targetBranch.id !== undefined) branchFilter.push({ id: targetBranch.id });
+  }
+  if (isNum) branchFilter.push({ id: numId });
+  if (isObjectId) branchFilter.push({ _id: branchId });
 
   if (branchFilter.length > 0) {
     await Branch.updateMany({ $or: branchFilter }, { $set: { rating: avgRating } }).catch(() => {});
@@ -32,8 +61,8 @@ const syncBranchRatingStats = async (branchId: any) => {
 
 const submitFeedbackService = async (payload: Partial<IFeedback>) => {
   const newFeedback = await Feedback.create(payload);
-  if (payload.branchId) {
-    await syncBranchRatingStats(payload.branchId).catch(() => {});
+  if (payload.branchId || payload.branchName) {
+    await syncBranchRatingStats(payload.branchId, payload.branchName).catch(() => {});
   }
   return newFeedback;
 };
@@ -69,8 +98,8 @@ const getAllFeedbacksService = async (filters: any = {}) => {
 
 const deleteFeedbackService = async (id: string) => {
   const deleted = await Feedback.findByIdAndDelete(id);
-  if (deleted && deleted.branchId) {
-    await syncBranchRatingStats(deleted.branchId).catch(() => {});
+  if (deleted && (deleted.branchId || deleted.branchName)) {
+    await syncBranchRatingStats(deleted.branchId, deleted.branchName).catch(() => {});
   }
   return deleted;
 };
