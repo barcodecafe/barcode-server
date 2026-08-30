@@ -185,9 +185,10 @@ const getTopCustomersService = async (limit = 0) => {
     { $sort: { createdAt: 1, _id: 1 } },
     {
       $group: {
-        _id: '$user.id',
+        _id: { $ifNull: ['$user.id', { $ifNull: ['$user.email', '$user.phone'] }] },
         name: { $last: '$user.name' }, // most recent order's snapshot name
         email: { $last: '$user.email' },
+        phone: { $last: '$user.phone' },
         totalSpent: { $sum: '$total' },
         orderCount: { $sum: 1 },
         lastOrderAt: { $max: '$createdAt' },
@@ -200,8 +201,9 @@ const getTopCustomersService = async (limit = 0) => {
   return rows.map((r: any, i: number) => ({
     rank: i + 1,
     userId: r._id,
-    name: r.name || 'Unknown',
+    name: r.name || (r.email ? r.email.split('@')[0] : (r.phone || 'Customer')),
     email: r.email || '',
+    phone: r.phone || '',
     totalSpent: round2(r.totalSpent),
     orderCount: r.orderCount,
     lastOrderAt: r.lastOrderAt,
