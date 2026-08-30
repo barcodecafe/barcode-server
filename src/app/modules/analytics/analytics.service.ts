@@ -24,24 +24,77 @@ const TTL_MS = 45_000;
 // disk is slower than failing but it is correct.
 const AGG_OPTS = { allowDiskUse: true } as const;
 
+const cleanBranchShortName = (name: string) => {
+  if (!name) return 'Branch';
+  const cleaned = name
+    .replace(/^Barcode\s+(Cafe|Restaurant|Lounge|Diner|Express|Bistro|Group)?\s*[-–—:]\s*/i, '')
+    .replace(/^Barcode\s+/i, '')
+    .trim();
+  return cleaned || name;
+};
+
 // GET /analytics/revenue-by-branch
 const getRevenueByBranchService = async () => {
-  const [rows, branches] = await Promise.all([
-    Order.aggregate([
-      { $match: VALID },
-      { $group: { _id: '$branchId', revenue: { $sum: '$total' }, orders: { $sum: 1 } } },
-    ]),
-    Branch.find({}).sort({ id: 1 }),
+  const [orders, branches] = await Promise.all([
+    Order.find(VALID).select('total branchId pickupBranchId pickupBranchName regionId').lean(),
+    Branch.find({}).sort({ id: 1 }).lean(),
   ]);
-  const revMap = new Map(rows.map((r: any) => [r._id, r]));
+
+  const branchMapById = new Map<any, any>();
+  const branchMapByName = new Map<string, any>();
+  const branchMapByRegion = new Map<number, any>();
+
+  for (const b of branches) {
+    branchMapById.set(b.id, b);
+    branchMapById.set(String(b.id), b);
+    branchMapByName.set(b.name.trim().toLowerCase(), b);
+    if (b.regionId != null) {
+      branchMapByRegion.set(Number(b.regionId), b);
+    }
+  }
+
+  const totalsByBranchId = new Map<number, { revenue: number; orders: number }>();
+  for (const b of branches) {
+    totalsByBranchId.set(b.id, { revenue: 0, orders: 0 });
+  }
+
+  for (const o of orders) {
+    const total = Number(o.total) || 0;
+    let targetBranch: any = null;
+
+    if (o.branchId != null) {
+      targetBranch =
+        branchMapById.get(o.branchId) ||
+        branchMapById.get(Number(o.branchId)) ||
+        branchMapByName.get(String(o.branchId).trim().toLowerCase());
+    }
+    if (!targetBranch && o.pickupBranchId != null) {
+      targetBranch = branchMapById.get(o.pickupBranchId) || branchMapById.get(Number(o.pickupBranchId));
+    }
+    if (!targetBranch && o.pickupBranchName) {
+      targetBranch = branchMapByName.get(String(o.pickupBranchName).trim().toLowerCase());
+    }
+    if (!targetBranch && o.regionId != null) {
+      targetBranch = branchMapByRegion.get(Number(o.regionId));
+    }
+
+    if (targetBranch) {
+      const cur = totalsByBranchId.get(targetBranch.id) || { revenue: 0, orders: 0 };
+      cur.revenue += total;
+      cur.orders += 1;
+      totalsByBranchId.set(targetBranch.id, cur);
+    }
+  }
+
   return branches.map((b) => {
-    const r: any = revMap.get(b.id) || { revenue: 0, orders: 0 };
+    const stats = totalsByBranchId.get(b.id) || { revenue: 0, orders: 0 };
+    const short = cleanBranchShortName(b.name);
     return {
       branchId: b.id,
       name: b.name,
-      shortName: b.name.length > 16 ? `${b.name.slice(0, 14)}…` : b.name,
-      revenue: round2(r.revenue),
-      orders: r.orders,
+      shortName: short.length > 14 ? `${short.slice(0, 12)}…` : short,
+      revenue: round2(stats.revenue),
+      orders: stats.orders,
     };
   });
 };
