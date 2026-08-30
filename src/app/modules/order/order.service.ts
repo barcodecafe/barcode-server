@@ -7,6 +7,7 @@ import { Region } from "../region/region.model";
 import { Settings } from "../settings/settings.model";
 import { FoodService } from "../food/food.service";
 import { CouponService } from "../coupon/coupon.service";
+import { isAdminRole } from "../../middlewares/auth";
 import { chargeFromRegion } from "./delivery.config";
 import {
   riderCommissionFor,
@@ -1111,7 +1112,7 @@ const getOrderMessagesService = async (id: string, actor: { _id: string; role: s
     err.status = 404;
     throw err;
   }
-  const isAdmin = ["admin", "super_admin", "superadmin"].includes(actor.role);
+  const isAdmin = isAdminRole(actor.role);
   const isOwner = order.user?.id === actor._id;
   const isRider = String(order.riderId || "") === String(actor._id);
   if (!isAdmin && !isOwner && !isRider) {

@@ -3,6 +3,7 @@ import fs from 'fs';
 import { Request, Response } from 'express';
 import { RiderService } from './rider.service';
 import { verifyRiderFileMagic } from '../../config/localUpload';
+import { isAdminRole } from '../../middlewares/auth';
 
 // POST /api/riders/register
 const registerController = async (req: Request, res: Response) => {
@@ -75,7 +76,7 @@ const getAllRidersController = async (_req: Request, res: Response) => {
 const isSelfOrAdmin = (req: Request): boolean => {
   const actor = (req as any).user;
   const role = String(actor?.role || '').toLowerCase();
-  if (['admin', 'super_admin', 'superadmin'].includes(role)) return true;
+  if (isAdminRole(role)) return true;
   return String(actor?._id || '') === String(req.params.id);
 };
 

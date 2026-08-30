@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { OrderService } from './order.service';
 import { User } from '../user/user.model';
+import { isAdminRole } from '../../middlewares/auth';
 
 // 🔒 Strictly enforce ownership: User must be logged in & own the order (or be admin/assigned rider)
 const canAccess = (order: any, actor: any): boolean => {
@@ -9,7 +10,7 @@ const canAccess = (order: any, actor: any): boolean => {
 
   const role = String(actor.role || '').toLowerCase();
   // ১. Admin/Super Admin সবসময় এক্সেস পাবে
-  if (['admin', 'super_admin', 'superadmin'].includes(role)) return true;
+  if (isAdminRole(role)) return true;
 
   const actorId = String(actor._id || actor.id || '').trim();
 
@@ -69,7 +70,7 @@ const getPendingOrderCountController = async (req: Request, res: Response) => {
     }
 
     const role = String(actor?.role || '').toLowerCase();
-    if (!['admin', 'super_admin', 'superadmin'].includes(role)) {
+    if (!isAdminRole(role)) {
        return res.status(403).json({ success: false, message: 'Forbidden. Admin access required.' });
     }
 
@@ -102,7 +103,7 @@ const getOrdersController = async (req: Request, res: Response) => {
     const rawPage = Math.floor(Number(req.query.page));
     const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
 
-    if (['admin', 'super_admin', 'superadmin'].includes(role)) {
+    if (isAdminRole(role)) {
       const userId = req.query.userId as string | undefined;
       data = userId
         ? await OrderService.getOrdersForUserService(userId, false, limit, page)
@@ -228,7 +229,7 @@ const addMessageController = async (req: Request, res: Response) => {
     }
 
     const role = String(actor?.role || '').toLowerCase();
-    const sender = ['admin', 'super_admin', 'superadmin'].includes(role)
+    const sender = isAdminRole(role)
       ? 'admin'
       : role === 'rider'
       ? 'rider'
@@ -408,7 +409,7 @@ const settlementSummaryController = async (req: Request, res: Response) => {
   try {
     const actor = (req as any).user;
     const role = String(actor?.role || '').toLowerCase();
-    const riderId = ['admin', 'super_admin', 'superadmin'].includes(role)
+    const riderId = isAdminRole(role)
       ? String(req.query.riderId || '')
       : String(actor?._id);
 

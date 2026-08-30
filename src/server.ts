@@ -11,6 +11,7 @@ import { OrderService } from './app/modules/order/order.service';
 import { Branch } from './app/modules/branch/branch.model';
 import { Feedback } from './app/modules/feedback/feedback.model';
 import { startPaymentReconciliationCron } from './app/modules/payment/paymentReconciliation.worker';
+import { isAdminRole } from './app/middlewares/auth';
 
 // ─── Vercel Serverless: Cache connection ───
 let cached = (global as any).mongoose;
@@ -180,7 +181,7 @@ io.on('connection', (socket) => {
   const userId = String(user?._id || '').trim();
 
   // Room partitioning by role and identity
-  if (['admin', 'super_admin', 'superadmin'].includes(role)) {
+  if (isAdminRole(role)) {
     socket.join('admins');
   }
   if (role === 'rider' && userId) {
