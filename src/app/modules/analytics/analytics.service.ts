@@ -402,9 +402,9 @@ const getDashboardAllService = async () => {
     getRevenueByBranchService(),
     getOrdersByCategoryService(),
     getRevenueTrendService(12),
-    getTopDishesService(15),
-    getTopCustomersService(15),
-    getTopRidersService(15),
+    getTopDishesService(50),
+    getTopCustomersService(50),
+    getTopRidersService(50),
   ]);
 
   return {
