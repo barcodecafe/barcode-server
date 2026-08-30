@@ -21,6 +21,13 @@ router.get('/public-membership/:query', UserController.getPublicMembershipContro
 router.get('/public-membership', UserController.getPublicMembershipController);
 router.get('/membership-verify/:query', UserController.getPublicMembershipController);
 
+// 👑 Staff & Role Management Routes (Super Admin / Admin)
+// ⚠️ /:id এর আগে থাকতে হবে (route ordering)
+router.get('/staff', ...adminOnly, UserController.getStaffUsersController);
+router.post('/staff', ...adminOnly, UserController.createStaffUserController);
+router.patch('/staff/:id', ...adminOnly, UserController.updateStaffUserController);
+router.delete('/staff/:id', ...adminOnly, UserController.deleteStaffUserController);
+
 // সব ইউজার (Admin only) — GET /api/users
 router.get('/', ...adminOnly, UserController.getAllUsersController);
 

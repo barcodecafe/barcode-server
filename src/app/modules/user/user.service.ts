@@ -281,6 +281,115 @@ const adminUpdateUserService = async (userId: string, payload: any) => {
   return user;
 };
 
+// 👑 Staff & Role Management Services (Super Admin / Admin)
+const getStaffUsersService = async () => {
+  const staffRoles = ['super_admin', 'superadmin', 'admin', 'manager', 'restaurant_manager'];
+  const staff = await User.find({
+    role: { $in: staffRoles },
+    isDeleted: false,
+  }).sort({ createdAt: -1 });
+  return staff;
+};
+
+const createStaffUserService = async (payload: any) => {
+  const { name, email, phone, password, role, permissions } = payload;
+  if (!name || !password || (!email && !phone)) {
+    const err: any = new Error('Name, Password, and Mobile number or Email are required.');
+    err.status = 400;
+    throw err;
+  }
+
+  const cleanEmail = email ? String(email).trim().toLowerCase() : undefined;
+  let cleanPhone: string | undefined = undefined;
+  if (phone && String(phone).trim()) {
+    const rawDigits = String(phone).replace(/\D/g, '');
+    cleanPhone = /^01[3-9]\d{8}$/.test(rawDigits) ? `+88${rawDigits}` : String(phone).trim();
+  }
+
+  // Check duplicate
+  const existing = await User.findOne({
+    isDeleted: false,
+    $or: [
+      ...(cleanEmail ? [{ email: cleanEmail }] : []),
+      ...(cleanPhone ? [{ phone: cleanPhone }] : []),
+    ],
+  });
+  if (existing) {
+    const err: any = new Error('An account with this email or phone number already exists.');
+    err.status = 409;
+    throw err;
+  }
+
+  const validRole = ['super_admin', 'superadmin', 'admin', 'manager', 'restaurant_manager'].includes(role)
+    ? role
+    : 'admin';
+
+  const newStaff = await User.create({
+    name: String(name).trim(),
+    email: cleanEmail,
+    phone: cleanPhone,
+    password: String(password).trim(),
+    role: validRole,
+    permissions: Array.isArray(permissions) ? permissions : [],
+  });
+
+  return newStaff;
+};
+
+const updateStaffUserService = async (id: string, payload: any) => {
+  if (!isValidObjectId(id)) return null;
+  const user = await User.findOne({ _id: id, isDeleted: false });
+  if (!user) return null;
+
+  if (payload.name !== undefined && String(payload.name).trim()) {
+    user.name = String(payload.name).trim();
+  }
+  if (payload.email !== undefined) {
+    const trimmed = String(payload.email).trim().toLowerCase();
+    user.email = trimmed === '' ? undefined : trimmed;
+  }
+  if (payload.phone !== undefined && String(payload.phone).trim()) {
+    const rawDigits = String(payload.phone).replace(/\D/g, '');
+    user.phone = /^01[3-9]\d{8}$/.test(rawDigits) ? `+88${rawDigits}` : String(payload.phone).trim();
+  }
+  if (payload.password !== undefined && String(payload.password).trim()) {
+    user.password = String(payload.password).trim();
+  }
+  if (payload.role !== undefined) {
+    const validRole = ['super_admin', 'superadmin', 'admin', 'manager', 'restaurant_manager'].includes(payload.role)
+      ? payload.role
+      : user.role;
+    user.role = validRole;
+  }
+  if (payload.permissions !== undefined && Array.isArray(payload.permissions)) {
+    user.permissions = payload.permissions;
+  }
+
+  await user.save();
+  return user;
+};
+
+const deleteStaffUserService = async (id: string, actorId: string) => {
+  if (!isValidObjectId(id)) return null;
+  if (String(id) === String(actorId)) {
+    const err: any = new Error('You cannot delete your own account.');
+    err.status = 400;
+    throw err;
+  }
+  const staff = await User.findById(id);
+  if (!staff) return null;
+
+  if (['super_admin', 'superadmin'].includes(staff.role) && staff.email === 'admin@barcode.com') {
+    const err: any = new Error('The primary Super Admin account cannot be deleted.');
+    err.status = 403;
+    throw err;
+  }
+
+  staff.isDeleted = true;
+  await staff.save();
+  return staff;
+};
+
 export const UserService = {
   getAllUsersService,
   getUserByIdService,
@@ -288,4 +397,8 @@ export const UserService = {
   getPublicMembershipService,
   updateMeService,
   adminUpdateUserService,
+  getStaffUsersService,
+  createStaffUserService,
+  updateStaffUserService,
+  deleteStaffUserService,
 };

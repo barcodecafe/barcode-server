@@ -6,13 +6,18 @@ import config from '../app/config';
 import { User } from '../app/modules/user/user.model';
 
 const ADMIN = {
-  name: 'Admin User',
+  name: 'Super Admin',
   email: 'admin@barcode.com',
   password: 'admin123', // ⚠️ প্রথম লগইনের পর বদলে ফেলুন
-  role: 'admin' as const,
+  role: 'super_admin' as const,
   phone: '+8801600000000',
   pickArea: 'Dhaka',
   address: 'Barcode HQ, Gulshan, Dhaka',
+  permissions: [
+    'dashboard', 'orders', 'dishes', 'brands', 'regions', 'branches',
+    'fleet', 'add_rider', 'customers', 'reviews', 'coupons', 'free_delivery',
+    'hero', 'about', 'policies', 'rider_applications', 'settings', 'staff_management'
+  ],
 };
 
 async function run() {
@@ -22,10 +27,13 @@ async function run() {
 
     const existing = await User.findOne({ email: ADMIN.email });
     if (existing) {
-      console.log(`ℹ️  Admin already exists: ${ADMIN.email}`);
+      existing.role = 'super_admin';
+      existing.permissions = ADMIN.permissions;
+      await existing.save();
+      console.log(`ℹ️  Super Admin updated: ${ADMIN.email}`);
     } else {
       await User.create(ADMIN); // pre-save hook হ্যাশ করবে
-      console.log(`✅ Admin created: ${ADMIN.email} / ${ADMIN.password}`);
+      console.log(`✅ Super Admin created: ${ADMIN.email} / ${ADMIN.password}`);
     }
   } catch (err) {
     console.error('❌ Seed failed:', err);

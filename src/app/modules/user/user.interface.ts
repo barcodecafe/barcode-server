@@ -1,4 +1,4 @@
-export type TUserRole = 'user' | 'rider' | 'admin';
+export type TUserRole = 'user' | 'rider' | 'manager' | 'restaurant_manager' | 'admin' | 'super_admin' | 'superadmin';
 
 // ফ্রন্ট এন্ড এই shape আশা করে (passwordHash কখনো রিটার্ন হবে না)
 export interface IUser {
@@ -6,6 +6,7 @@ export interface IUser {
   email?: string;
   password: string;
   role: TUserRole;
+  permissions?: string[]; // RBAC tab/module permissions
   phone?: string;
   pickArea?: string;
   address?: string;

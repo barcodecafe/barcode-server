@@ -38,6 +38,7 @@ const generateToken = (payload: {
   _id: string;
   role: string;
   email: string;
+  permissions?: string[];
 }) => {
   return jwt.sign(payload, config.jwt.access_secret, {
     expiresIn: config.jwt.access_expires_in as any,
@@ -166,6 +167,7 @@ const loginUser = async (payload: LoginPayload) => {
     _id: String(user._id),
     role: user.role,
     email: user.email || "",
+    permissions: Array.isArray((user as any).permissions) ? (user as any).permissions : [],
   });
 
   user.password = undefined as any;

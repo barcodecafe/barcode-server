@@ -29,14 +29,15 @@ const userSchema = new Schema<IUser>(
     password: { type: String, required: true, select: false },
     
     role: {
-      // 'super_admin' is listed because routes and controllers already branch on
-      // it. It was missing here, so the role could never actually be stored —
-      // every authorize('admin','super_admin') was really just authorize('admin')
-      // and the extra branches were dead code.
       type: String,
-      enum: ['user', 'rider', 'admin', 'super_admin'],
+      enum: ['user', 'rider', 'manager', 'restaurant_manager', 'admin', 'super_admin', 'superadmin'],
       default: 'user',
       required: true,
+    },
+
+    permissions: {
+      type: [String],
+      default: [],
     },
 
     pickArea: { type: String, default: '' },

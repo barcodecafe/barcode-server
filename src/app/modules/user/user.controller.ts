@@ -96,6 +96,59 @@ const adminUpdateUserController = async (req: Request, res: Response) => {
   }
 };
 
+// 👑 Staff & Role Management Controllers
+const getStaffUsersController = async (req: Request, res: Response) => {
+  try {
+    const staff = await UserService.getStaffUsersService();
+    res.status(200).json({ success: true, data: staff });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const createStaffUserController = async (req: Request, res: Response) => {
+  try {
+    const staff = await UserService.createStaffUserService(req.body);
+    res.status(201).json({ success: true, message: 'Staff member created successfully', data: staff });
+  } catch (error: any) {
+    const isDup = error?.code === 11000;
+    const status = error.status || (isDup ? 409 : 500);
+    const message = isDup
+      ? 'An account with this phone number or email already exists.'
+      : error.message;
+    res.status(status).json({ success: false, message });
+  }
+};
+
+const updateStaffUserController = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const staff = await UserService.updateStaffUserService(id, req.body);
+    if (!staff) return res.status(404).json({ success: false, message: 'Staff member not found' });
+    res.status(200).json({ success: true, message: 'Staff permissions updated successfully', data: staff });
+  } catch (error: any) {
+    const isDup = error?.code === 11000;
+    const status = error.status || (isDup ? 409 : 500);
+    const message = isDup
+      ? 'An account with this phone number or email already exists.'
+      : error.message;
+    res.status(status).json({ success: false, message });
+  }
+};
+
+const deleteStaffUserController = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const actorId = (req as any).user?._id;
+    const staff = await UserService.deleteStaffUserService(id, actorId);
+    if (!staff) return res.status(404).json({ success: false, message: 'Staff member not found' });
+    res.status(200).json({ success: true, message: 'Staff member deleted successfully' });
+  } catch (error: any) {
+    const status = error.status || 500;
+    res.status(status).json({ success: false, message: error.message });
+  }
+};
+
 export const UserController = {
   getAllUsersController,
   getUserByIdController,
@@ -103,4 +156,8 @@ export const UserController = {
   getPublicMembershipController,
   updateMeController,
   adminUpdateUserController,
+  getStaffUsersController,
+  createStaffUserController,
+  updateStaffUserController,
+  deleteStaffUserController,
 };

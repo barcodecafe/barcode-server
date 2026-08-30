@@ -38,23 +38,19 @@ export const optionalAuth = (req: Request, _res: Response, next: NextFunction) =
   next();
 };
 
-// The three spellings of "administrator" that exist across this codebase.
-// The User schema stores 'admin' and 'super_admin'; several controllers also
-// accept the unseparated 'superadmin'. Centralising the set here is what stops
-// them drifting apart again.
-export const ADMIN_ROLES = ['admin', 'super_admin', 'superadmin'];
+import { User } from '../modules/user/user.model';
+
+export const SUPER_ADMIN_ROLES = ['super_admin', 'superadmin'];
+export const ADMIN_ROLES = ['admin', 'super_admin', 'superadmin', 'manager', 'restaurant_manager'];
+
+export const isSuperAdminRole = (role?: string): boolean =>
+  SUPER_ADMIN_ROLES.includes(String(role || '').toLowerCase());
 
 export const isAdminRole = (role?: string): boolean =>
   ADMIN_ROLES.includes(String(role || '').toLowerCase());
 
 // Role-based Authorization middleware
-// Usage: authorize('admin')  → only listed roles can pass
-//
-// ⚠️ Listing 'admin' implies every administrator role. Routes were split between
-// authorize('admin') and authorize('admin', 'super_admin'), so a super_admin
-// could assign riders and settle cash but was 403'd from analytics, users,
-// coupons and all content management — an inconsistency that depended purely on
-// which file a route happened to live in.
+// Usage: authorize('admin') → only listed roles or admin roles can pass
 export const authorize = (...allowedRoles: string[]) => {
   const allowed = allowedRoles.map((r) => r.toLowerCase());
   const adminAllowed = allowed.some((r) => ADMIN_ROLES.includes(r));
@@ -75,6 +71,47 @@ export const authorize = (...allowedRoles: string[]) => {
     return res.status(403).json({
       success: false,
       message: `Access denied: '${user.role}' role is not authorized for this action`,
+    });
+  };
+};
+
+// Fine-grained Permission Authorization middleware
+// Usage: checkPermission('orders')
+export const checkPermission = (requiredPermission: string) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const authUser = (req as any).user;
+
+    if (!authUser || !authUser.role) {
+      return res.status(403).json({ success: false, message: 'Access denied: No authenticated user' });
+    }
+
+    const role = String(authUser.role).toLowerCase();
+
+    // 👑 Super Admin automatically has full permissions
+    if (isSuperAdminRole(role)) {
+      return next();
+    }
+
+    if (!isAdminRole(role)) {
+      return res.status(403).json({ success: false, message: 'Access denied: Insufficient privileges' });
+    }
+
+    // Check permissions array from token or database
+    let userPermissions: string[] = Array.isArray(authUser.permissions) ? authUser.permissions : [];
+    if (!authUser.permissions && authUser._id) {
+      const dbUser = await User.findById(authUser._id).select('permissions role');
+      if (dbUser) {
+        userPermissions = Array.isArray(dbUser.permissions) ? dbUser.permissions : [];
+      }
+    }
+
+    if (userPermissions.includes(requiredPermission)) {
+      return next();
+    }
+
+    return res.status(403).json({
+      success: false,
+      message: `Access denied: Missing '${requiredPermission}' module permission`,
     });
   };
 };
