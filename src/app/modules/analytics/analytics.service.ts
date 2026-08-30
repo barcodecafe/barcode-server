@@ -162,12 +162,22 @@ const getTopDishesService = async (limit = 5) => {
   // item snapshot (name/image/category/price) group করি → food পরে delete হলেও top-dish হারায় না (QA §2.2)
   const rows = await Order.aggregate([
     { $match: VALID },
-    { $project: { 'items.id': 1, 'items.quantity': 1, 'items.name': 1, 'items.image': 1, 'items.category': 1, 'items.price': 1 } },
+    {
+      $project: {
+        'items.id': 1,
+        'items.quantity': 1,
+        'items.name': 1,
+        'items.image': 1,
+        'items.category': 1,
+        'items.price': 1,
+      },
+    },
     { $unwind: '$items' },
     {
       $group: {
         _id: '$items.id',
         orders: { $sum: '$items.quantity' },
+        revenue: { $sum: { $multiply: [{ $ifNull: ['$items.price', 0] }, { $ifNull: ['$items.quantity', 1] }] } },
         name: { $first: '$items.name' },
         image: { $first: '$items.image' },
         category: { $first: '$items.category' },
@@ -189,6 +199,7 @@ const getTopDishesService = async (limit = 5) => {
     price: r.price,
     rating: (foodMap.get(r._id) as any)?.rating ?? 0,
     orders: r.orders,
+    revenue: round2(r.revenue || (r.price || 0) * (r.orders || 0)),
   }));
 };
 
