@@ -69,6 +69,12 @@ const getFoodByIdController = async (req: Request, res: Response) => {
 // ── Admin CRUD ──
 const createFoodController = async (req: Request, res: Response) => {
   try {
+    const actor = (req as any).user;
+    const role = String(actor?.role || '').toLowerCase();
+    if (role === 'manager' || role === 'restaurant_manager') {
+      return res.status(403).json({ success: false, message: 'Restaurant Managers cannot create new dishes. Please contact Super Admin.' });
+    }
+
     const food = await FoodService.createFoodService(req.body);
     
     // ⚡ Real-time WebSocket broadcast to all connected clients & menus
@@ -89,10 +95,42 @@ const createFoodController = async (req: Request, res: Response) => {
 
 const updateFoodController = async (req: Request, res: Response) => {
   try {
-    // ⚠️ Drop image fields that came back as one of OUR urls. The admin form
-    // loads a dish, keeps whatever is in `image`, and posts the whole object
-    // back on save — without this, saving any unrelated edit would write the
-    // url over the stored base64 and destroy the image.
+    const actor = (req as any).user;
+    const role = String(actor?.role || '').toLowerCase();
+
+    // 🔒 Restaurant Manager: can ONLY update isAvailable or isActive for dishes in their branch
+    if (role === 'manager' || role === 'restaurant_manager') {
+      const allowedKeys = ['isAvailable', 'isActive'];
+      const incomingKeys = Object.keys(req.body);
+      const hasDisallowedKeys = incomingKeys.some((k) => !allowedKeys.includes(k));
+      if (hasDisallowedKeys) {
+        return res.status(403).json({
+          success: false,
+          message: 'Restaurant Managers are only authorized to change In Stock and Active status.',
+        });
+      }
+
+      const existingFood = await FoodService.getFoodByIdService(req.params.id);
+      if (!existingFood) return res.status(404).json({ success: false, message: 'Food not found' });
+
+      const assignedBranches = Array.isArray(actor.assignedBranches)
+        ? actor.assignedBranches.map(Number).filter((n: number) => Number.isFinite(n))
+        : [];
+      if (assignedBranches.length > 0) {
+        const foodBranchIds = Array.isArray(existingFood.branchIds)
+          ? existingFood.branchIds.map(Number)
+          : [];
+        const hasBranch = foodBranchIds.some((bid: number) => assignedBranches.includes(bid));
+        if (!hasBranch) {
+          return res.status(403).json({
+            success: false,
+            message: 'You cannot manage dishes outside your assigned branch.',
+          });
+        }
+      }
+    }
+
+    // ⚠️ Drop image fields that came back as one of OUR urls.
     stripExternalImageRefs(req.body, 'food');
     const food = await FoodService.updateFoodService(req.params.id, req.body);
     if (!food) return res.status(404).json({ success: false, message: 'Food not found' });
@@ -112,6 +150,12 @@ const updateFoodController = async (req: Request, res: Response) => {
 
 const deleteFoodController = async (req: Request, res: Response) => {
   try {
+    const actor = (req as any).user;
+    const role = String(actor?.role || '').toLowerCase();
+    if (role === 'manager' || role === 'restaurant_manager') {
+      return res.status(403).json({ success: false, message: 'Restaurant Managers cannot delete dishes.' });
+    }
+
     const food = await FoodService.deleteFoodService(req.params.id);
     if (!food) return res.status(404).json({ success: false, message: 'Food not found' });
     
@@ -131,6 +175,12 @@ const deleteFoodController = async (req: Request, res: Response) => {
 // 🎯 ── Admin Reorder (Drag & Drop) Controllers ──
 const reorderFoodsController = async (req: Request, res: Response) => {
   try {
+    const actor = (req as any).user;
+    const role = String(actor?.role || '').toLowerCase();
+    if (role === 'manager' || role === 'restaurant_manager') {
+      return res.status(403).json({ success: false, message: 'Restaurant Managers cannot reorder dishes.' });
+    }
+
     const { foodIds } = req.body;
     await FoodService.reorderFoodsService(foodIds);
 
