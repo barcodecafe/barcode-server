@@ -255,7 +255,7 @@ const adminUpdateUserService = async (userId: string, payload: any) => {
     user.email = trimmedEmail === '' ? undefined : trimmedEmail;
   }
 
-  if (payload.phone !== undefined && String(payload.phone).trim()) {
+  if (user.role !== 'user' && payload.phone !== undefined && String(payload.phone).trim()) {
     const rawDigits = String(payload.phone).replace(/\D/g, "");
     user.phone = /^01[3-9]\d{8}$/.test(rawDigits) ? `+88${rawDigits}` : String(payload.phone).trim();
   }
