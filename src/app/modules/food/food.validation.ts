@@ -79,6 +79,9 @@ export const updateFoodValidationSchema = z.object({
     branchIds: z.array(z.coerce.number()).optional(),
     branches: z.array(z.coerce.number()).optional(),
     branchPrices: z.record(z.coerce.number()).optional(),
+    branchId: z.coerce.number().optional(), // 🎯 target branch for manager toggles
+    unavailableBranchIds: z.array(z.coerce.number()).optional(),
+    inactiveBranchIds: z.array(z.coerce.number()).optional(),
     isAvailable: z.boolean().optional(),
     isActive: z.boolean().optional(),
     variantLabel: z.string().optional(),

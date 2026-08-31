@@ -59,6 +59,8 @@ const foodSchema = new Schema<IFood>(
     stock: { type: Number, default: null }, // 🎯 Atomic inventory tracking (null = unlimited)
     isAvailable: { type: Boolean, default: true }, // 🎯 Sold Out vs In Stock
     isActive: { type: Boolean, default: true }, // 🎯 Published vs Draft
+    unavailableBranchIds: { type: [Number], default: [] }, // 🎯 Branch-Specific Sold Out tracking
+    inactiveBranchIds: { type: [Number], default: [] }, // 🎯 Branch-Specific Inactive/Hidden tracking
     variantLabel: { type: String, default: 'Size' }, // "Size" | "Weight" | "Portion"
     variations: { type: [variationSchema], default: [] },
     addons: { type: [addonSchema], default: [] }, // 🎯 এড-অনস / এক্সট্রাস

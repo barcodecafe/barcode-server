@@ -129,9 +129,20 @@ const getFoodsByBranchService = async (branchId: string | number) => {
   if (!bid || bid === 0) {
     foods = await Food.find({}).sort({ categoryOrder: 1, order: 1, id: 1 }).lean();
   } else {
-    foods = await Food.find({ $or: [{ branchIds: { $size: 0 } }, { branchIds: bid }] }).sort({ categoryOrder: 1, order: 1, id: 1 }).lean();
+    // Only return foods assigned to this branch and not inactive for this branch
+    foods = await Food.find({
+      branchIds: bid,
+      inactiveBranchIds: { $ne: bid },
+    }).sort({ categoryOrder: 1, order: 1, id: 1 }).lean();
   }
-  return foods.map(applyExpirationCheck);
+
+  return foods.map((f: any) => {
+    const expiredChecked = applyExpirationCheck(f);
+    if (bid && Array.isArray(expiredChecked.unavailableBranchIds) && expiredChecked.unavailableBranchIds.includes(bid)) {
+      expiredChecked.isAvailable = false;
+    }
+    return expiredChecked;
+  });
 };
 
 // ── সার্ভার-সাইড দাম হিসাব (টাইমার ও BOGO ভ্যালিডেশন সহ) ──
@@ -260,12 +271,61 @@ const updateFoodService = async (id: string | number, payload: any) => {
     }
   }
 
-  // 🎯 Clean boolean updates for Stock & Active
-  if (payload.isAvailable !== undefined) {
-    updateFields.isAvailable = isAvailableVal(payload.isAvailable);
+  // 🎯 Branch-Specific or Global boolean updates for Stock & Active
+  if (payload.branchId !== undefined) {
+    const targetBranchId = Number(payload.branchId);
+    if (Number.isFinite(targetBranchId)) {
+      const currentUnavailable = Array.isArray(existing.unavailableBranchIds)
+        ? [...existing.unavailableBranchIds.map(Number)]
+        : [];
+      const currentInactive = Array.isArray(existing.inactiveBranchIds)
+        ? [...existing.inactiveBranchIds.map(Number)]
+        : [];
+
+      if (payload.isAvailable !== undefined) {
+        const nextAvail = isAvailableVal(payload.isAvailable);
+        if (nextAvail) {
+          // Marking as In Stock for this branch -> remove from unavailableBranchIds
+          updateFields.unavailableBranchIds = currentUnavailable.filter((id) => id !== targetBranchId);
+        } else {
+          // Marking as Sold Out for this branch -> add to unavailableBranchIds
+          if (!currentUnavailable.includes(targetBranchId)) {
+            updateFields.unavailableBranchIds = [...currentUnavailable, targetBranchId];
+          } else {
+            updateFields.unavailableBranchIds = currentUnavailable;
+          }
+        }
+      }
+
+      if (payload.isActive !== undefined) {
+        const nextActive = isActiveVal(payload.isActive);
+        if (nextActive) {
+          // Marking as Active for this branch -> remove from inactiveBranchIds
+          updateFields.inactiveBranchIds = currentInactive.filter((id) => id !== targetBranchId);
+        } else {
+          // Marking as Inactive for this branch -> add to inactiveBranchIds
+          if (!currentInactive.includes(targetBranchId)) {
+            updateFields.inactiveBranchIds = [...currentInactive, targetBranchId];
+          } else {
+            updateFields.inactiveBranchIds = currentInactive;
+          }
+        }
+      }
+    }
+  } else {
+    if (payload.isAvailable !== undefined) {
+      updateFields.isAvailable = isAvailableVal(payload.isAvailable);
+    }
+    if (payload.isActive !== undefined) {
+      updateFields.isActive = isActiveVal(payload.isActive);
+    }
   }
-  if (payload.isActive !== undefined) {
-    updateFields.isActive = isActiveVal(payload.isActive);
+
+  if (payload.unavailableBranchIds !== undefined) {
+    updateFields.unavailableBranchIds = payload.unavailableBranchIds;
+  }
+  if (payload.inactiveBranchIds !== undefined) {
+    updateFields.inactiveBranchIds = payload.inactiveBranchIds;
   }
 
   if (payload.price !== undefined) updateFields.price = Number(payload.price) || 0;

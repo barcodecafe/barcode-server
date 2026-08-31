@@ -46,6 +46,8 @@ export interface IFood {
   stock?: number | null; // 🎯 Atomic Inventory Management: null = unlimited, 0+ = limited
   isAvailable?: boolean; // 🎯 International Restaurant Standard: Sold Out / In Stock (default true)
   isActive?: boolean; // 🎯 International Restaurant Standard: Active / Draft (default true)
+  unavailableBranchIds?: number[]; // 🎯 Branch-Specific Sold Out tracking
+  inactiveBranchIds?: number[]; // 🎯 Branch-Specific Inactive/Hidden tracking
   variantLabel: string; // variant-এর ধরন লেবেল — "Size" | "Weight" | "Portion"
   variations: IVariation[]; // size/weight অপশন (প্রতিটার আলাদা দাম)
   addons?: IAddon[]; // 🎯 কাস্টমাইজেশন / এড-অন অপশনসমূহ (যেমন: Extra Cheese, Extra Patty)

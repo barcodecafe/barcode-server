@@ -100,7 +100,7 @@ const updateFoodController = async (req: Request, res: Response) => {
 
     // 🔒 Restaurant Manager: can ONLY update isAvailable or isActive for dishes in their branch
     if (role === 'manager' || role === 'restaurant_manager') {
-      const allowedKeys = ['isAvailable', 'isActive'];
+      const allowedKeys = ['isAvailable', 'isActive', 'branchId'];
       const incomingKeys = Object.keys(req.body);
       const hasDisallowedKeys = incomingKeys.some((k) => !allowedKeys.includes(k));
       if (hasDisallowedKeys) {
@@ -126,6 +126,11 @@ const updateFoodController = async (req: Request, res: Response) => {
             success: false,
             message: 'You cannot manage dishes outside your assigned branch.',
           });
+        }
+
+        // Scope mutation to manager's branch
+        if (!req.body.branchId || !assignedBranches.includes(Number(req.body.branchId))) {
+          req.body.branchId = assignedBranches[0];
         }
       }
     }
