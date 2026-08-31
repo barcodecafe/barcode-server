@@ -7,6 +7,7 @@ export interface IUser {
   password: string;
   role: TUserRole;
   permissions?: string[]; // RBAC tab/module permissions
+  assignedBranches?: number[]; // Branch IDs assigned to this staff member (e.g. for restaurant_manager)
   phone?: string;
   pickArea?: string;
   address?: string;

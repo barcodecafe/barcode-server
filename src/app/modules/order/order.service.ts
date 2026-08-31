@@ -85,12 +85,22 @@ export const restockOrderItems = async (items: any[]) => {
 };
 
 // 🎯 পেন্ডিং কাউন্ট সার্ভিস
-const getPendingCountService = async () => {
-  return Order.countDocuments({
+const getPendingCountService = async (assignedBranches?: number[]) => {
+  const filter: any = {
     status: {
       $in: ["Placed", "Pending", "PLACED", "PENDING"],
     },
-  });
+  };
+
+  if (Array.isArray(assignedBranches) && assignedBranches.length > 0) {
+    const branchNumbers = assignedBranches.map(Number).filter((n) => Number.isFinite(n));
+    filter.$or = [
+      { branchId: { $in: branchNumbers } },
+      { pickupBranchId: { $in: branchNumbers } },
+    ];
+  }
+
+  return Order.countDocuments(filter);
 };
 
 // ── POST /orders ──
@@ -465,11 +475,20 @@ const getAllOrdersService = async (
   active?: boolean,
   limit?: number,
   page: number = 1,
+  assignedBranches?: number[],
 ) => {
   const filter: any = {};
   
   if (active === true) {
     filter.status = { $nin: [...NON_LIVE_STATUSES, "Delivered", "Rejected"] };
+  }
+
+  if (Array.isArray(assignedBranches) && assignedBranches.length > 0) {
+    const branchNumbers = assignedBranches.map(Number).filter((n) => Number.isFinite(n));
+    filter.$or = [
+      { branchId: { $in: branchNumbers } },
+      { pickupBranchId: { $in: branchNumbers } },
+    ];
   }
 
   let query = Order.find(filter)

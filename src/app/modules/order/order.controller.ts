@@ -9,26 +9,41 @@ const canAccess = (order: any, actor: any): boolean => {
   if (!actor) return false;
 
   const role = String(actor.role || '').toLowerCase();
-  // ১. Admin/Super Admin সবসময় এক্সেস পাবে
-  if (isAdminRole(role)) return true;
+  
+  // ১. Super Admin ও Admin (Sub-Admin) সবসময় সব ব্রাঞ্চের এক্সেস পাবে
+  if (role === 'super_admin' || role === 'superadmin' || role === 'admin') {
+    return true;
+  }
+
+  // ২. Restaurant Manager: শুধু তার অ্যাসাইন করা ব্রাঞ্চের এক্সেস পাবে
+  if (role === 'manager' || role === 'restaurant_manager') {
+    const assignedBranches = Array.isArray(actor.assignedBranches)
+      ? actor.assignedBranches.map(Number).filter((n: number) => Number.isFinite(n))
+      : [];
+    if (assignedBranches.length > 0) {
+      const orderBranchId = Number(order.branchId || order.pickupBranchId);
+      return assignedBranches.includes(orderBranchId);
+    }
+    return true; // If no specific branch assigned, fallback to all
+  }
 
   const actorId = String(actor._id || actor.id || '').trim();
 
-  // ২. কাস্টমার আইডি সেফলি বের করা
+  // ৩. কাস্টমার আইডি সেফলি বের করা
   const orderUserId = String(
     typeof order.user === 'object'
       ? order.user?.id || order.user?._id || ''
       : order.user || ''
   ).trim();
 
-  // ৩. রাইডার আইডি সেফলি বের করা
+  // ৪. রাইডার আইডি সেফলি বের করা
   const orderRiderId = String(
     typeof order.riderId === 'object'
       ? order.riderId?.id || order.riderId?._id || ''
       : order.riderId || ''
   ).trim();
 
-  // ৪. অর্ডারের প্রকৃত মালিক (Customer) অথবা অ্যাসাইনড রাইডার (Rider) কিনা তা ভেরিফাই করা
+  // ৫. অর্ডারের প্রকৃত মালিক (Customer) অথবা অ্যাসাইনড রাইডার (Rider) কিনা তা ভেরিফাই করা
   return (!!actorId && actorId === orderUserId) || (!!actorId && actorId === orderRiderId);
 };
 
@@ -74,7 +89,12 @@ const getPendingOrderCountController = async (req: Request, res: Response) => {
        return res.status(403).json({ success: false, message: 'Forbidden. Admin access required.' });
     }
 
-    const count = await OrderService.getPendingCountService();
+    const isManager = role === 'manager' || role === 'restaurant_manager';
+    const assignedBranches = isManager && Array.isArray(actor.assignedBranches)
+      ? actor.assignedBranches.map(Number).filter((n: number) => Number.isFinite(n))
+      : undefined;
+
+    const count = await OrderService.getPendingCountService(assignedBranches);
     
     // 🛑 FIX: ব্রাউজার ক্যাশিং ও 304 Not Modified এড়াতে নো-ক্যাশ হেডার যুক্ত করা হলো
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -105,9 +125,14 @@ const getOrdersController = async (req: Request, res: Response) => {
 
     if (isAdminRole(role)) {
       const userId = req.query.userId as string | undefined;
+      const isManager = role === 'manager' || role === 'restaurant_manager';
+      const assignedBranches = isManager && Array.isArray(actor.assignedBranches)
+        ? actor.assignedBranches.map(Number).filter((n: number) => Number.isFinite(n))
+        : undefined;
+
       data = userId
         ? await OrderService.getOrdersForUserService(userId, false, limit, page)
-        : await OrderService.getAllOrdersService(false, limit, page);
+        : await OrderService.getAllOrdersService(false, limit, page, assignedBranches);
     } else if (role === 'rider') {
       const active = req.query.active === 'true';
       data = await OrderService.getOrdersForRiderService(actor._id, active, limit, page);
@@ -162,6 +187,17 @@ const updateStatusController = async (req: Request, res: Response) => {
         return res.status(403).json({
           success: false,
           message: 'You are not the rider assigned to this order',
+        });
+      }
+    } else if (role === 'manager' || role === 'restaurant_manager') {
+      const existing = await OrderService.getOrderByIdService(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ success: false, message: 'Order not found' });
+      }
+      if (!canAccess(existing, actor)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not authorized to update orders for this branch',
         });
       }
     }

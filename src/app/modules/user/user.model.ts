@@ -40,6 +40,11 @@ const userSchema = new Schema<IUser>(
       default: [],
     },
 
+    assignedBranches: {
+      type: [Number],
+      default: [],
+    },
+
     pickArea: { type: String, default: '' },
     address: { type: String, default: '' },
     vehicle: { type: String, default: '' },

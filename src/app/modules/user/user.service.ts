@@ -292,7 +292,7 @@ const getStaffUsersService = async () => {
 };
 
 const createStaffUserService = async (payload: any) => {
-  const { name, email, phone, password, role, permissions } = payload;
+  const { name, email, phone, password, role, permissions, assignedBranches } = payload;
   if (!name || !password || (!email && !phone)) {
     const err: any = new Error('Name, Password, and Mobile number or Email are required.');
     err.status = 400;
@@ -324,6 +324,10 @@ const createStaffUserService = async (payload: any) => {
     ? role
     : 'admin';
 
+  const cleanAssignedBranches = Array.isArray(assignedBranches)
+    ? assignedBranches.map(Number).filter((n) => Number.isFinite(n))
+    : [];
+
   const newStaff = await User.create({
     name: String(name).trim(),
     email: cleanEmail,
@@ -331,6 +335,7 @@ const createStaffUserService = async (payload: any) => {
     password: String(password).trim(),
     role: validRole,
     permissions: Array.isArray(permissions) ? permissions : [],
+    assignedBranches: cleanAssignedBranches,
   });
 
   return newStaff;
@@ -363,6 +368,11 @@ const updateStaffUserService = async (id: string, payload: any) => {
   }
   if (payload.permissions !== undefined && Array.isArray(payload.permissions)) {
     user.permissions = payload.permissions;
+  }
+  if (payload.assignedBranches !== undefined && Array.isArray(payload.assignedBranches)) {
+    user.assignedBranches = payload.assignedBranches
+      .map(Number)
+      .filter((n: number) => Number.isFinite(n));
   }
 
   await user.save();

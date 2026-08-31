@@ -39,6 +39,7 @@ const generateToken = (payload: {
   role: string;
   email: string;
   permissions?: string[];
+  assignedBranches?: number[];
 }) => {
   return jwt.sign(payload, config.jwt.access_secret, {
     expiresIn: config.jwt.access_expires_in as any,
@@ -168,6 +169,7 @@ const loginUser = async (payload: LoginPayload) => {
     role: user.role,
     email: user.email || "",
     permissions: Array.isArray((user as any).permissions) ? (user as any).permissions : [],
+    assignedBranches: Array.isArray((user as any).assignedBranches) ? (user as any).assignedBranches : [],
   });
 
   user.password = undefined as any;
