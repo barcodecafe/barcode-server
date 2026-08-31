@@ -90,11 +90,22 @@ const getPendingOrderCountController = async (req: Request, res: Response) => {
     }
 
     const isManager = role === 'manager' || role === 'restaurant_manager';
-    const assignedBranches = isManager && Array.isArray(actor.assignedBranches)
-      ? actor.assignedBranches.map(Number).filter((n: number) => Number.isFinite(n))
-      : undefined;
+    let assignedBranches: number[] | undefined = undefined;
 
-    const count = await OrderService.getPendingCountService(assignedBranches);
+    if (isManager) {
+      if (Array.isArray(actor.assignedBranches) && actor.assignedBranches.length > 0) {
+        assignedBranches = actor.assignedBranches.map(Number).filter((n: number) => Number.isFinite(n));
+      } else {
+        const userDoc = await User.findById(actor._id || actor.id).lean();
+        if (userDoc && Array.isArray(userDoc.assignedBranches)) {
+          assignedBranches = userDoc.assignedBranches.map(Number).filter((n: number) => Number.isFinite(n));
+        } else {
+          assignedBranches = [];
+        }
+      }
+    }
+
+    const count = await OrderService.getPendingCountService(assignedBranches, isManager);
     
     // 🛑 FIX: ব্রাউজার ক্যাশিং ও 304 Not Modified এড়াতে নো-ক্যাশ হেডার যুক্ত করা হলো
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -126,13 +137,24 @@ const getOrdersController = async (req: Request, res: Response) => {
     if (isAdminRole(role)) {
       const userId = req.query.userId as string | undefined;
       const isManager = role === 'manager' || role === 'restaurant_manager';
-      const assignedBranches = isManager && Array.isArray(actor.assignedBranches)
-        ? actor.assignedBranches.map(Number).filter((n: number) => Number.isFinite(n))
-        : undefined;
+      let assignedBranches: number[] | undefined = undefined;
+
+      if (isManager) {
+        if (Array.isArray(actor.assignedBranches) && actor.assignedBranches.length > 0) {
+          assignedBranches = actor.assignedBranches.map(Number).filter((n: number) => Number.isFinite(n));
+        } else {
+          const userDoc = await User.findById(actor._id || actor.id).lean();
+          if (userDoc && Array.isArray(userDoc.assignedBranches)) {
+            assignedBranches = userDoc.assignedBranches.map(Number).filter((n: number) => Number.isFinite(n));
+          } else {
+            assignedBranches = [];
+          }
+        }
+      }
 
       data = userId
         ? await OrderService.getOrdersForUserService(userId, false, limit, page)
-        : await OrderService.getAllOrdersService(false, limit, page, assignedBranches);
+        : await OrderService.getAllOrdersService(false, limit, page, assignedBranches, isManager);
     } else if (role === 'rider') {
       const active = req.query.active === 'true';
       data = await OrderService.getOrdersForRiderService(actor._id, active, limit, page);
@@ -141,6 +163,9 @@ const getOrdersController = async (req: Request, res: Response) => {
       data = await OrderService.getOrdersForUserService(actor._id, active, limit, page);
     }
 
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.status(200).json({ success: true, data });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message });

@@ -85,19 +85,25 @@ export const restockOrderItems = async (items: any[]) => {
 };
 
 // 🎯 পেন্ডিং কাউন্ট সার্ভিস
-const getPendingCountService = async (assignedBranches?: number[]) => {
+const getPendingCountService = async (assignedBranches?: number[], isManager?: boolean) => {
   const filter: any = {
     status: {
-      $in: ["Placed", "Pending", "PLACED", "PENDING"],
+      $in: ["Placed", "Pending", "PLACED", "PENDING", "Awaiting Payment", "AWAITING PAYMENT", "AWAITING_PAYMENT"],
     },
   };
 
-  if (Array.isArray(assignedBranches) && assignedBranches.length > 0) {
-    const branchNumbers = assignedBranches.map(Number).filter((n) => Number.isFinite(n));
-    filter.$or = [
-      { branchId: { $in: branchNumbers } },
-      { pickupBranchId: { $in: branchNumbers } },
-    ];
+  if (isManager) {
+    if (Array.isArray(assignedBranches) && assignedBranches.length > 0) {
+      const branchNumbers = assignedBranches.map(Number).filter((n) => Number.isFinite(n));
+      const branchStrings = branchNumbers.map(String);
+      const allBranchKeys = [...branchNumbers, ...branchStrings];
+      filter.$or = [
+        { branchId: { $in: allBranchKeys } },
+        { pickupBranchId: { $in: allBranchKeys } },
+      ];
+    } else {
+      return 0;
+    }
   }
 
   return Order.countDocuments(filter);
@@ -476,6 +482,7 @@ const getAllOrdersService = async (
   limit?: number,
   page: number = 1,
   assignedBranches?: number[],
+  isManager?: boolean,
 ) => {
   const filter: any = {};
   
@@ -483,12 +490,18 @@ const getAllOrdersService = async (
     filter.status = { $nin: [...NON_LIVE_STATUSES, "Delivered", "Rejected"] };
   }
 
-  if (Array.isArray(assignedBranches) && assignedBranches.length > 0) {
-    const branchNumbers = assignedBranches.map(Number).filter((n) => Number.isFinite(n));
-    filter.$or = [
-      { branchId: { $in: branchNumbers } },
-      { pickupBranchId: { $in: branchNumbers } },
-    ];
+  if (isManager) {
+    if (Array.isArray(assignedBranches) && assignedBranches.length > 0) {
+      const branchNumbers = assignedBranches.map(Number).filter((n) => Number.isFinite(n));
+      const branchStrings = branchNumbers.map(String);
+      const allBranchKeys = [...branchNumbers, ...branchStrings];
+      filter.$or = [
+        { branchId: { $in: allBranchKeys } },
+        { pickupBranchId: { $in: allBranchKeys } },
+      ];
+    } else {
+      return [];
+    }
   }
 
   let query = Order.find(filter)
