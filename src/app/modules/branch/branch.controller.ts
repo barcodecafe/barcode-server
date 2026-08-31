@@ -49,6 +49,9 @@ const getBranchByIdController = async (req: Request, res: Response) => {
 const getBranchMenuController = async (req: Request, res: Response) => {
   try {
     const foods = await FoodService.getFoodsByBranchService(req.params.branchId);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.status(200).json({ success: true, data: externalizeImagesList(foods as any[], 'food', publicApiBase(req)) });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
