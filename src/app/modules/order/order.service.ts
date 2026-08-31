@@ -4,6 +4,7 @@ import { Order } from "./order.model";
 import { Food } from "../food/food.model";
 import { User } from "../user/user.model";
 import { Region } from "../region/region.model";
+import { Branch } from "../branch/branch.model";
 import { Settings } from "../settings/settings.model";
 import { FoodService } from "../food/food.service";
 import { CouponService } from "../coupon/coupon.service";
@@ -84,6 +85,50 @@ export const restockOrderItems = async (items: any[]) => {
   }
 };
 
+// ── Helper to build robust MongoDB filter for Restaurant Manager branches (covers new & legacy orders) ──
+const buildManagerBranchFilter = async (assignedBranches?: number[]) => {
+  if (!Array.isArray(assignedBranches) || assignedBranches.length === 0) {
+    return null;
+  }
+
+  const branchNumbers = assignedBranches.map(Number).filter((n) => Number.isFinite(n));
+  const branchStrings = branchNumbers.map(String);
+  const allBranchKeys = [...branchNumbers, ...branchStrings];
+
+  const orConditions: any[] = [
+    { branchId: { $in: allBranchKeys } },
+    { pickupBranchId: { $in: allBranchKeys } },
+  ];
+
+  try {
+    const branchDocs = await Branch.find({ id: { $in: branchNumbers } }).lean();
+    for (const b of branchDocs) {
+      if (b.name) {
+        const escaped = b.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        orConditions.push(
+          { pickupBranchName: { $regex: new RegExp(`^${escaped}$`, 'i') } },
+          { 'user.pickArea': { $regex: new RegExp(escaped, 'i') } },
+          { 'user.address': { $regex: new RegExp(escaped, 'i') } }
+        );
+      }
+      if (Array.isArray(b.deliveryZones) && b.deliveryZones.length > 0) {
+        const zoneNames = b.deliveryZones.map((z: any) => z.name).filter(Boolean);
+        for (const zn of zoneNames) {
+          const escapedZone = zn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          orConditions.push({ deliveryArea: { $regex: new RegExp(`^${escapedZone}$`, 'i') } });
+        }
+      }
+      if (b.regionId) {
+        orConditions.push({ regionId: Number(b.regionId) });
+      }
+    }
+  } catch (err) {
+    console.error('Error querying branch docs for manager order filter:', err);
+  }
+
+  return { $or: orConditions };
+};
+
 // 🎯 পেন্ডিং কাউন্ট সার্ভিস
 const getPendingCountService = async (assignedBranches?: number[], isManager?: boolean) => {
   const filter: any = {
@@ -93,17 +138,9 @@ const getPendingCountService = async (assignedBranches?: number[], isManager?: b
   };
 
   if (isManager) {
-    if (Array.isArray(assignedBranches) && assignedBranches.length > 0) {
-      const branchNumbers = assignedBranches.map(Number).filter((n) => Number.isFinite(n));
-      const branchStrings = branchNumbers.map(String);
-      const allBranchKeys = [...branchNumbers, ...branchStrings];
-      filter.$or = [
-        { branchId: { $in: allBranchKeys } },
-        { pickupBranchId: { $in: allBranchKeys } },
-      ];
-    } else {
-      return 0;
-    }
+    const managerFilter = await buildManagerBranchFilter(assignedBranches);
+    if (!managerFilter) return 0;
+    Object.assign(filter, managerFilter);
   }
 
   return Order.countDocuments(filter);
@@ -491,17 +528,9 @@ const getAllOrdersService = async (
   }
 
   if (isManager) {
-    if (Array.isArray(assignedBranches) && assignedBranches.length > 0) {
-      const branchNumbers = assignedBranches.map(Number).filter((n) => Number.isFinite(n));
-      const branchStrings = branchNumbers.map(String);
-      const allBranchKeys = [...branchNumbers, ...branchStrings];
-      filter.$or = [
-        { branchId: { $in: allBranchKeys } },
-        { pickupBranchId: { $in: allBranchKeys } },
-      ];
-    } else {
-      return [];
-    }
+    const managerFilter = await buildManagerBranchFilter(assignedBranches);
+    if (!managerFilter) return [];
+    Object.assign(filter, managerFilter);
   }
 
   let query = Order.find(filter)
