@@ -104,12 +104,24 @@ const getRevenueByBranchService = async () => {
 const getOrdersByCategoryService = async () => {
   const rows = await Order.aggregate([
     { $match: VALID },
-    { $project: { 'items.category': 1, 'items.quantity': 1 } },
+    { $project: { 'items.category': 1, 'items.quantity': 1, 'items.price': 1 } },
     { $unwind: '$items' },
-    { $group: { _id: { $ifNull: ['$items.category', 'Uncategorized'] }, value: { $sum: '$items.quantity' } } },
+    {
+      $group: {
+        _id: { $ifNull: ['$items.category', 'Uncategorized'] },
+        value: { $sum: '$items.quantity' },
+        quantity: { $sum: '$items.quantity' },
+        revenue: { $sum: { $multiply: [{ $ifNull: ['$items.price', 0] }, { $ifNull: ['$items.quantity', 1] }] } },
+      },
+    },
     { $sort: { value: -1 } },
   ], AGG_OPTS);
-  return rows.map((r: any) => ({ category: r._id || 'Uncategorized', value: r.value }));
+  return rows.map((r: any) => ({
+    category: r._id || 'Uncategorized',
+    value: r.value,
+    quantity: r.quantity || r.value || 0,
+    revenue: round2(r.revenue || 0),
+  }));
 };
 
 // GET /analytics/revenue-trend?months=12
