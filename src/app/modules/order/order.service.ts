@@ -101,29 +101,54 @@ const buildManagerBranchFilter = async (assignedBranches?: number[]) => {
   ];
 
   try {
-    const branchDocs = await Branch.find({ id: { $in: branchNumbers } }).lean();
+    const branchDocs = await Branch.find({
+      $or: [{ id: { $in: branchNumbers } }, { _id: { $in: branchNumbers } }],
+    }).lean();
+
     for (const b of branchDocs) {
       if (b.name) {
-        const escaped = b.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const fullName = b.name.trim();
+        const escapedFull = fullName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+        // 1. Full name match (case-insensitive substring)
         orConditions.push(
-          { pickupBranchName: { $regex: new RegExp(`^${escaped}$`, 'i') } },
-          { 'user.pickArea': { $regex: new RegExp(escaped, 'i') } },
-          { 'user.address': { $regex: new RegExp(escaped, 'i') } }
+          { pickupBranchName: { $regex: new RegExp(escapedFull, "i") } },
+          { "user.pickArea": { $regex: new RegExp(escapedFull, "i") } },
+          { "user.address": { $regex: new RegExp(escapedFull, "i") } },
+          { deliveryAddress: { $regex: new RegExp(escapedFull, "i") } },
+          { deliveryArea: { $regex: new RegExp(escapedFull, "i") } }
         );
+
+        // 2. Significant clean name match (e.g. "Marina Capella" from "Marina Capella Barcode")
+        const cleanWords = fullName
+          .replace(/barcode|restaurant|cafe|group/gi, "")
+          .trim();
+        if (cleanWords.length >= 3) {
+          const escapedClean = cleanWords.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          orConditions.push(
+            { pickupBranchName: { $regex: new RegExp(escapedClean, "i") } },
+            { "user.pickArea": { $regex: new RegExp(escapedClean, "i") } },
+            { "user.address": { $regex: new RegExp(escapedClean, "i") } }
+          );
+        }
       }
+
       if (Array.isArray(b.deliveryZones) && b.deliveryZones.length > 0) {
         const zoneNames = b.deliveryZones.map((z: any) => z.name).filter(Boolean);
         for (const zn of zoneNames) {
-          const escapedZone = zn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          orConditions.push({ deliveryArea: { $regex: new RegExp(`^${escapedZone}$`, 'i') } });
+          const escapedZone = String(zn).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          if (escapedZone) {
+            orConditions.push({ deliveryArea: { $regex: new RegExp(escapedZone, "i") } });
+          }
         }
       }
+
       if (b.regionId) {
         orConditions.push({ regionId: Number(b.regionId) });
       }
     }
   } catch (err) {
-    console.error('Error querying branch docs for manager order filter:', err);
+    console.error("Error querying branch docs for manager order filter:", err);
   }
 
   return { $or: orConditions };
