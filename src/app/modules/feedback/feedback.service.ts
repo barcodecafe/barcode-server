@@ -1,6 +1,8 @@
 import { Feedback } from './feedback.model';
 import { IFeedback } from './feedback.interface';
 import { Branch } from '../branch/branch.model';
+import { Order } from '../order/order.model';
+import { Food } from '../food/food.model';
 
 /** Helper to recalculate and sync Branch rating from customer feedbacks */
 const syncBranchRatingStats = async (branchId: any, branchName?: string) => {
@@ -14,21 +16,24 @@ const syncBranchRatingStats = async (branchId: any, branchName?: string) => {
   const branchQuery: any[] = [];
   if (isNum) branchQuery.push({ id: numId });
   if (isObjectId) branchQuery.push({ _id: branchId });
-  if (branchName && !['general / online delivery', 'general / delivery', 'general'].includes(branchName.trim().toLowerCase())) {
+  if (branchName && !['home delivery', 'home_delivery', 'general / online delivery', 'general / delivery', 'general'].includes(branchName.trim().toLowerCase())) {
     const safe = branchName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     branchQuery.push({ name: new RegExp(`^${safe}$`, 'i') });
   }
 
   const targetBranch = branchQuery.length > 0 ? await Branch.findOne({ $or: branchQuery }) : null;
 
-  // 2. Gather all feedback conditions
+  // 2. Gather all feedback conditions (Direct + Home Delivery ratings for this branch's dishes)
   const feedbackConditions: any[] = [];
   if (branchId) {
     feedbackConditions.push({ branchId: String(branchId) });
-    if (isNum) feedbackConditions.push({ branchId: numId });
+    if (isNum) {
+      feedbackConditions.push({ branchId: numId });
+      feedbackConditions.push({ affectedBranchIds: numId });
+    }
     if (isObjectId) feedbackConditions.push({ branchId });
   }
-  if (branchName && !['general / online delivery', 'general / delivery', 'general'].includes(branchName.trim().toLowerCase())) {
+  if (branchName && !['home delivery', 'home_delivery', 'general / online delivery', 'general / delivery', 'general'].includes(branchName.trim().toLowerCase())) {
     const safe = branchName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     feedbackConditions.push({ branchName: new RegExp(`^${safe}$`, 'i') });
   }
@@ -37,7 +42,11 @@ const syncBranchRatingStats = async (branchId: any, branchName?: string) => {
     const safeTargetName = targetBranch.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     feedbackConditions.push({ branchName: new RegExp(`^${safeTargetName}$`, 'i') });
     if (targetBranch.id !== undefined) {
-      feedbackConditions.push({ branchId: targetBranch.id }, { branchId: String(targetBranch.id) });
+      feedbackConditions.push(
+        { branchId: targetBranch.id },
+        { branchId: String(targetBranch.id) },
+        { affectedBranchIds: Number(targetBranch.id) }
+      );
     }
     if (targetBranch._id) {
       feedbackConditions.push({ branchId: String(targetBranch._id) });
@@ -71,7 +80,63 @@ const syncBranchRatingStats = async (branchId: any, branchName?: string) => {
 };
 
 const submitFeedbackService = async (payload: Partial<IFeedback>) => {
-  // 🎯 Auto-resolve and sanitize branch details before saving
+  const isHomeDelivery =
+    String(payload.branchId || '').toLowerCase() === 'home_delivery' ||
+    String(payload.branchId || '').toLowerCase() === 'general' ||
+    String(payload.branchName || '').toLowerCase().includes('delivery') ||
+    String(payload.branchName || '').toLowerCase().includes('home') ||
+    !payload.branchId;
+
+  if (isHomeDelivery) {
+    payload.branchId = 'home_delivery';
+    payload.branchName = 'Home Delivery';
+
+    const affectedBranchIds = new Set<number>();
+
+    // 🎯 Find dishes in this order and collect all branches where they are served
+    if (payload.orderId) {
+      const orderDoc = await Order.findOne({
+        $or: [
+          ...(typeof payload.orderId === 'string' && payload.orderId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: payload.orderId }] : []),
+          { id: payload.orderId },
+        ],
+      }).lean();
+
+      if (orderDoc) {
+        if (orderDoc.branchId) affectedBranchIds.add(Number(orderDoc.branchId));
+        if (orderDoc.pickupBranchId) affectedBranchIds.add(Number(orderDoc.pickupBranchId));
+
+        const foodIds = (orderDoc.items || []).map((it: any) => Number(it.id)).filter((n: number) => Number.isFinite(n));
+        if (foodIds.length > 0) {
+          const foods = await Food.find({ id: { $in: foodIds } }).lean();
+          foods.forEach((f: any) => {
+            if (Array.isArray(f.availableBranchIds) && f.availableBranchIds.length > 0) {
+              f.availableBranchIds.forEach((bId: any) => affectedBranchIds.add(Number(bId)));
+            }
+          });
+        }
+      }
+    }
+
+    // If no specific branch was derived, apply to all active branches
+    if (affectedBranchIds.size === 0) {
+      const allBranches = await Branch.find({}).lean();
+      allBranches.forEach((b) => affectedBranchIds.add(Number(b.id)));
+    }
+
+    payload.affectedBranchIds = Array.from(affectedBranchIds);
+
+    const newFeedback = await Feedback.create(payload);
+
+    // 🎯 Sync rating to all branches that supplied the ordered dishes
+    for (const bId of payload.affectedBranchIds) {
+      await syncBranchRatingStats(bId).catch(() => {});
+    }
+
+    return newFeedback;
+  }
+
+  // 🎯 Auto-resolve and sanitize branch details before saving for pickup orders
   if (payload.branchId) {
     const numId = Number(payload.branchId);
     const b = await Branch.findOne({
@@ -86,7 +151,7 @@ const submitFeedbackService = async (payload: Partial<IFeedback>) => {
     }
   } else if (
     payload.branchName &&
-    !['general / online delivery', 'general / delivery', 'general', ''].includes(payload.branchName.trim().toLowerCase())
+    !['home delivery', 'home_delivery', 'general / online delivery', 'general / delivery', 'general', ''].includes(payload.branchName.trim().toLowerCase())
   ) {
     const safe = payload.branchName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const b = await Branch.findOne({ name: new RegExp(`^${safe}$`, 'i') });
@@ -97,7 +162,7 @@ const submitFeedbackService = async (payload: Partial<IFeedback>) => {
   }
 
   const newFeedback = await Feedback.create(payload);
-  if (payload.branchId || (payload.branchName && !['general / online delivery', 'general / delivery', 'general'].includes(payload.branchName.trim().toLowerCase()))) {
+  if (payload.branchId || (payload.branchName && !['home delivery', 'home_delivery', 'general / online delivery', 'general / delivery', 'general'].includes(payload.branchName.trim().toLowerCase()))) {
     await syncBranchRatingStats(payload.branchId, payload.branchName).catch(() => {});
   }
   return newFeedback;
