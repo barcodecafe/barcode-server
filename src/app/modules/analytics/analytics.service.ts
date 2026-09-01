@@ -42,15 +42,12 @@ const getRevenueByBranchService = async () => {
 
   const branchMapById = new Map<any, any>();
   const branchMapByName = new Map<string, any>();
-  const branchMapByRegion = new Map<number, any>();
 
   for (const b of branches) {
     branchMapById.set(b.id, b);
     branchMapById.set(String(b.id), b);
+    if (b._id) branchMapById.set(String(b._id), b);
     branchMapByName.set(b.name.trim().toLowerCase(), b);
-    if (b.regionId != null) {
-      branchMapByRegion.set(Number(b.regionId), b);
-    }
   }
 
   const totalsByBranchId = new Map<number, { revenue: number; orders: number }>();
@@ -62,7 +59,7 @@ const getRevenueByBranchService = async () => {
     const total = Number(o.total) || 0;
     let targetBranch: any = null;
 
-    if (o.branchId != null) {
+    if (o.branchId != null && !['home_delivery', 'general', 'delivery', 'online'].includes(String(o.branchId).toLowerCase())) {
       targetBranch =
         branchMapById.get(o.branchId) ||
         branchMapById.get(Number(o.branchId)) ||
@@ -71,11 +68,8 @@ const getRevenueByBranchService = async () => {
     if (!targetBranch && o.pickupBranchId != null) {
       targetBranch = branchMapById.get(o.pickupBranchId) || branchMapById.get(Number(o.pickupBranchId));
     }
-    if (!targetBranch && o.pickupBranchName) {
+    if (!targetBranch && o.pickupBranchName && !['home delivery', 'home_delivery'].includes(String(o.pickupBranchName).toLowerCase())) {
       targetBranch = branchMapByName.get(String(o.pickupBranchName).trim().toLowerCase());
-    }
-    if (!targetBranch && o.regionId != null) {
-      targetBranch = branchMapByRegion.get(Number(o.regionId));
     }
 
     if (targetBranch) {
