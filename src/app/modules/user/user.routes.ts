@@ -40,4 +40,7 @@ router.get('/:id', ...adminOnly, UserController.getUserByIdController);
 // একজন ইউজার আপডেট (Admin only) — PATCH /api/users/:id
 router.patch('/:id', ...adminOnly, UserController.adminUpdateUserController);
 
+// একজন ইউজার পার্মানেন্ট ডিলিট (Admin only) — DELETE /api/users/:id
+router.delete('/:id', ...adminOnly, UserController.adminDeleteUserController);
+
 export const UserRoutes = router;

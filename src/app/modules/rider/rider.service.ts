@@ -232,14 +232,16 @@ const updateRiderProfileService = async (id: string, payload: any) => {
   return toRiderShape(rider);
 };
 
-// 🎯 Delete / Deactivate Rider
+// 🎯 Hard Delete Rider permanently from MongoDB
 const deleteRiderService = async (id: string) => {
   if (!isValidObjectId(id)) return null;
-  const rider = await User.findOneAndUpdate(
-    { _id: id, role: 'rider' },
-    { $set: { isDeleted: true, riderStatus: 'Busy' } },
-    { new: true }
-  );
+  const rider = await User.findOneAndDelete({ _id: id });
+  if (rider) {
+    const validObjId = isValidObjectId(id) ? new Types.ObjectId(id) : null;
+    await RiderApplication.deleteMany({
+      $or: [{ userId: id }, { userId: validObjId }, { _id: id }],
+    });
+  }
   return rider ? toRiderShape(rider) : null;
 };
 

@@ -149,6 +149,19 @@ const deleteStaffUserController = async (req: Request, res: Response) => {
   }
 };
 
+const adminDeleteUserController = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const actor = (req as any).user;
+    const user = await UserService.adminDeleteUserService(id, actor);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    res.status(200).json({ success: true, message: 'User deleted permanently from database' });
+  } catch (error: any) {
+    const status = error.status || 500;
+    res.status(status).json({ success: false, message: error.message });
+  }
+};
+
 const cleanupNonAdminUsersController = async (req: Request, res: Response) => {
   try {
     const actor = (req as any).user;
@@ -174,6 +187,7 @@ export const UserController = {
   getPublicMembershipController,
   updateMeController,
   adminUpdateUserController,
+  adminDeleteUserController,
   getStaffUsersController,
   createStaffUserController,
   updateStaffUserController,

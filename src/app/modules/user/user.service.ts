@@ -395,15 +395,38 @@ const deleteStaffUserService = async (id: string, actorId: string) => {
     throw err;
   }
 
-  staff.isDeleted = true;
-  await staff.save();
+  // 🎯 HARD DELETE permanently from MongoDB
+  await User.findByIdAndDelete(id);
   return staff;
+};
+
+// 🎯 Hard delete customer / general user permanently from MongoDB
+const adminDeleteUserService = async (id: string, actor: any) => {
+  if (!isValidObjectId(id)) return null;
+  const user = await User.findById(id);
+  if (!user) return null;
+
+  if (['super_admin', 'superadmin'].includes(user.role)) {
+    const err: any = new Error('Super Admin accounts cannot be deleted.');
+    err.status = 403;
+    throw err;
+  }
+
+  if (user.role === 'admin' && !['super_admin', 'superadmin'].includes(actor?.role)) {
+    const err: any = new Error('Only Super Admin can delete a Sub-Admin account.');
+    err.status = 403;
+    throw err;
+  }
+
+  // 🎯 HARD DELETE permanently from MongoDB
+  await User.findByIdAndDelete(id);
+  return user;
 };
 
 // 🧹 Super Admin: Purge all non-admin users (customers, riders, managers) keeping only super_admin and admin
 const cleanupNonAdminUsersService = async () => {
   const preservedRoles = ['super_admin', 'superadmin', 'admin'];
-  const preservedUsers = await User.find({ role: { $in: preservedRoles }, isDeleted: false }).lean();
+  const preservedUsers = await User.find({ role: { $in: preservedRoles } }).lean();
 
   if (preservedUsers.length === 0) {
     const err: any = new Error('No Super Admin or Admin accounts found. Action aborted for safety.');
@@ -434,6 +457,7 @@ export const UserService = {
   getPublicMembershipService,
   updateMeService,
   adminUpdateUserService,
+  adminDeleteUserService,
   getStaffUsersService,
   createStaffUserService,
   updateStaffUserService,
