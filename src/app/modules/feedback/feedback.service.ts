@@ -182,11 +182,19 @@ const getMyFeedbacksService = async (userId: string, phone?: string) => {
 const getAllFeedbacksService = async (filters: any = {}) => {
   const query: any = {};
   if (filters.branchId) query.branchId = filters.branchId;
+  if (filters.riderId) query.riderId = filters.riderId;
+  if (filters.type === 'rider' || filters.hasRiderRating === 'true') {
+    query.riderRating = { $exists: true, $gte: 1 };
+  } else if (filters.type === 'branch') {
+    query.branchId = { $nin: ['home_delivery', 'general'] };
+  }
   if (filters.visitAgain) query.visitAgain = filters.visitAgain;
   if (filters.search) {
     query.$or = [
       { userName: { $regex: filters.search, $options: 'i' } },
       { phone: { $regex: filters.search, $options: 'i' } },
+      { riderName: { $regex: filters.search, $options: 'i' } },
+      { riderFeedback: { $regex: filters.search, $options: 'i' } },
       { likedMost: { $regex: filters.search, $options: 'i' } },
       { improvements: { $regex: filters.search, $options: 'i' } },
       { comments: { $regex: filters.search, $options: 'i' } },
@@ -195,6 +203,30 @@ const getAllFeedbacksService = async (filters: any = {}) => {
 
   const feedbacks = await Feedback.find(query).sort({ createdAt: -1 });
   return feedbacks;
+};
+
+const getRiderFeedbacksService = async (riderId: string) => {
+  if (!riderId) return { riderId: '', avgRating: 5.0, totalReviews: 0, feedbacks: [] };
+
+  const query: any = {
+    riderId: String(riderId),
+    riderRating: { $exists: true, $gte: 1 },
+  };
+
+  const feedbacks = await Feedback.find(query).sort({ createdAt: -1 }).lean();
+  const totalReviews = feedbacks.length;
+  let totalRating = 0;
+  feedbacks.forEach((f) => {
+    totalRating += f.riderRating || 5;
+  });
+  const avgRating = totalReviews > 0 ? Math.round((totalRating / totalReviews) * 10) / 10 : 5.0;
+
+  return {
+    riderId,
+    avgRating,
+    totalReviews,
+    feedbacks,
+  };
 };
 
 const deleteFeedbackService = async (id: string) => {
@@ -209,5 +241,6 @@ export const FeedbackService = {
   submitFeedbackService,
   getMyFeedbacksService,
   getAllFeedbacksService,
+  getRiderFeedbacksService,
   deleteFeedbackService,
 };

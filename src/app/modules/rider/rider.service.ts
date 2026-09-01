@@ -5,9 +5,10 @@ import config from '../../config';
 import { User } from '../user/user.model';
 import { Order } from '../order/order.model';
 import { RiderApplication } from '../riderApplication/riderApplication.model';
+import { Feedback } from '../feedback/feedback.model';
 
 // rider = User(role:'rider') — unified identity (N7)। fleet shape: {id,name,phone,vehicle,status}
-const toRiderShape = (u: any, activeOrders = 0) => ({
+const toRiderShape = (u: any, activeOrders = 0, ratingInfo = { avgRating: 5.0, reviewCount: 0 }) => ({
   id: String(u._id),
   name: u.name,
   email: u.email || '',
@@ -22,6 +23,8 @@ const toRiderShape = (u: any, activeOrders = 0) => ({
   address: u.address || '',
   role: u.role,
   activeOrders, // in-flight deliveries assigned to this rider (0 = free to take one)
+  rating: ratingInfo.avgRating,
+  reviewCount: ratingInfo.reviewCount,
 });
 
 // ⚡ Active fleet — excludes pending/rejected rider signups with optimized DB Query
@@ -35,13 +38,39 @@ const getAllRidersService = async () => {
     .sort({ createdAt: -1 })
     .lean();
 
-  const counts = await Order.aggregate([
-    { $match: { riderId: { $ne: null }, status: { $nin: ['Delivered', 'Rejected'] } } },
-    { $group: { _id: '$riderId', n: { $sum: 1 } } },
+  const [counts, ratingStats] = await Promise.all([
+    Order.aggregate([
+      { $match: { riderId: { $ne: null }, status: { $nin: ['Delivered', 'Rejected'] } } },
+      { $group: { _id: '$riderId', n: { $sum: 1 } } },
+    ]),
+    Feedback.aggregate([
+      { $match: { riderRating: { $exists: true, $gte: 1 } } },
+      {
+        $group: {
+          _id: '$riderId',
+          avgRating: { $avg: '$riderRating' },
+          reviewCount: { $sum: 1 },
+        },
+      },
+    ]),
   ]);
-  const activeByRider = new Map<string, number>(counts.map((c: any) => [String(c._id), c.n]));
 
-  return riders.map((r: any) => toRiderShape(r, activeByRider.get(String(r._id)) || 0));
+  const activeByRider = new Map<string, number>(counts.map((c: any) => [String(c._id), c.n]));
+  const ratingsByRider = new Map<string, { avgRating: number; reviewCount: number }>(
+    ratingStats.map((r: any) => [
+      String(r._id),
+      {
+        avgRating: Math.round(r.avgRating * 10) / 10,
+        reviewCount: r.reviewCount,
+      },
+    ])
+  );
+
+  return riders.map((r: any) => {
+    const riderIdStr = String(r._id);
+    const ratingInfo = ratingsByRider.get(riderIdStr) || { avgRating: 5.0, reviewCount: 0 };
+    return toRiderShape(r, activeByRider.get(riderIdStr) || 0, ratingInfo);
+  });
 };
 
 const normalizeBdPhone = (raw?: string): string => {

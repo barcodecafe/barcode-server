@@ -17,6 +17,13 @@ router.post(
 // Customer gets their own past feedbacks
 router.get('/my', authMiddleware, FeedbackController.getMyFeedbacksController);
 
+// Get rider feedbacks and ratings
+router.get(
+  '/rider/:riderId',
+  authMiddleware,
+  FeedbackController.getRiderFeedbacksController
+);
+
 // Admin gets all feedbacks
 router.get(
   '/',

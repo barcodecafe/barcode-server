@@ -17,6 +17,9 @@ const submitFeedbackController = async (req: Request, res: Response) => {
     if (io) {
       io.emit('feedback_updated', { type: 'create', feedback: result });
       io.emit('branches_updated', { type: 'rating_change', branchId: feedbackData.branchId });
+      if (feedbackData.riderId || feedbackData.riderRating) {
+        io.emit('rider_updated', { type: 'rating_change', riderId: feedbackData.riderId });
+      }
     }
 
     res.status(201).json({
@@ -43,6 +46,16 @@ const getMyFeedbacksController = async (req: Request, res: Response) => {
   }
 };
 
+const getRiderFeedbacksController = async (req: Request, res: Response) => {
+  try {
+    const { riderId } = req.params;
+    const result = await FeedbackService.getRiderFeedbacksService(riderId);
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 const getAllFeedbacksController = async (req: Request, res: Response) => {
   try {
     const feedbacks = await FeedbackService.getAllFeedbacksService(req.query);
@@ -64,6 +77,9 @@ const deleteFeedbackController = async (req: Request, res: Response) => {
     if (io) {
       io.emit('feedback_updated', { type: 'delete', id: req.params.id });
       io.emit('branches_updated', { type: 'rating_change' });
+      if (deleted.riderId) {
+        io.emit('rider_updated', { type: 'rating_change', riderId: deleted.riderId });
+      }
     }
 
     res.status(200).json({ success: true, message: 'Feedback deleted successfully' });
@@ -75,6 +91,7 @@ const deleteFeedbackController = async (req: Request, res: Response) => {
 export const FeedbackController = {
   submitFeedbackController,
   getMyFeedbacksController,
+  getRiderFeedbacksController,
   getAllFeedbacksController,
   deleteFeedbackController,
 };
