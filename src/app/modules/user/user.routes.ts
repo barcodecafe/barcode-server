@@ -28,6 +28,9 @@ router.post('/staff', ...adminOnly, UserController.createStaffUserController);
 router.patch('/staff/:id', ...adminOnly, UserController.updateStaffUserController);
 router.delete('/staff/:id', ...adminOnly, UserController.deleteStaffUserController);
 
+// 🧹 Super Admin: Purge all non-admin users (Customers, Riders, Managers) — DELETE /api/users/cleanup-non-admin
+router.delete('/cleanup-non-admin', authMiddleware, authorize('super_admin', 'superadmin'), UserController.cleanupNonAdminUsersController);
+
 // সব ইউজার (Admin only) — GET /api/users
 router.get('/', ...adminOnly, UserController.getAllUsersController);
 

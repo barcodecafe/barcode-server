@@ -400,6 +400,33 @@ const deleteStaffUserService = async (id: string, actorId: string) => {
   return staff;
 };
 
+// 🧹 Super Admin: Purge all non-admin users (customers, riders, managers) keeping only super_admin and admin
+const cleanupNonAdminUsersService = async () => {
+  const preservedRoles = ['super_admin', 'superadmin', 'admin'];
+  const preservedUsers = await User.find({ role: { $in: preservedRoles }, isDeleted: false }).lean();
+
+  if (preservedUsers.length === 0) {
+    const err: any = new Error('No Super Admin or Admin accounts found. Action aborted for safety.');
+    err.status = 400;
+    throw err;
+  }
+
+  // Permanently delete all users whose role is not super_admin, superadmin, or admin
+  const result = await User.deleteMany({ role: { $nin: preservedRoles } });
+
+  return {
+    deletedCount: result.deletedCount,
+    preservedCount: preservedUsers.length,
+    preservedUsers: preservedUsers.map((u) => ({
+      id: u._id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      role: u.role,
+    })),
+  };
+};
+
 export const UserService = {
   getAllUsersService,
   getUserByIdService,
@@ -411,4 +438,5 @@ export const UserService = {
   createStaffUserService,
   updateStaffUserService,
   deleteStaffUserService,
+  cleanupNonAdminUsersService,
 };

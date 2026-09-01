@@ -149,6 +149,24 @@ const deleteStaffUserController = async (req: Request, res: Response) => {
   }
 };
 
+const cleanupNonAdminUsersController = async (req: Request, res: Response) => {
+  try {
+    const actor = (req as any).user;
+    if (!['super_admin', 'superadmin'].includes(actor?.role)) {
+      return res.status(403).json({ success: false, message: 'Only Super Admin can perform user cleanup.' });
+    }
+
+    const result = await UserService.cleanupNonAdminUsersService();
+    res.status(200).json({
+      success: true,
+      message: `Successfully deleted ${result.deletedCount} users. Super Admin and Sub-Admin accounts preserved.`,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
 export const UserController = {
   getAllUsersController,
   getUserByIdController,
@@ -160,4 +178,5 @@ export const UserController = {
   createStaffUserController,
   updateStaffUserController,
   deleteStaffUserController,
+  cleanupNonAdminUsersController,
 };
