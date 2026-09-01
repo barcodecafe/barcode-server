@@ -1,21 +1,63 @@
 import { Branch } from './branch.model';
+import { Region } from '../region/region.model';
 import { getNextId } from '../../utils/counter';
 
 // GET /api/branches (+ ?limit=6 → featured/preview)
 const getAllBranchesService = async (limit?: number) => {
-  // 🎯 order: 1 এবং id: 1 দিয়ে সর্ট করা হয়েছে যেন Drag & Drop সিকোয়েন্স মেইনটেইন হয়
-  const query = Branch.find({}).sort({ order: 1, id: 1 });
-  if (limit && limit > 0) {
-    return query.limit(limit);
+  const [branches, regions] = await Promise.all([
+    Branch.find({}).sort({ order: 1, id: 1 }).lean(),
+    Region.find({}).lean(),
+  ]);
+
+  const regionMap = new Map<number, any>();
+  for (const r of regions) {
+    regionMap.set(Number(r.id), r);
   }
-  return query;
+
+  const enriched = branches.map((b) => {
+    if (b.regionId != null) {
+      const reg = regionMap.get(Number(b.regionId));
+      if (reg && Array.isArray(reg.deliveryZones) && reg.deliveryZones.length > 0) {
+        return {
+          ...b,
+          deliveryZones: reg.deliveryZones,
+          defaultDeliveryCharge:
+            typeof reg.defaultDeliveryCharge === 'number'
+              ? reg.defaultDeliveryCharge
+              : b.defaultDeliveryCharge,
+        };
+      }
+    }
+    return b;
+  });
+
+  if (limit && limit > 0) {
+    return enriched.slice(0, limit);
+  }
+  return enriched;
 };
 
 // GET /api/branches/:id
 const getBranchByIdService = async (id: string | number) => {
   const n = Number(id);
   if (!Number.isFinite(n)) return null; // /branches/abc → clean 404, not a CastError 500
-  return Branch.findOne({ id: n });
+  const b = await Branch.findOne({ id: n }).lean();
+  if (!b) return null;
+
+  if (b.regionId != null) {
+    const reg = await Region.findOne({ id: Number(b.regionId) }).lean();
+    if (reg && Array.isArray(reg.deliveryZones) && reg.deliveryZones.length > 0) {
+      return {
+        ...b,
+        deliveryZones: reg.deliveryZones,
+        defaultDeliveryCharge:
+          typeof reg.defaultDeliveryCharge === 'number'
+            ? reg.defaultDeliveryCharge
+            : b.defaultDeliveryCharge,
+      };
+    }
+  }
+  return b;
 };
 
 // GET /api/branches/search?q=
@@ -29,7 +71,33 @@ const searchBranchesService = async (query: string) => {
     const rx = new RegExp(safe, 'i');
     return { $or: [{ name: rx }, { location: rx }] };
   });
-  return Branch.find({ $and: and }).sort({ order: 1, id: 1 }).lean();
+
+  const [branches, regions] = await Promise.all([
+    Branch.find({ $and: and }).sort({ order: 1, id: 1 }).lean(),
+    Region.find({}).lean(),
+  ]);
+
+  const regionMap = new Map<number, any>();
+  for (const r of regions) {
+    regionMap.set(Number(r.id), r);
+  }
+
+  return branches.map((b) => {
+    if (b.regionId != null) {
+      const reg = regionMap.get(Number(b.regionId));
+      if (reg && Array.isArray(reg.deliveryZones) && reg.deliveryZones.length > 0) {
+        return {
+          ...b,
+          deliveryZones: reg.deliveryZones,
+          defaultDeliveryCharge:
+            typeof reg.defaultDeliveryCharge === 'number'
+              ? reg.defaultDeliveryCharge
+              : b.defaultDeliveryCharge,
+        };
+      }
+    }
+    return b;
+  });
 };
 
 // ── Admin CRUD ──
