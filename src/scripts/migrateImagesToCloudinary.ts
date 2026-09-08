@@ -6,6 +6,7 @@ import { Branch } from '../app/modules/branch/branch.model';
 import { Brand } from '../app/modules/brand/brand.model';
 import { HeroSlide } from '../app/modules/hero/hero.model';
 import { About } from '../app/modules/about/about.model';
+import { Settings } from '../app/modules/settings/settings.model';
 import { clearCachePattern } from '../app/utils/redis';
 
 // Configure Cloudinary
@@ -181,6 +182,31 @@ const migrateImages = async () => {
       }
       if (updated) {
         await about.save();
+      }
+    }
+
+    // 6. Migrate Settings Images
+    console.log('⚙️ Checking Settings images...');
+    const settingsDoc = await Settings.findOne({});
+    if (settingsDoc) {
+      let settingsUpdated = false;
+      if (isDataUrl(settingsDoc.paymentBanner)) {
+        settingsDoc.paymentBanner = await uploadToCloudinary(settingsDoc.paymentBanner, 'barcode/settings');
+        settingsUpdated = true;
+        totalMigrated++;
+      }
+      if (isDataUrl(settingsDoc.logoLight)) {
+        settingsDoc.logoLight = await uploadToCloudinary(settingsDoc.logoLight, 'barcode/settings');
+        settingsUpdated = true;
+        totalMigrated++;
+      }
+      if (isDataUrl(settingsDoc.logoDark)) {
+        settingsDoc.logoDark = await uploadToCloudinary(settingsDoc.logoDark, 'barcode/settings');
+        settingsUpdated = true;
+        totalMigrated++;
+      }
+      if (settingsUpdated) {
+        await settingsDoc.save();
       }
     }
 
