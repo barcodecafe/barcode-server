@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { OrderService } from './order.service';
 import { User } from '../user/user.model';
 import { isAdminRole } from '../../middlewares/auth';
+import { NotificationService } from '../notification/notification.service';
 
 // 🔒 Strictly enforce ownership: User must be logged in & own the order (or be admin/assigned rider)
 const canAccess = (order: any, actor: any): boolean => {
@@ -69,6 +70,11 @@ const createOrderController = async (req: Request, res: Response) => {
         io.to(`user:${order.user.id}`).emit('order_created', order);
       }
     }
+
+    // 📲 Native VAPID Web Push (Triggers sound & vibration on locked phone / closed browser)
+    NotificationService.sendNewOrderPush(order).catch((err) => {
+      console.warn('Web push dispatch error:', err);
+    });
 
     res.status(201).json({ success: true, message: 'Order placed', data: order });
   } catch (error: any) {

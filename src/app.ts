@@ -30,6 +30,7 @@ import { ReviewRoutes } from './app/modules/review/review.routes';
 import { FeedbackRoutes } from './app/modules/feedback/feedback.routes';
 import { AddonRoutes } from './app/modules/addon/addon.routes';
 import { CategoryRoutes } from './app/modules/category/category.routes';
+import { NotificationRoutes } from './app/modules/notification/notification.routes';
 import { SwaggerRoutes } from './app/docs/swagger.routes';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
 
@@ -271,6 +272,7 @@ app.use('/api/reviews', ReviewRoutes);
 app.use('/api/feedbacks', FeedbackRoutes);
 app.use('/api/addons', AddonRoutes);
 app.use('/api/categories', CategoryRoutes);
+app.use('/api/notifications', NotificationRoutes);
 
 // 📚 Interactive Swagger / OpenAPI Documentation
 app.use('/api-docs', SwaggerRoutes);

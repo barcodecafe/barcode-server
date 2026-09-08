@@ -95,4 +95,14 @@ export default {
   // Empty unless SERVER_URL was actually configured — lets callers tell a real
   // setting apart from the fallback above.
   server_url_explicit: (process.env.SERVER_URL || '').replace(/\/+$/, ''),
+
+  // VAPID Web Push
+  vapid: {
+    public_key:
+      process.env.VAPID_PUBLIC_KEY ||
+      'BB11w-AgVYcvEyN-ZE8G_GdNncrZZ4g5zWbErqhBm2h_BOUAgFj4sjiHfgco3QoLkK5ZO7RR2aWduWT96dJP468',
+    private_key:
+      process.env.VAPID_PRIVATE_KEY || '_Fldrvo_OnijFNQiOKqWR2zl2M2ZEbUSL5UDYFBNyJc',
+    mailto: process.env.VAPID_MAILTO || 'mailto:admin@barcodecafe.com',
+  },
 };
