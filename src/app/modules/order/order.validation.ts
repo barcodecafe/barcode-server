@@ -57,6 +57,10 @@ export const createOrderValidationSchema = z.object({
       .optional(),
 
     paymentMethod: PaymentMethodEnum.optional(),
+    orderType: z.enum(['delivery', 'pickup']).optional(),
+    expectedPickupTime: z.string().optional(),
+    pickupBranchId: z.union([z.number(), z.string()]).nullable().optional(),
+    pickupBranchName: z.string().optional(),
   }),
 });
 

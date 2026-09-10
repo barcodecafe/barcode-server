@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// @ts-ignore
 import webpush from 'web-push';
 import config from '../../config';
 import { PushSubscription } from './notification.model';

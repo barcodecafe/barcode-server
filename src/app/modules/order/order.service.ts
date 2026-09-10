@@ -517,9 +517,9 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
   const profileFill: Record<string, string> = {};
   if (!String(user.phone || "").trim() && deliveryPhone)
     profileFill.phone = deliveryPhone;
-  if (!String(user.pickArea || "").trim() && deliveryArea)
+  if (!isPickup && !String(user.pickArea || "").trim() && deliveryArea && !deliveryArea.toLowerCase().includes("self pickup"))
     profileFill.pickArea = deliveryArea;
-  if (!String(user.address || "").trim() && deliveryAddress)
+  if (!isPickup && !String(user.address || "").trim() && deliveryAddress && !deliveryAddress.toLowerCase().includes("self pickup"))
     profileFill.address = deliveryAddress;
   if (Object.keys(profileFill).length > 0) {
     await User.updateOne({ _id: user._id }, { $set: profileFill });
@@ -697,7 +697,9 @@ const updateOrderStatusService = async (
     throw err;
   }
 
-  const isPickupOrderInUpdate = order.orderType === "pickup" || order.deliveryArea === "Self Pickup" || String(order.user?.address || "").toLowerCase().includes("self pickup");
+  const isPickupOrderInUpdate = order.orderType
+    ? order.orderType === "pickup"
+    : Boolean(order.pickupBranchId || order.pickupBranchName || order.deliveryArea === "Self Pickup");
 
   if (!isPickupOrderInUpdate && (newStatus === "Out for Delivery" || newStatus === "Delivered")) {
     if (!order.riderId || (order.riderAcceptStatus || "").toLowerCase() !== "accepted") {
