@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // @ts-ignore
 import webpush from 'web-push';
+import mongoose from 'mongoose';
 import config from '../../config';
 import { PushSubscription } from './notification.model';
 import { IPushSubscriptionData } from './notification.interface';
@@ -22,6 +23,15 @@ const getVapidPublicKey = () => {
   return config.vapid.public_key;
 };
 
+const HIGH_PRIORITY_PUSH_OPTIONS = {
+  TTL: 60 * 60 * 24, // 24 hours
+  urgency: 'high' as const,
+  headers: {
+    Urgency: 'high',
+    Topic: 'order-alert',
+  },
+};
+
 const subscribeUser = async (
   subscription: IPushSubscriptionData,
   role: string = 'admin',
@@ -31,12 +41,18 @@ const subscribeUser = async (
     throw new Error('Invalid push subscription payload');
   }
 
+  const normalizedRole = String(role || 'admin').toLowerCase().trim();
+  let safeUserId: mongoose.Types.ObjectId | null = null;
+  if (userId && mongoose.Types.ObjectId.isValid(String(userId))) {
+    safeUserId = new mongoose.Types.ObjectId(String(userId));
+  }
+
   const result = await PushSubscription.findOneAndUpdate(
     { 'subscription.endpoint': subscription.endpoint },
     {
       subscription,
-      role: role || 'admin',
-      userId: userId ? userId : null,
+      role: normalizedRole,
+      userId: safeUserId,
     },
     { upsert: true, new: true },
   );
@@ -56,10 +72,24 @@ const sendNewOrderPush = async (order: any) => {
 
   try {
     const adminSubscriptions = await PushSubscription.find({
-      role: { $in: ['admin', 'super_admin', 'superadmin', 'manager', 'restaurant_manager'] },
+      role: {
+        $in: [
+          'admin',
+          'super_admin',
+          'superadmin',
+          'manager',
+          'restaurant_manager',
+          'Admin',
+          'Super_Admin',
+          'SuperAdmin',
+        ],
+      },
     }).lean();
 
-    if (!adminSubscriptions || adminSubscriptions.length === 0) return;
+    if (!adminSubscriptions || adminSubscriptions.length === 0) {
+      console.log('No active admin push subscriptions registered.');
+      return;
+    }
 
     const shortId = String(order.displayId || order.id || order._id || 'New').slice(-6).toUpperCase();
     const customerName = order.customerName || order.customer?.name || order.user?.name || 'Customer';
@@ -72,11 +102,16 @@ const sendNewOrderPush = async (order: any) => {
       url: '/admin/orders',
       orderId: String(order._id || order.id || ''),
       tag: `order-${shortId}`,
+      vibrate: [600, 250, 600, 250, 800],
     });
 
     const sendPromises = adminSubscriptions.map(async (subDoc) => {
       try {
-        await webpush.sendNotification(subDoc.subscription as any, payload);
+        await webpush.sendNotification(
+          subDoc.subscription as any,
+          payload,
+          HIGH_PRIORITY_PUSH_OPTIONS,
+        );
       } catch (err: any) {
         // If subscription is expired or invalid (410 Gone / 404 Not Found), delete it
         if (err.statusCode === 410 || err.statusCode === 404) {
@@ -97,14 +132,29 @@ const sendRiderOrderPush = async (order: any, riderId: string) => {
   }
 
   try {
-    const riderSubscriptions = await PushSubscription.find({
+    const rawRiderId = String(riderId).trim();
+    const objectId = mongoose.Types.ObjectId.isValid(rawRiderId)
+      ? new mongoose.Types.ObjectId(rawRiderId)
+      : null;
+
+    let riderSubscriptions = await PushSubscription.find({
       $or: [
-        { userId: String(riderId) },
-        { userId: riderId },
+        ...(objectId ? [{ userId: objectId }] : []),
+        { userId: rawRiderId as any },
       ],
     }).lean();
 
-    if (!riderSubscriptions || riderSubscriptions.length === 0) return;
+    // Fallback: If no direct subscription mapped by userId, notify all active rider subscriptions
+    if (!riderSubscriptions || riderSubscriptions.length === 0) {
+      riderSubscriptions = await PushSubscription.find({
+        role: { $in: ['rider', 'Rider'] },
+      }).lean();
+    }
+
+    if (!riderSubscriptions || riderSubscriptions.length === 0) {
+      console.log('No active rider push subscriptions registered for rider:', riderId);
+      return;
+    }
 
     const shortId = String(order.displayId || order.id || order._id || 'New').slice(-6).toUpperCase();
     const customerName = order.customerName || order.customer?.name || order.user?.name || 'Customer';
@@ -121,7 +171,11 @@ const sendRiderOrderPush = async (order: any, riderId: string) => {
 
     const sendPromises = riderSubscriptions.map(async (subDoc) => {
       try {
-        await webpush.sendNotification(subDoc.subscription as any, payload);
+        await webpush.sendNotification(
+          subDoc.subscription as any,
+          payload,
+          HIGH_PRIORITY_PUSH_OPTIONS,
+        );
       } catch (err: any) {
         if (err.statusCode === 410 || err.statusCode === 404) {
           await PushSubscription.deleteOne({ _id: subDoc._id });
@@ -135,10 +189,70 @@ const sendRiderOrderPush = async (order: any, riderId: string) => {
   }
 };
 
+const sendTestPush = async (role: string = 'admin', userId?: string | null) => {
+  if (!config.vapid.public_key || !config.vapid.private_key) {
+    throw new Error('VAPID keys not configured on server');
+  }
+
+  const rawUserId = userId ? String(userId).trim() : null;
+  const objectId = rawUserId && mongoose.Types.ObjectId.isValid(rawUserId)
+    ? new mongoose.Types.ObjectId(rawUserId)
+    : null;
+
+  const normalizedRole = String(role || 'admin').toLowerCase().trim();
+
+  let subscriptions = await PushSubscription.find({
+    $or: [
+      ...(objectId ? [{ userId: objectId }] : []),
+      ...(rawUserId ? [{ userId: rawUserId as any }] : []),
+      { role: normalizedRole },
+    ],
+  }).lean();
+
+  if (!subscriptions || subscriptions.length === 0) {
+    // If none found for specific query, return any active subscription
+    subscriptions = await PushSubscription.find().sort({ updatedAt: -1 }).limit(10).lean();
+  }
+
+  if (!subscriptions || subscriptions.length === 0) {
+    throw new Error('No push subscriptions found. Please enable notifications on this device first.');
+  }
+
+  const isRider = normalizedRole === 'rider';
+  const payload = JSON.stringify({
+    title: isRider ? '🚴 Rider Mobile Alert Connected!' : '🔔 Admin Mobile Alert Connected!',
+    body: 'Your phone is connected! Notifications and vibration will work when screen is locked or in other apps.',
+    url: isRider ? '/rider/orders' : '/admin/orders',
+    tag: `test-${Date.now()}`,
+    vibrate: [600, 250, 600, 250, 800],
+  });
+
+  const results = await Promise.allSettled(
+    subscriptions.map(async (subDoc) => {
+      try {
+        await webpush.sendNotification(
+          subDoc.subscription as any,
+          payload,
+          HIGH_PRIORITY_PUSH_OPTIONS,
+        );
+      } catch (err: any) {
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          await PushSubscription.deleteOne({ _id: subDoc._id });
+        }
+        throw err;
+      }
+    }),
+  );
+
+  const sentCount = results.filter((r) => r.status === 'fulfilled').length;
+  return { success: sentCount > 0, sentCount, total: subscriptions.length };
+};
+
 export const NotificationService = {
   getVapidPublicKey,
   subscribeUser,
   unsubscribeUser,
   sendNewOrderPush,
   sendRiderOrderPush,
+  sendTestPush,
 };
