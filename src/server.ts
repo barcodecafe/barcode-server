@@ -11,6 +11,7 @@ import { OrderService } from './app/modules/order/order.service';
 import { Branch } from './app/modules/branch/branch.model';
 import { Feedback } from './app/modules/feedback/feedback.model';
 import { startPaymentReconciliationCron } from './app/modules/payment/paymentReconciliation.worker';
+import { startOrderAlertWorker } from './app/modules/order/orderAlert.worker';
 import { isAdminRole } from './app/middlewares/auth';
 
 // ─── Vercel Serverless: Cache connection ───
@@ -346,6 +347,8 @@ async function startServer() {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
       // 🔄 Start background payment reconciliation worker (every 10 min)
       startPaymentReconciliationCron(10);
+      // 🚨 Start repeating unaccepted order alert worker (every 20s high-urgency push + socket)
+      startOrderAlertWorker(io, 20);
     });
   } catch (error) {
     // eslint-disable-next-line no-console
