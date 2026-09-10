@@ -73,9 +73,9 @@ export const runOrderAlertCycle = async () => {
 
 /**
  * Starts the continuous order alert background worker.
- * Repeats every 20 seconds until orders are accepted or rejected.
+ * Repeats every 5 seconds until orders are accepted or rejected.
  */
-export const startOrderAlertWorker = (io?: SocketIOServer, intervalSeconds = 20) => {
+export const startOrderAlertWorker = (io?: SocketIOServer, intervalSeconds = 5) => {
   if (alertIntervalTimer) {
     clearInterval(alertIntervalTimer);
   }
@@ -86,10 +86,10 @@ export const startOrderAlertWorker = (io?: SocketIOServer, intervalSeconds = 20)
 
   const intervalMs = intervalSeconds * 1000;
 
-  // Run initial cycle after 10s
+  // Run initial cycle after 2s
   setTimeout(() => {
     runOrderAlertCycle().catch(() => {});
-  }, 10000);
+  }, 2000);
 
   // Set repeating interval
   alertIntervalTimer = setInterval(() => {
