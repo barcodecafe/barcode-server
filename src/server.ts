@@ -347,8 +347,8 @@ async function startServer() {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
       // 🔄 Start background payment reconciliation worker (every 10 min)
       startPaymentReconciliationCron(10);
-      // 🚨 Start repeating unaccepted order alert worker (every 5s high-urgency push + socket)
-      startOrderAlertWorker(io, 5);
+      // 🚨 Start repeating unaccepted order alert worker (every 3s high-urgency push + socket)
+      startOrderAlertWorker(io, 3);
     });
   } catch (error) {
     // eslint-disable-next-line no-console
