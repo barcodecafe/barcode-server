@@ -91,9 +91,54 @@ const sendNewOrderPush = async (order: any) => {
   }
 };
 
+const sendRiderOrderPush = async (order: any, riderId: string) => {
+  if (!config.vapid.public_key || !config.vapid.private_key || !riderId) {
+    return;
+  }
+
+  try {
+    const riderSubscriptions = await PushSubscription.find({
+      $or: [
+        { userId: String(riderId) },
+        { userId: riderId },
+      ],
+    }).lean();
+
+    if (!riderSubscriptions || riderSubscriptions.length === 0) return;
+
+    const shortId = String(order.displayId || order.id || order._id || 'New').slice(-6).toUpperCase();
+    const customerName = order.customerName || order.customer?.name || order.user?.name || 'Customer';
+    const totalAmount = Number(order.totalAmount || order.total || order.grandTotal || 0).toFixed(0);
+
+    const payload = JSON.stringify({
+      title: `🚴 New Delivery Assigned #${shortId}!`,
+      body: `৳${totalAmount} • ${customerName}\nClick to view and accept delivery.`,
+      url: '/rider/orders',
+      orderId: String(order._id || order.id || ''),
+      tag: `rider-order-${shortId}`,
+      vibrate: [600, 250, 600, 250, 800],
+    });
+
+    const sendPromises = riderSubscriptions.map(async (subDoc) => {
+      try {
+        await webpush.sendNotification(subDoc.subscription as any, payload);
+      } catch (err: any) {
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          await PushSubscription.deleteOne({ _id: subDoc._id });
+        }
+      }
+    });
+
+    await Promise.allSettled(sendPromises);
+  } catch (error) {
+    console.warn('Failed to dispatch Rider Web Push Notification:', error);
+  }
+};
+
 export const NotificationService = {
   getVapidPublicKey,
   subscribeUser,
   unsubscribeUser,
   sendNewOrderPush,
+  sendRiderOrderPush,
 };

@@ -65,6 +65,9 @@ const createOrderController = async (req: Request, res: Response) => {
       io.to('admins').emit('admin_new_order', order);
       if (order.riderId) {
         io.to(`rider:${order.riderId}`).emit('rider_new_delivery', order);
+        NotificationService.sendRiderOrderPush(order, order.riderId).catch((err) => {
+          console.warn('Rider web push dispatch error:', err);
+        });
       }
       if (order.user?.id) {
         io.to(`user:${order.user.id}`).emit('order_created', order);
@@ -355,6 +358,9 @@ const assignRiderController = async (req: Request, res: Response) => {
         io.to(`rider:${req.body.riderId}`).emit('rider_order_assigned', payload);
         io.to(`rider:${req.body.riderId}`).emit('order_assigned', payload);
         io.to(`rider:${req.body.riderId}`).emit('rider_new_delivery', order);
+        NotificationService.sendRiderOrderPush(order, req.body.riderId).catch((err) => {
+          console.warn('Rider web push dispatch error:', err);
+        });
       }
       io.to(`order:${req.params.id}`).emit('order_updated', order);
     }
@@ -409,7 +415,20 @@ const rejectRiderController = async (req: Request, res: Response) => {
       io.to(`order:${req.params.id}`).emit('order_status_updated', payload);
       io.to(`order:${req.params.id}`).emit('order_updated', order);
       if (order?.riderId) {
+        const payloadForNewRider = {
+          id: order._id,
+          orderId: order._id,
+          riderId: order.riderId,
+          riderName: order.riderName,
+          order,
+        };
+        io.to(`rider:${order.riderId}`).emit('rider_order_assigned', payloadForNewRider);
+        io.to(`rider:${order.riderId}`).emit('order_assigned', payloadForNewRider);
+        io.to(`rider:${order.riderId}`).emit('rider_new_delivery', order);
         io.to(`rider:${order.riderId}`).emit('rider_order_updated', order);
+        NotificationService.sendRiderOrderPush(order, order.riderId).catch((err) => {
+          console.warn('Rider web push dispatch error:', err);
+        });
       }
     }
 
