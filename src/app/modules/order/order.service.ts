@@ -154,12 +154,17 @@ const buildManagerBranchFilter = async (assignedBranches?: number[]) => {
   return { $or: orConditions };
 };
 
-// 🎯 পেন্ডিং কাউন্ট সার্ভিস
+// 🎯 পেন্ডিং কাউন্ট সার্ভিস (অনলাইন আনপেইড অর্ডার এখানে কাউন্ট হবে না)
 const getPendingCountService = async (assignedBranches?: number[], isManager?: boolean) => {
   const filter: any = {
     status: {
-      $in: ["Placed", "Pending", "PLACED", "PENDING", "Awaiting Payment", "AWAITING PAYMENT", "AWAITING_PAYMENT"],
+      $in: ["Placed", "Pending", "PLACED", "PENDING"],
     },
+    $or: [
+      { paymentMethod: "cod" },
+      { paymentStatus: "Paid" },
+      { paymentMethod: { $exists: false } },
+    ],
   };
 
   if (isManager) {

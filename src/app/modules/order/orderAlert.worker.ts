@@ -16,9 +16,14 @@ export const runOrderAlertCycle = async () => {
     // Only alert for active orders created in the last 2 hours (avoids alerting on ancient stale data)
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
 
-    // 1. 🚨 ADMIN: Unaccepted pending orders ('Placed', 'Awaiting Payment', etc.)
+    // 1. 🚨 ADMIN: Unaccepted pending orders (Only Placed / COD / Paid orders)
     const unacceptedAdminOrders = await Order.find({
-      status: { $in: ['Placed', 'Awaiting Payment', 'PLACED'] },
+      status: { $in: ['Placed', 'PLACED', 'Pending', 'PENDING'] },
+      $or: [
+        { paymentMethod: 'cod' },
+        { paymentStatus: 'Paid' },
+        { paymentMethod: { $exists: false } },
+      ],
       createdAt: { $gte: twoHoursAgo },
     })
       .sort({ createdAt: -1 })

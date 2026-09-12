@@ -58,26 +58,34 @@ const createOrderController = async (req: Request, res: Response) => {
 
     const order = await OrderService.createOrderService(userId, req.body);
 
-    // ⚡ Socket Notification (Scoped to Admins, Rider and User Rooms)
+    // ⚡ Socket Notification & Push (Scoped to Admins, Rider and User Rooms)
+    const isOnlineUnpaid = (order.paymentMethod || 'cod') !== 'cod' && order.paymentStatus !== 'Paid';
+    const isAwaiting = order.status === 'Awaiting Payment';
+
     const io = req.app.get('io');
     if (io) {
-      io.to('admins').emit('order_created', order);
-      io.to('admins').emit('admin_new_order', order);
-      if (order.riderId) {
-        io.to(`rider:${order.riderId}`).emit('rider_new_delivery', order);
-        NotificationService.sendRiderOrderPush(order, order.riderId).catch((err) => {
-          console.warn('Rider web push dispatch error:', err);
-        });
+      // 🔒 অনলাইন অর্ডারে পেমেন্ট সফল হওয়ার আগ পর্যন্ত অ্যাডমিন ও রাইডারের কাছে নোটিফিকেশন যাবে না
+      if (!isOnlineUnpaid && !isAwaiting) {
+        io.to('admins').emit('order_created', order);
+        io.to('admins').emit('admin_new_order', order);
+        if (order.riderId) {
+          io.to(`rider:${order.riderId}`).emit('rider_new_delivery', order);
+          NotificationService.sendRiderOrderPush(order, order.riderId).catch((err) => {
+            console.warn('Rider web push dispatch error:', err);
+          });
+        }
       }
       if (order.user?.id) {
         io.to(`user:${order.user.id}`).emit('order_created', order);
       }
     }
 
-    // 📲 Native VAPID Web Push (Triggers sound & vibration on locked phone / closed browser)
-    NotificationService.sendNewOrderPush(order).catch((err) => {
-      console.warn('Web push dispatch error:', err);
-    });
+    // 📲 Native VAPID Web Push (শুধুমাত্র নিশ্চিত/COD অর্ডারের জন্য অ্যাডমিনকে অ্যালার্ট পাঠাবে)
+    if (!isOnlineUnpaid && !isAwaiting) {
+      NotificationService.sendNewOrderPush(order).catch((err) => {
+        console.warn('Web push dispatch error:', err);
+      });
+    }
 
     res.status(201).json({ success: true, message: 'Order placed', data: order });
   } catch (error: any) {

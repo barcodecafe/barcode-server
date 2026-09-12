@@ -214,10 +214,15 @@ io.on('connection', (socket) => {
 
   // 🛒 1. নতুন অর্ডার প্লেস হলে (Targeted & Broadcast)
   socket.on('create_order', async (newOrder) => {
-    io.to('admins').emit('order_created', newOrder);
-    io.to('admins').emit('admin_new_order', newOrder);
-    if (newOrder?.riderId) {
-      io.to(`rider:${newOrder.riderId}`).emit('rider_new_delivery', newOrder);
+    const isOnlineUnpaid = (newOrder?.paymentMethod || 'cod') !== 'cod' && newOrder?.paymentStatus !== 'Paid';
+    const isAwaiting = newOrder?.status === 'Awaiting Payment';
+
+    if (!isOnlineUnpaid && !isAwaiting) {
+      io.to('admins').emit('order_created', newOrder);
+      io.to('admins').emit('admin_new_order', newOrder);
+      if (newOrder?.riderId) {
+        io.to(`rider:${newOrder.riderId}`).emit('rider_new_delivery', newOrder);
+      }
     }
     if (newOrder?.user?.id) {
       io.to(`user:${newOrder.user.id}`).emit('order_created', newOrder);
