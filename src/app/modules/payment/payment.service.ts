@@ -27,7 +27,7 @@ const markOrderPaid = async (order: any, tranId: string) => {
   // টাকা নিশ্চিত হলো, তাই এখনই সেটা সত্যিকারের অর্ডার হয়ে অ্যাডমিনের কিউতে ঢোকে।
   const isHeld = order.status === AWAITING_PAYMENT;
 
-  return Order.findOneAndUpdate(
+  const updated = await Order.findOneAndUpdate(
     { _id: order._id, paymentStatus: { $ne: 'Paid' } },
     {
       $set: {
@@ -55,6 +55,26 @@ const markOrderPaid = async (order: any, tranId: string) => {
     },
     { new: true, runValidators: true },
   ); // null = আরেকটা callback একই সময়ে settle করে ফেলেছে
+
+  if (updated && isHeld) {
+    try {
+      const { io } = await import('../../../server');
+      io.to('admins').emit('order_created', updated);
+      io.to('admins').emit('admin_new_order', updated);
+      const pendingCount = await Order.countDocuments({
+        status: { $in: ['Placed', 'Pending', 'PLACED', 'PENDING'] },
+      });
+      io.to('admins').emit('pending_count_updated', {
+        count: pendingCount,
+        pendingCount,
+        data: pendingCount,
+      });
+    } catch (sErr) {
+      console.error('Socket emit on paid order failed:', sErr);
+    }
+  }
+
+  return updated;
 };
 
 // gateway-এর validation payload আমাদের order-এর সাথে মেলে কিনা (tampering রোধ)।
@@ -196,14 +216,17 @@ const handleGatewayFailureService = async (body: any, outcome: 'Failed' | 'Cance
   const updated = await Order.findOneAndUpdate(
     { _id: order._id, paymentStatus: 'Pending' },
     {
-      $set: { paymentStatus: outcome },
+      $set: { 
+        paymentStatus: outcome,
+        status: 'Cancelled',
+      },
       $push: {
         chatHistory: {
           sender: 'admin', senderName: 'System',
           text:
             outcome === 'Cancelled'
-              ? 'Online payment was cancelled. Your order is saved — you can retry payment from the tracking page.'
-              : 'Online payment did not go through. Your order is saved — you can retry payment from the tracking page.',
+              ? 'Online payment was cancelled. Your order has been cancelled — you can retry payment from the tracking page.'
+              : 'Online payment failed. Your order has been cancelled — you can retry payment from the tracking page.',
           timestamp: new Date(),
         },
       },
@@ -230,6 +253,21 @@ const handleGatewayFailureService = async (body: any, outcome: 'Failed' | 'Cance
 
   // 🔄 Restock inventory on failed/cancelled online payment
   await restockOrderItems(updated.items);
+
+  try {
+    const { io } = await import('../../../server');
+    io.to('admins').emit('order_updated', updated);
+    const pendingCount = await Order.countDocuments({
+      status: { $in: ['Placed', 'Pending', 'PLACED', 'PENDING'] },
+    });
+    io.to('admins').emit('pending_count_updated', {
+      count: pendingCount,
+      pendingCount,
+      data: pendingCount,
+    });
+  } catch (sErr) {
+    console.error('Socket emit on failed order update failed:', sErr);
+  }
 
   return { updated: true, orderId: String(order._id) };
 };

@@ -487,7 +487,7 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     deliveryCharge,
     total,
     couponCode,
-    status: "Placed",
+    status: isOnlinePayment ? AWAITING_PAYMENT : "Placed",
     orderType: isPickup ? "pickup" : "delivery",
     expectedPickupTime: payload.expectedPickupTime || "",
     pickupBranchId: payload.pickupBranchId ? (Number(payload.pickupBranchId) || payload.pickupBranchId) : null,
@@ -683,6 +683,23 @@ const updateOrderStatusService = async (
   }
 
   const newStatus = matchedStatus;
+
+  // 🛡️ Online Payment Guard: Unpaid online orders cannot be accepted or dispatched
+  const isOnlineUnpaid = (order.paymentMethod || "cod") !== "cod" && order.paymentStatus !== "Paid";
+  if (
+    isOnlineUnpaid &&
+    (newStatus === "Accepted" ||
+      newStatus === "Preparing" ||
+      newStatus === "Out for Delivery" ||
+      newStatus === "Delivered" ||
+      newStatus === "Ready to Pick")
+  ) {
+    const err: any = new Error(
+      `Cannot update unpaid online order to "${newStatus}". Payment status is "${order.paymentStatus || 'Pending'}". Payment must be "Paid" first.`
+    );
+    err.status = 400;
+    throw err;
+  }
 
   // 🛡️ Terminal Status Protection: Delivered & Rejected orders are final
   if (oldStatus === "Delivered" && newStatus !== "Delivered") {
