@@ -551,7 +551,15 @@ const getAllOrdersService = async (
   assignedBranches?: number[],
   isManager?: boolean,
 ) => {
-  const filter: any = {};
+  // 🔒 অনলাইন অর্ডারে টাকা পাওয়ার আগ পর্যন্ত (বা ক্যানসেল/ফেল করলে) অ্যাডমিন কিউতে কোনোভাবেই আসবে না
+  const filter: any = {
+    status: { $ne: AWAITING_PAYMENT },
+    $or: [
+      { paymentMethod: "cod" },
+      { paymentStatus: "Paid" },
+      { paymentMethod: { $exists: false } },
+    ],
+  };
   
   if (active === true) {
     filter.status = { $nin: [...NON_LIVE_STATUSES, "Delivered", "Rejected"] };

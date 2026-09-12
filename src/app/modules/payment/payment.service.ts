@@ -256,10 +256,14 @@ const handleGatewayFailureService = async (body: any, outcome: 'Failed' | 'Cance
 
   try {
     const { io } = await import('../../../server');
-    io.to('admins').emit('order_updated', updated);
-    const pendingCount = await Order.countDocuments({
-      status: { $in: ['Placed', 'Pending', 'PLACED', 'PENDING'] },
-    });
+    if (order.status !== AWAITING_PAYMENT) {
+      io.to('admins').emit('order_updated', updated);
+    }
+    if (updated.user?.id) {
+      io.to(`user:${updated.user.id}`).emit('order_updated', updated);
+    }
+    const { OrderService } = await import('../order/order.service');
+    const pendingCount = await OrderService.getPendingCountService();
     io.to('admins').emit('pending_count_updated', {
       count: pendingCount,
       pendingCount,

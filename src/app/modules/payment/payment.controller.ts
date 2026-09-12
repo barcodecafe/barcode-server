@@ -23,6 +23,16 @@ const clientPath = (...segments: string[]) =>
     .join('/')}`;
 
 const frontendRedirect = (res: Response, page: string, orderId?: string) => {
+  // 🔒 পেমেন্ট ক্যানসেল বা ফেইল হলে কাস্টমারকে সরাসরি চেকআউট পেজে ফেরত পাঠাতে হবে
+  if (page === 'fail' || page === 'cancel') {
+    return res.redirect(
+      302,
+      `${clientPath('checkout')}?payment=${encodeURIComponent(page)}${
+        orderId && isValidObjectId(orderId) ? `&orderId=${encodeURIComponent(orderId)}` : ''
+      }`,
+    );
+  }
+
   if (orderId && isValidObjectId(orderId)) {
     return res.redirect(302, `${clientPath('order-tracking', orderId)}?payment=${encodeURIComponent(page)}`);
   }
