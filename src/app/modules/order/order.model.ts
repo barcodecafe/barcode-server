@@ -85,6 +85,11 @@ const orderSchema = new Schema<IOrder>(
     paymentMethod: { type: String, default: 'cod' },
     paymentStatus: { type: String, enum: PAYMENT_STATUSES, default: 'Pending' }, // server-controlled
     transactionId: { type: String, default: '' },
+    cardType: { type: String, default: '' },
+    cardBrand: { type: String, default: '' },
+    cardIssuer: { type: String, default: '' },
+    bankTranId: { type: String, default: '' },
+    valId: { type: String, default: '' },
     riderId: { type: String, default: null },
     riderName: { type: String, default: null },
     riderPhone: { type: String, default: null }, // snapshot for the customer's Call button

@@ -103,6 +103,11 @@ export interface IOrder {
   paymentMethod: string;
   paymentStatus: PaymentStatus; // সার্ভার নিয়ন্ত্রিত — PAYMENT_STATUSES দেখুন
   transactionId?: string;
+  cardType?: string; // e.g. 'BKASH-BKash', 'NAGAD-Nagad', 'VISA-Dutch Bangla Bank'
+  cardBrand?: string; // e.g. 'BKASH', 'NAGAD', 'VISA', 'MASTER'
+  cardIssuer?: string; // e.g. 'BKash', 'Nagad', 'BRAC Bank'
+  bankTranId?: string; // Bank Transaction ID from SSLCommerz
+  valId?: string; // SSLCommerz validation ID
   riderId?: string | null;
   riderName?: string | null;
   riderPhone?: string | null; // snapshot so the customer can call the actual rider

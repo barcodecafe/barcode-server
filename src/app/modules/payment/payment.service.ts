@@ -22,25 +22,44 @@ const findOrderByTranId = async (tranId: string) =>
 // ⚠️ atomic: IPN আর success-redirect প্রায়ই একসাথে আসে। আগে read-then-save করায়
 // দুটোই পাস করে **দুটো "Payment received" মেসেজ** বসাত, আর পুরো ডকুমেন্ট save করায়
 // এর মাঝে হওয়া rider-assign/chat লেখা মুছে যেতে পারত। এখন একটাই শর্তসাপেক্ষ আপডেট।
-const markOrderPaid = async (order: any, tranId: string) => {
+const markOrderPaid = async (
+  order: any,
+  tranId: string,
+  meta?: {
+    cardType?: string;
+    cardBrand?: string;
+    cardIssuer?: string;
+    bankTranId?: string;
+    valId?: string;
+  },
+) => {
   // অনলাইন অর্ডার এতক্ষণ 'Awaiting Payment'-এ ধরে রাখা ছিল — আসল অর্ডার নয়।
   // টাকা নিশ্চিত হলো, তাই এখনই সেটা সত্যিকারের অর্ডার হয়ে অ্যাডমিনের কিউতে ঢোকে।
   const isHeld = order.status === AWAITING_PAYMENT;
 
+  const setFields: Record<string, any> = {
+    paymentStatus: 'Paid',
+    transactionId: tranId,
+    ...(isHeld ? { status: 'Placed' } : {}),
+  };
+  if (meta?.cardType) setFields.cardType = meta.cardType;
+  if (meta?.cardBrand) setFields.cardBrand = meta.cardBrand;
+  if (meta?.cardIssuer) setFields.cardIssuer = meta.cardIssuer;
+  if (meta?.bankTranId) setFields.bankTranId = meta.bankTranId;
+  if (meta?.valId) setFields.valId = meta.valId;
+
+  const channelText = meta?.cardType ? ` via ${meta.cardType}` : '';
+
   const updated = await Order.findOneAndUpdate(
     { _id: order._id, paymentStatus: { $ne: 'Paid' } },
     {
-      $set: {
-        paymentStatus: 'Paid',
-        transactionId: tranId,
-        ...(isHeld ? { status: 'Placed' } : {}),
-      },
+      $set: setFields,
       $push: {
         chatHistory: {
           $each: [
             {
               sender: 'admin', senderName: 'System',
-              text: 'Payment received successfully. Thank you!', timestamp: new Date(),
+              text: `Payment received successfully${channelText}. Thank you!`, timestamp: new Date(),
             },
             ...(isHeld
               ? [{
@@ -55,6 +74,19 @@ const markOrderPaid = async (order: any, tranId: string) => {
     },
     { new: true, runValidators: true },
   ); // null = আরেকটা callback একই সময়ে settle করে ফেলেছে
+
+  if (!updated && meta && (meta.cardType || meta.bankTranId || meta.valId)) {
+    // If order was already marked Paid earlier by a concurrent IPN without full metadata, fill in metadata
+    await Order.findByIdAndUpdate(order._id, {
+      $set: {
+        ...(meta.cardType ? { cardType: meta.cardType } : {}),
+        ...(meta.cardBrand ? { cardBrand: meta.cardBrand } : {}),
+        ...(meta.cardIssuer ? { cardIssuer: meta.cardIssuer } : {}),
+        ...(meta.bankTranId ? { bankTranId: meta.bankTranId } : {}),
+        ...(meta.valId ? { valId: meta.valId } : {}),
+      },
+    });
+  }
 
   if (updated && isHeld) {
     try {
@@ -140,18 +172,33 @@ const handleIpnService = async (body: any) => {
 
   const order = await findOrderByTranId(tranId);
   if (!order) return { updated: false, reason: 'order not found' };
-  if (order.paymentStatus === 'Paid') return { updated: true, orderId: String(order._id), alreadyPaid: true };
 
+  let validation: any = null;
   // real mode: gateway validate + amount/currency/tran_id যাচাই (tampering রোধ — QA §2.1)
   if (!isDemoMode()) {
     if (!valId) return { updated: false, reason: 'no val_id' }; // genuine IPN-এ val_id সবসময় থাকে; tranId fallback নয়
-    const validation: any = await SslcommerzService.validateTransaction(valId);
+    validation = await SslcommerzService.validateTransaction(valId);
     if (!validationMatchesOrder(validation, order, tranId)) {
       return { updated: false, reason: 'gateway validation failed (status/amount/currency/tran_id)' };
     }
   }
 
-  await markOrderPaid(order, tranId);
+  const meta = {
+    cardType: validation?.card_type || body?.card_type || (isDemoMode() ? 'DEMO' : ''),
+    cardBrand: validation?.card_brand || body?.card_brand || (isDemoMode() ? 'DEMO' : ''),
+    cardIssuer: validation?.card_issuer || body?.card_issuer || (isDemoMode() ? 'Demo Gateway' : ''),
+    bankTranId: validation?.bank_tran_id || body?.bank_tran_id || '',
+    valId: validation?.val_id || valId || body?.val_id || '',
+  };
+
+  if (order.paymentStatus === 'Paid') {
+    if (meta.cardType && !order.cardType) {
+      await Order.findByIdAndUpdate(order._id, { $set: meta });
+    }
+    return { updated: true, orderId: String(order._id), alreadyPaid: true };
+  }
+
+  await markOrderPaid(order, tranId, meta);
   return { updated: true, orderId: String(order._id) };
 };
 
@@ -199,7 +246,14 @@ const handleGatewayFailureService = async (body: any, outcome: 'Failed' | 'Cance
     // একটা সফল পেমেন্ট fail URL-এ এসে পড়লেও সেটা সফলই — settle করে দাও।
     const settled = elements.find((el) => validationMatchesOrder(el, order, String(tranId)));
     if (settled) {
-      const paid = await markOrderPaid(order, String(tranId));
+      const meta = {
+        cardType: settled?.card_type,
+        cardBrand: settled?.card_brand,
+        cardIssuer: settled?.card_issuer,
+        bankTranId: settled?.bank_tran_id,
+        valId: settled?.val_id,
+      };
+      const paid = await markOrderPaid(order, String(tranId), meta);
       return { updated: !!paid, orderId: String(order._id), settledInstead: true };
     }
 
@@ -287,24 +341,55 @@ const recheckPaymentService = async (orderId: string) => {
   const order = await Order.findById(orderId);
   if (!order) { const e: any = new Error('Order not found'); e.status = 404; throw e; }
 
+  const tranId = order.transactionId || String(order._id);
+
   if (order.paymentStatus === 'Paid') {
-    return { changed: false, paymentStatus: 'Paid', reason: 'Order was already marked paid.' };
+    // If order is paid but missing cardType metadata, query gateway to backfill it
+    if (!order.cardType && !isDemoMode()) {
+      try {
+        const result: any = await SslcommerzService.queryByTransactionId(tranId);
+        const elements: any[] = Array.isArray(result?.element) ? result.element : [];
+        const settled = elements.find((el) => validationMatchesOrder(el, order, tranId));
+        if (settled?.card_type) {
+          await Order.findByIdAndUpdate(order._id, {
+            $set: {
+              cardType: settled.card_type,
+              cardBrand: settled.card_brand || '',
+              cardIssuer: settled.card_issuer || '',
+              bankTranId: settled.bank_tran_id || '',
+              valId: settled.val_id || '',
+            },
+          });
+          return { changed: true, paymentStatus: 'Paid', cardType: settled.card_type, reason: `Payment channel updated to ${settled.card_type}` };
+        }
+      } catch (err: any) {
+        console.warn(`[payments] Failed to backfill cardType on recheck for order ${orderId}:`, err?.message || err);
+      }
+    }
+    return { changed: false, paymentStatus: 'Paid', cardType: order.cardType, reason: 'Order was already marked paid.' };
   }
 
-  const tranId = order.transactionId || String(order._id);
   const result: any = await SslcommerzService.queryByTransactionId(tranId);
   const elements: any[] = Array.isArray(result?.element) ? result.element : [];
 
   const settled = elements.find((el) => validationMatchesOrder(el, order, tranId));
   if (settled) {
+    const meta = {
+      cardType: settled?.card_type,
+      cardBrand: settled?.card_brand,
+      cardIssuer: settled?.card_issuer,
+      bankTranId: settled?.bank_tran_id,
+      valId: settled?.val_id,
+    };
     // markOrderPaid returns null when a concurrent call settled it first — don't
     // claim we changed something we didn't.
-    const paid = await markOrderPaid(order, tranId);
+    const paid = await markOrderPaid(order, tranId, meta);
     return {
       changed: !!paid,
       paymentStatus: 'Paid',
+      cardType: settled?.card_type,
       reason: paid
-        ? 'Gateway confirmed this payment. Order marked paid.'
+        ? `Gateway confirmed this payment via ${settled?.card_type || 'Online'}. Order marked paid.`
         : 'Gateway confirmed this payment; it was already settled.',
     };
   }
@@ -340,7 +425,17 @@ const getPaymentStatusService = async (orderId: string, actor: { _id: string; ro
   if (actor.role !== 'admin' && order.user.id !== actor._id) {
     const e: any = new Error('Not allowed'); e.status = 403; throw e;
   }
-  return { orderId: String(order._id), paymentStatus: order.paymentStatus, paymentMethod: order.paymentMethod, transactionId: order.transactionId };
+  return {
+    orderId: String(order._id),
+    paymentStatus: order.paymentStatus,
+    paymentMethod: order.paymentMethod,
+    transactionId: order.transactionId,
+    cardType: order.cardType,
+    cardBrand: order.cardBrand,
+    cardIssuer: order.cardIssuer,
+    bankTranId: order.bankTranId,
+    valId: order.valId,
+  };
 };
 
 export const PaymentService = {
