@@ -120,6 +120,7 @@ export interface IOrder {
   // Snapshotted once, when the order is marked Delivered, so a later change to
   // the commission rule or the delivery charge can never rewrite history.
   deliveredAt?: Date | null; // when the rider actually handed the food over
+  riderAssignedAt?: Date | null; // when the rider was assigned to this delivery
   riderEmploymentType?: 'permanent' | 'freelance'; // snapshot of rider type at delivery/assignment
   riderCommissionRate?: number; // snapshot of commission % if freelance
   riderCommission?: number; // what the rider earns on this delivery

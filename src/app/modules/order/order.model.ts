@@ -103,6 +103,7 @@ const orderSchema = new Schema<IOrder>(
 
     // ── Rider cash settlement (snapshotted at Delivered — see order.service) ──
     deliveredAt: { type: Date, default: null },
+    riderAssignedAt: { type: Date, default: null },
     riderEmploymentType: { type: String, enum: ['permanent', 'freelance'], default: null },
     riderCommissionRate: { type: Number, default: 0 },
     riderCommission: { type: Number, default: 0 },

@@ -891,6 +891,7 @@ const assignRiderToOrderService = async (orderId: string, riderId: string) => {
     order.riderId = null;
     order.riderName = null;
     order.riderPhone = null;
+    order.riderAssignedAt = null;
     order.riderAcceptStatus = "rejected";
     sysMsg(order, "Rider unassigned by Admin. Waiting for new rider assignment.");
     await order.save();
@@ -921,6 +922,7 @@ const assignRiderToOrderService = async (orderId: string, riderId: string) => {
   order.riderEmploymentType = rider.employmentType || "permanent";
   order.riderCommissionRate = rider.employmentType === "freelance" ? (rider.commissionRate || 15) : 0;
   order.riderAcceptStatus = "pending";
+  order.riderAssignedAt = new Date();
   sysMsg(
     order,
     `Rider ${rider.name} has been assigned to this delivery. Waiting for acceptance...`,
@@ -949,6 +951,9 @@ const acceptRiderOrderService = async (orderId: string, actorId: string) => {
 
   order.riderAcceptStatus = "accepted";
   order.status = "Preparing";
+  if (!order.riderAssignedAt) {
+    order.riderAssignedAt = new Date();
+  }
   
   sysMsg(
     order,
@@ -998,6 +1003,7 @@ const rejectRiderOrderService = async (orderId: string, actorId: string) => {
     order.riderName = next.name;
     order.riderPhone = next.phone || "";
     order.riderAcceptStatus = "pending";
+    order.riderAssignedAt = new Date();
     sysMsg(
       order,
       `${oldName} rejected the delivery. Auto-assigned next available rider: ${next.name}. Waiting for acceptance...`,
@@ -1007,6 +1013,7 @@ const rejectRiderOrderService = async (orderId: string, actorId: string) => {
     order.riderName = null;
     order.riderPhone = null;
     order.riderAcceptStatus = null;
+    order.riderAssignedAt = null;
     sysMsg(
       order,
       `${oldName} rejected the delivery. No other available riders — needs manual re-assignment.`,
