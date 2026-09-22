@@ -27,5 +27,8 @@ export const updateSettingsValidationSchema = z.object({
     // 📢 Global Maintenance / Announcement Ticker Notice
     maintenanceNoticeEnabled: z.boolean().optional(),
     maintenanceNoticeText: z.string().optional(),
+
+    // 🎁 Loyalty Rewards Settings
+    loyaltyRedemptionEnabled: z.boolean().optional(),
   }),
 });

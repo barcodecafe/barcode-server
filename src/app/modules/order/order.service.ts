@@ -390,19 +390,22 @@ const createOrderService = async (userId: string, payload: CreatePayload) => {
     couponCode = coupon.code;
   }
 
+  // 🚚 Evaluate Settings (Free Delivery Campaign & Loyalty Redemption)
+  const siteSettings = await Settings.findOne({}).lean();
+
   let pointsRedeemed = 0;
+  const isRedemptionEnabled = Boolean(siteSettings?.loyaltyRedemptionEnabled);
   const requestedPts = Math.max(
     0,
     Math.floor(Number(payload.pointsToRedeem) || 0),
   );
-  if (requestedPts > 0) {
+  if (isRedemptionEnabled && requestedPts > 0) {
     const available = Math.max(0, Math.floor(Number(user.points) || 0));
     const maxByBill = Math.max(0, Math.floor(subtotal - discount));
     pointsRedeemed = Math.min(requestedPts, available, maxByBill);
   }
 
   // 🚚 Evaluate Free Delivery Campaign (Mandatory Min Order + Scope Check)
-  const siteSettings = await Settings.findOne({}).lean();
   let isFreeDelivery = false;
 
   if (siteSettings?.freeDeliveryEnabled) {

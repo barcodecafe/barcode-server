@@ -28,6 +28,9 @@ export interface ISettings {
   // 📢 Global Maintenance / Announcement Ticker Notice
   maintenanceNoticeEnabled: boolean;
   maintenanceNoticeText: string;
+
+  // 🎁 Loyalty Rewards Settings
+  loyaltyRedemptionEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: ISettings = {
@@ -59,6 +62,9 @@ export const DEFAULT_SETTINGS: ISettings = {
   maintenanceNoticeEnabled: true,
   maintenanceNoticeText:
     '⚠️ Notice: Our displayed products are not for sale (uploaded strictly for experimental purposes). Also, we are updating our server system right now, so some features might be slower than usual!',
+
+  // 🎁 Loyalty Rewards Settings Defaults
+  loyaltyRedemptionEnabled: false,
 };
 
 const settingsSchema = new Schema<ISettings>(
@@ -102,6 +108,9 @@ const settingsSchema = new Schema<ISettings>(
       type: String,
       default: DEFAULT_SETTINGS.maintenanceNoticeText,
     },
+
+    // 🎁 Loyalty Rewards Settings
+    loyaltyRedemptionEnabled: { type: Boolean, default: false },
   },
   {
     timestamps: true,
