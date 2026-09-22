@@ -30,8 +30,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 COPY ecosystem.config.js ./
 
-# Expose server port
-EXPOSE 5001
+# Expose server ports (80, 5000, 5001)
+EXPOSE 80 5000 5001
 
 # Run with PM2 in cluster mode
 CMD ["npm", "run", "start:cluster"]
