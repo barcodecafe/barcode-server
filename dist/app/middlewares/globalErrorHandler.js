@@ -1,0 +1,65 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const zod_1 = require("zod");
+const sentry_1 = require("../utils/sentry");
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function globalErrorHandler(err, req, res, next) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    (0, sentry_1.captureServerException)(err, {
+        path: req.path,
+        method: req.method,
+        user: req.user,
+    });
+    const response = {
+        success: false,
+        message: 'Internal Server Error',
+    };
+    // Zod validation errors
+    if (err instanceof zod_1.ZodError) {
+        response.message = 'Validation error';
+        response.errors = err.errors.map((e) => ({
+            field: e.path.filter((p) => p !== 'body').join('.'),
+            message: e.message,
+        }));
+        return res.status(400).json(response);
+    }
+    // Mongoose validation errors
+    if (err && err.name === 'ValidationError' && err.errors) {
+        response.message = 'Validation error';
+        response.errors = Object.values(err.errors).map((e) => ({
+            field: e.path,
+            message: e.message,
+        }));
+        return res.status(400).json(response);
+    }
+    // Multer upload errors (file size limit, unexpected field, etc.)
+    if (err && err.name === 'MulterError') {
+        response.message = err.message || 'File upload error';
+        return res.status(400).json(response);
+    }
+    // Mongoose cast error (e.g., invalid ObjectId)
+    if (err && err.name === 'CastError') {
+        response.message = 'Invalid parameter';
+        response.errors = [{ field: err.path || 'id', message: err.message }];
+        return res.status(400).json(response);
+    }
+    // Duplicate key error (MongoDB)
+    if (err && (err.code === 11000 || err.code === 11001)) {
+        response.message = 'Duplicate key error';
+        response.errors = Object.keys(err.keyValue || {}).map((k) => ({
+            field: k,
+            message: `${k} already exists`,
+        }));
+        return res.status(409).json(response);
+    }
+    // Generic / errors thrown with a status
+    const status = (err === null || err === void 0 ? void 0 : err.status) || (err === null || err === void 0 ? void 0 : err.statusCode) || 500;
+    response.message = (err === null || err === void 0 ? void 0 : err.message) || response.message;
+    if (err === null || err === void 0 ? void 0 : err.errors)
+        response.errors = err.errors;
+    if (process.env.NODE_ENV === 'development')
+        response.stack = err === null || err === void 0 ? void 0 : err.stack;
+    return res.status(status).json(response);
+}
+exports.default = globalErrorHandler;

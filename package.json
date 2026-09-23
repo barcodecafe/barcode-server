@@ -1,20 +1,20 @@
 {
   "name": "barcode-server",
   "version": "1.0.0",
-  "description": "Barcode Restaurant — backend API (Express + Mongoose + TypeScript)",
+  "description": "Barcode Restaurant \u2014 backend API (Express + Mongoose + TypeScript)",
   "main": "dist/server.js",
   "scripts": {
-    "start": "node ./dist/server.js",
-    "start:prod": "node ./dist/server.js",
-    "start:dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "start": "node init && node ./dist/server.js",
+    "start:prod": "node init && node ./dist/server.js",
+    "start:dev": "node init && ts-node-dev --respawn --transpile-only src/server.ts",
     "test": "ts-node src/tests/runTests.ts",
-    "build": "tsc",
+    "build": "node init && tsc",
     "lint": "eslint src --ext .ts",
     "prettier": "prettier --write \"./src/**/*.+(js|ts|json)\"",
     "seed:admin": "ts-node src/scripts/seedAdmin.ts",
     "seed:data": "ts-node src/scripts/seedData.ts",
     "migrate:images": "ts-node src/scripts/migrateImagesToCloudinary.ts",
-    "start:cluster": "pm2-runtime start ecosystem.config.js"
+    "start:cluster": "node init && pm2-runtime start ecosystem.config.js"
   },
   "keywords": [],
   "author": "",
