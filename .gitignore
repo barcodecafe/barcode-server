@@ -1,8 +1,7 @@
 # Dependencies
 node_modules
 
-# Build output
-dist
+# Build output (dist is committed — VPS cannot run tsc due to Cloudflare block)
 
 # Env — NEVER commit real secrets
 .env
