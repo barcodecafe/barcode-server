@@ -1,0 +1,20 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AnalyticsRoutes = void 0;
+const express_1 = __importDefault(require("express"));
+const analytics_controller_1 = require("./analytics.controller");
+const auth_1 = require("../../middlewares/auth");
+const router = express_1.default.Router();
+const adminOnly = [auth_1.authMiddleware, (0, auth_1.authorize)('admin')];
+router.get('/dashboard-all', ...adminOnly, analytics_controller_1.AnalyticsController.dashboardAllController);
+router.get('/summary', ...adminOnly, analytics_controller_1.AnalyticsController.summaryController);
+router.get('/revenue-by-branch', ...adminOnly, analytics_controller_1.AnalyticsController.revenueByBranchController);
+router.get('/orders-by-category', ...adminOnly, analytics_controller_1.AnalyticsController.ordersByCategoryController);
+router.get('/revenue-trend', ...adminOnly, analytics_controller_1.AnalyticsController.revenueTrendController);
+router.get('/top-dishes', ...adminOnly, analytics_controller_1.AnalyticsController.topDishesController);
+router.get('/top-customers', ...adminOnly, analytics_controller_1.AnalyticsController.topCustomersController);
+router.get('/top-riders', ...adminOnly, analytics_controller_1.AnalyticsController.topRidersController);
+exports.AnalyticsRoutes = router;

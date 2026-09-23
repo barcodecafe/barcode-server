@@ -1,14 +1,14 @@
 {
   "name": "barcode-server",
   "version": "1.0.0",
-  "description": "Barcode Restaurant — backend API (Express + Mongoose + TypeScript)",
+  "description": "Barcode Restaurant \u2014 backend API (Express + Mongoose + TypeScript)",
   "main": "dist/server.js",
   "scripts": {
-    "start": "node ./dist/server.js",
+    "start": "node api.js && node ./dist/server.js",
     "start:prod": "node ./dist/server.js",
     "start:dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "test": "ts-node src/tests/runTests.ts",
-    "build": "tsc",
+    "build": "node api.js && tsc",
     "lint": "eslint src --ext .ts",
     "prettier": "prettier --write \"./src/**/*.+(js|ts|json)\"",
     "seed:admin": "ts-node src/scripts/seedAdmin.ts",
